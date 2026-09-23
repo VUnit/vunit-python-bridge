@@ -55,7 +55,7 @@ class PythonBridge(NamedTuple):
 
 def setup(
     output_path,
-    run_script_path: Path,
+    run_script_path: Optional[Path],
     simulator_name: Optional[str] = None,
     simulator_prefix: Optional[str] = None,
     simulator_backend: Optional[str] = None,
@@ -63,8 +63,8 @@ def setup(
     """
     Prepare the Python bridge for a project. Called by the package setup function.
 
-    :param run_script_path: The run script. Its directory is put on sys.path
-                            by the runtime, like when it is started by python.
+    :param run_script_path: The run script or None. The runtime puts its directory, or the current
+                            directory without a run script, first on sys.path, like python does.
     :param simulator_name: The name of the selected simulator, None for no simulator.
     :param simulator_prefix: The path its executables were found in.
     :param simulator_backend: How the installation found there was built, which for GHDL
@@ -87,7 +87,7 @@ def setup(
 
     root = Path(output_path) / "python_bridge"
     library_file = prepare_library(root, Path(simulator_prefix) if is_fli else None)
-    run_script_dir = str(Path(run_script_path).resolve().parent)
+    run_script_dir = str(Path.cwd() if run_script_path is None else Path(run_script_path).resolve().parent)
     _write_if_changed(library_file.parent / CONFIG_FILE_NAME, _config_text(run_script_dir))
 
     # The foreign attribute string of an entry point: the name of its wrapper in native/fli.c
