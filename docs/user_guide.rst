@@ -65,7 +65,9 @@ Requirements
   when the package includes the prebuilt DLLs. Otherwise, and always for
   Questa and Riviera-PRO/Active-HDL, a MinGW-w64 ``gcc`` is needed: ``CC``, the
   one bundled with the simulator if there is one, or ``gcc`` on ``PATH``.
-  MSYS2/MinGW Pythons are not supported.
+  MSYS2/MinGW Pythons are not supported. The simulator must be a 64-bit (x64)
+  build too, since the Python DLL is loaded into its process; the package
+  rejects 32-bit and ARM64 simulators and Pythons.
 
 The simulator runs Python in the same environment as VUnit itself, including
 an active virtual environment and its installed packages.

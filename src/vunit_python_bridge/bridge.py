@@ -19,6 +19,7 @@ from .native_library import (
     PACKAGE_PATH,
     PythonBridgeError,
     check_python_build,
+    check_windows_64bit_simulator,
     prepare_library,
     windows_python_dll,
 )
@@ -78,6 +79,7 @@ def setup(
         )
 
     check_python_build()
+    check_windows_64bit_simulator(simulator_name, simulator_prefix)
 
     is_fli = simulator_name in FLI_SIMULATORS
     if is_fli and simulator_prefix is None:

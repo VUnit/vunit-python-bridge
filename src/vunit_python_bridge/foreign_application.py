@@ -18,7 +18,13 @@ import os
 import sys
 import hashlib
 
-from .native_library import add_python_dll_to_path, compile_library, python_dev_paths, windows_gcc
+from .native_library import (
+    add_python_dll_to_path,
+    check_windows_64bit_simulator,
+    compile_library,
+    python_dev_paths,
+    windows_gcc,
+)
 
 SRC_PATH = Path(__file__).parent.resolve() / "native" / "vhpi"
 
@@ -34,6 +40,7 @@ def setup_vhpi_application(output_path, simulator_name, simulator_prefix):
     if simulator_prefix is None:
         raise RuntimeError(f"The VHPI application is built with the ccomp of {simulator_name}, but it was not found")
 
+    check_windows_64bit_simulator(simulator_name, simulator_prefix)
     target = Path(output_path) / simulator_name / "libraries" / "python.dll"
     sources = [SRC_PATH / "python_pkg_vhpi.c", SRC_PATH / "python_pkg.c"]
     simulator_prefix = Path(simulator_prefix).resolve()
