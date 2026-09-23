@@ -108,6 +108,9 @@ jobs:
     - name: '🚧 Feature tests'
       run: python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
 
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
+
 #
 # Windows, prebuilt MSVC DLLs, and a gcc build without them
 #
@@ -192,6 +195,9 @@ jobs:
         if [ '${{ matrix.bridge }}' = gcc ]; then
           find "$RUNNER_TEMP/out dir" -path '*-win_amd64-gcc-*' -name vunit_python_bridge.dll | grep .
         fi
+
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
 
 #
 # Packaging: one py3-none-any wheel with the sources and the DLLs, no other binary
