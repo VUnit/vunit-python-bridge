@@ -46,10 +46,10 @@ include = ["vunit_python_bridge"]
 # vunit_python_bridge/ package directory.
 vunit_python_bridge = [
   "vunit_pkg.toml",
-  "vhdl/src/*.vhd",
-  "vhdl/src/*.vhd.in",
-  "vhdl/tools/*.vhd.in",
-  "vhdl/tools/*.py",
+  "hdl/src/*.vhd",
+  "hdl/src/*.vhd.in",
+  "hdl/tools/*.vhd.in",
+  "hdl/tools/*.py",
   "native/*.c",
   "native/*.h",
   "native/vhpi/*.c",

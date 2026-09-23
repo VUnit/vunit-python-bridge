@@ -227,8 +227,8 @@ jobs:
       run: |
         tar tzf dist/*.tar.gz > content.txt
         unzip -l dist/*.whl | awk '{print $4}' >> content.txt
-        for file in vunit_pkg.toml runtime.py native/bridge.h vhdl/src/python_bridge_pkg.vhd.in \
-                    vhdl/src/python_pkg.vhd native/vhpi/python_pkg_vhpi.c vhdl/src/python_context.vhd \
+        for file in vunit_pkg.toml runtime.py native/bridge.h hdl/src/python_bridge_pkg.vhd.in \
+                    hdl/src/python_pkg.vhd native/vhpi/python_pkg_vhpi.c hdl/src/python_context.vhd \
                     foreign_application.py simulator_hooks.py; do
           grep -q "vunit_python_bridge/$file\$" content.txt || { echo "missing $file"; exit 1; }
         done

@@ -14,4 +14,4 @@ setup = "vunit_python_bridge:setup"
 # The foreign language interface implementing python_ffi_pkg is selected by the
 # setup function since the choice depends on the simulator.
 [[package.sources]]
-include = ["vhdl/src/python_context.vhd", "vhdl/src/python_pkg.vhd"]
+include = ["hdl/src/python_context.vhd", "hdl/src/python_pkg.vhd"]

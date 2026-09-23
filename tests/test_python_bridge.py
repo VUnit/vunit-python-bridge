@@ -142,7 +142,7 @@ class TestManifest(unittest.TestCase):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         self.assertEqual(
             sorted(includes),
-            ["vhdl/src/python_context.vhd", "vhdl/src/python_pkg.vhd"],
+            ["hdl/src/python_context.vhd", "hdl/src/python_pkg.vhd"],
         )
         for include in includes:
             self.assertTrue((PACKAGE_ROOT / include).is_file(), include)
@@ -150,7 +150,7 @@ class TestManifest(unittest.TestCase):
     def test_the_simulator_dependent_vhdl_is_not_listed(self):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         for name in ("python_pkg_vhpi.vhd", "python_ffi_pkg_bridge.vhd"):
-            self.assertNotIn(f"vhdl/src/{name}", includes)
+            self.assertNotIn(f"hdl/src/{name}", includes)
 
 
 class TestForeignLanguageInterfaces(unittest.TestCase):

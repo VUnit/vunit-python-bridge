@@ -25,7 +25,7 @@ from .native_library import (
 )
 
 RUNTIME_SOURCE = PACKAGE_PATH / "runtime.py"
-VHDL_SOURCE_PATH = PACKAGE_PATH / "vhdl" / "src"
+VHDL_SOURCE_PATH = PACKAGE_PATH / "hdl" / "src"
 BRIDGE_PACKAGE_TEMPLATE = VHDL_SOURCE_PATH / "python_bridge_pkg.vhd.in"
 CONFIG_FILE_NAME = "vunit_python_bridge.cfg"
 

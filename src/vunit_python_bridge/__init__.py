@@ -29,7 +29,7 @@ Modules:
 
 from pathlib import Path
 
-VHDL_PATH = Path(__file__).parent.resolve() / "vhdl" / "src"
+VHDL_PATH = Path(__file__).parent.resolve() / "hdl" / "src"
 
 # The foreign language interface implementing the package for a simulator. VUnit says which
 # simulator was selected, the package says how it is served: NVC and GHDL both go through

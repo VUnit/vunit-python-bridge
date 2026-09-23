@@ -18,7 +18,7 @@ use std.textio.all;
 
 ------------------------------------------------------------------------------
 -- This file is generated from tools/python_pkg.vhd.in by
--- src/vunit_python_bridge/vhdl/tools/generate_python_pkg.py. Do not edit.
+-- src/vunit_python_bridge/hdl/tools/generate_python_pkg.py. Do not edit.
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
@@ -81,7 +81,18 @@ package python_pkg is
   -- An integer_array_t value is transferred to Python by the Python bridge,
   -- which is only available for NVC, GHDL and Questa, and is referred to by
   -- the expression, which means that it can be used in several calls.
-$arg_declarations
+  function arg(value : real_vector) return arg_t;
+  function kwarg(kw : string; value : real_vector) return arg_t;
+  impure function arg(value : integer_vector_ptr_t) return arg_t;
+  impure function kwarg(kw : string; value : integer_vector_ptr_t) return arg_t;
+  impure function arg(value : std_ulogic) return arg_t;
+  impure function kwarg(kw : string; value : std_ulogic) return arg_t;
+  impure function arg_unsigned(value : unsigned) return arg_t;
+  impure function kwarg_unsigned(kw : string; value : unsigned) return arg_t;
+  impure function arg_signed(value : signed) return arg_t;
+  impure function kwarg_signed(kw : string; value : signed) return arg_t;
+  impure function arg(value : integer_array_t) return arg_t;
+  impure function kwarg(kw : string; value : integer_array_t) return arg_t;
 
   -- The Python expression calling identifier with the given arguments, for
   -- example to embed a call in a larger exec or eval string:
@@ -158,12 +169,99 @@ $arg_declarations
   -- check_equal(eval("17"), 17) and length(eval("[1, 2]")) unambiguous.
   -- signed and unsigned results are only available in the procedure form
   -- since a function cannot know the width of the result.
-$eval_declarations
+  impure function eval_boolean(
+    expr : string; session : python_session_t := default_session
+  ) return boolean;
+  alias eval is eval_boolean[string, python_session_t return boolean];
+
+  impure function eval_std_ulogic(
+    expr : string; session : python_session_t := default_session
+  ) return std_ulogic;
+  alias eval is eval_std_ulogic[string, python_session_t return std_ulogic];
+
+  impure function eval_std_ulogic_vector(
+    expr : string; session : python_session_t := default_session
+  ) return std_ulogic_vector;
+
+  impure function eval_integer_array(
+    expr : string; session : python_session_t := default_session
+  ) return integer_array_t;
+
+  procedure eval_std_ulogic_vector(
+    expr : string; result : out std_ulogic_vector; session : python_session_t := default_session
+  );
+  procedure eval_signed(
+    expr : string; result : out signed; session : python_session_t := default_session
+  );
+  procedure eval_unsigned(
+    expr : string; result : out unsigned; session : python_session_t := default_session
+  );
 
   -----------------------------------------------------------------------------
   -- Results of call: string, boolean, std_ulogic, vectors and arrays
   -----------------------------------------------------------------------------
-$call_declarations
+  impure function call_real_vector(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return real_vector;
+  alias call is call_real_vector[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return real_vector];
+
+  impure function call_string(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return string;
+  alias call is call_string[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return string];
+
+  impure function call_integer_vector_ptr(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return integer_vector_ptr_t;
+  alias call is call_integer_vector_ptr[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer_vector_ptr_t];
+
+  impure function call_boolean(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return boolean;
+  alias call is call_boolean[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return boolean];
+
+  impure function call_std_ulogic(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic;
+  alias call is call_std_ulogic[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return std_ulogic];
+
+  impure function call_std_ulogic_vector(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic_vector;
+
+  impure function call_integer_array(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return integer_array_t;
+  alias call is call_integer_array[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer_array_t];
+
+  procedure call_std_ulogic_vector(
+    identifier : string; result : out std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  );
+  procedure call_signed(
+    identifier : string; result : out signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  );
+  procedure call_unsigned(
+    identifier : string; result : out unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  );
 
   -----------------------------------------------------------------------------
   -- Execution of Python files
@@ -503,7 +601,65 @@ package body python_pkg is
     return "__vunit__.staged(" & integer'image(staged_id) & ")";
   end;
 
-$arg_functions
+  function arg(value : real_vector) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value));
+  end;
+
+  function kwarg(kw : string; value : real_vector) return arg_t is
+  begin
+    return (kw, p_arg_value(value));
+  end;
+
+  impure function arg(value : integer_vector_ptr_t) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value));
+  end;
+
+  impure function kwarg(kw : string; value : integer_vector_ptr_t) return arg_t is
+  begin
+    return (kw, p_arg_value(value));
+  end;
+
+  impure function arg(value : std_ulogic) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value, "arg"));
+  end;
+
+  impure function kwarg(kw : string; value : std_ulogic) return arg_t is
+  begin
+    return (kw, p_arg_value(value, "kwarg"));
+  end;
+
+  impure function arg_unsigned(value : unsigned) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value, "arg_unsigned"));
+  end;
+
+  impure function kwarg_unsigned(kw : string; value : unsigned) return arg_t is
+  begin
+    return (kw, p_arg_value(value, "kwarg_unsigned"));
+  end;
+
+  impure function arg_signed(value : signed) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value, "arg_signed"));
+  end;
+
+  impure function kwarg_signed(kw : string; value : signed) return arg_t is
+  begin
+    return (kw, p_arg_value(value, "kwarg_signed"));
+  end;
+
+  impure function arg(value : integer_array_t) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value, "arg"));
+  end;
+
+  impure function kwarg(kw : string; value : integer_array_t) return arg_t is
+  begin
+    return (kw, p_arg_value(value, "kwarg"));
+  end;
 
   -----------------------------------------------------------------------------
   -- Argument groups
@@ -756,10 +912,176 @@ $arg_functions
   -----------------------------------------------------------------------------
   -- eval
   -----------------------------------------------------------------------------
-$eval_subprograms
+  impure function eval_boolean(
+    expr : string; session : python_session_t := default_session
+  ) return boolean is
+  begin
+    if p_eval(expr, p_kind_boolean, -1, p_eval_operation(expr, session), session) then
+      return p_result_integer /= 0;
+    end if;
+    return false;
+  end;
+
+  impure function eval_std_ulogic(
+    expr : string; session : python_session_t := default_session
+  ) return std_ulogic is
+  begin
+    if p_eval(expr, p_kind_std_ulogic, -1, p_eval_operation(expr, session), session) then
+      return p_to_std_ulogic(p_result_string(1));
+    end if;
+    return 'U';
+  end;
+
+  impure function eval_std_ulogic_vector(
+    expr : string; session : python_session_t := default_session
+  ) return std_ulogic_vector is
+  begin
+    if p_eval(expr, p_kind_std_ulogic_vector, -1, p_eval_operation(expr, session), session) then
+      return p_to_std_ulogic_vector(p_result_string);
+    end if;
+    return "";
+  end;
+
+  impure function eval_integer_array(
+    expr : string; session : python_session_t := default_session
+  ) return integer_array_t is
+  begin
+    if p_eval(expr, p_kind_integer_array, -1, p_eval_operation(expr, session), session) then
+      return p_result_integer_array;
+    end if;
+    return null_integer_array;
+  end;
+
+  procedure eval_std_ulogic_vector(
+    expr : string; result : out std_ulogic_vector; session : python_session_t := default_session
+  ) is
+  begin
+    if p_eval(expr, p_kind_std_ulogic_vector, result'length, p_eval_operation(expr, session), session) then
+      result := p_to_std_ulogic_vector(p_result_string);
+    end if;
+  end;
+
+  procedure eval_signed(
+    expr : string; result : out signed; session : python_session_t := default_session
+  ) is
+  begin
+    if p_eval(expr, p_kind_signed, result'length, p_eval_operation(expr, session), session) then
+      result := signed(p_to_std_ulogic_vector(p_result_string));
+    end if;
+  end;
+
+  procedure eval_unsigned(
+    expr : string; result : out unsigned; session : python_session_t := default_session
+  ) is
+  begin
+    if p_eval(expr, p_kind_unsigned, result'length, p_eval_operation(expr, session), session) then
+      result := unsigned(p_to_std_ulogic_vector(p_result_string));
+    end if;
+  end;
 
   -----------------------------------------------------------------------------
   -- call
   -----------------------------------------------------------------------------
-$call_subprograms
+  impure function call_real_vector(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return real_vector is
+  begin
+    return eval_real_vector(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_string(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return string is
+  begin
+    return eval_string(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_integer_vector_ptr(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return integer_vector_ptr_t is
+  begin
+    return eval_integer_vector_ptr(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_boolean(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return boolean is
+  begin
+    return eval_boolean(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_std_ulogic(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic is
+  begin
+    return eval_std_ulogic(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_std_ulogic_vector(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic_vector is
+  begin
+    return eval_std_ulogic_vector(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_integer_array(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return integer_array_t is
+  begin
+    return eval_integer_array(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  procedure call_std_ulogic_vector(
+    identifier : string; result : out std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) is
+  begin
+    eval_std_ulogic_vector(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), result, session
+    );
+  end;
+
+  procedure call_signed(
+    identifier : string; result : out signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) is
+  begin
+    eval_signed(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), result, session
+    );
+  end;
+
+  procedure call_unsigned(
+    identifier : string; result : out unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) is
+  begin
+    eval_unsigned(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), result, session
+    );
+  end;
 end package body;
