@@ -1,8 +1,9 @@
 name: 'python bridge'
 
 # Tests of the vunit-python-bridge package on CPython from python.org: Linux
-# and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs), the
-# Python unit tests, and the content of the distribution.
+# and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs, and
+# a gcc build without them), the Python unit tests, and the content of the
+# distribution.
 #
 # VUnit is installed from the branch carrying the package support (PR #1221)
 # until it is part of a VUnit release.
@@ -108,7 +109,7 @@ jobs:
       run: python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
 
 #
-# Windows, prebuilt MSVC DLLs
+# Windows, prebuilt MSVC DLLs, and a gcc build without them
 #
 
   dlls:
@@ -122,7 +123,12 @@ jobs:
       matrix:
         py: ['3.10', '3.12', '3.14']
         sim: [nvc, ghdl]
-    name: '🟦 Windows · Python ${{ matrix.py }} · ${{ matrix.sim }}'
+        bridge: [dll]
+        # No prebuilt DLLs: the library is built with the MinGW gcc of the runner image, the
+        # build Questa/ModelSim always uses on Windows, which has no runner
+        include:
+          - {py: '3.13', sim: nvc, bridge: gcc}
+    name: '🟦 Windows · Python ${{ matrix.py }} · ${{ matrix.sim }} · ${{ matrix.bridge }}'
     env:
       VUNIT_SIMULATOR: ${{ matrix.sim }}
     steps:
@@ -131,10 +137,15 @@ jobs:
       uses: actions/checkout@v4
 
     - name: '📥 Download bridge DLLs'
+      if: matrix.bridge == 'dll'
       uses: actions/download-artifact@v4
       with:
         name: python-bridge-dlls
         path: src/vunit_python_bridge/bin
+
+    - name: '⚙️ Put MinGW gcc on PATH'
+      if: matrix.bridge == 'gcc'
+      run: echo "C:/mingw64/bin" >> "$GITHUB_PATH"
 
     - name: '🐍 Setup Python'
       uses: actions/setup-python@v6
@@ -165,11 +176,22 @@ jobs:
         "$RUNNER_TEMP/venv with space/Scripts/pip" install "vunit_hdl @ git+https://github.com/ru551n/vunit.git@feature/package-setup-hooks" --progress-bar off
         "$RUNNER_TEMP/venv with space/Scripts/pip" install -e . --progress-bar off
 
-    # No compiler on PATH: the prebuilt DLLs must be used
+    # The simulator is accepted as x64, and a 32-bit executable of Windows itself is detected
+    - name: '🔍 64-bit check'
+      run: |
+        python -c "import shutil; from vunit_python_bridge.native_library import pe_machine; \
+          assert pe_machine(shutil.which('${{ matrix.sim }}')) == 0x8664; \
+          assert pe_machine(r'C:\Windows\SysWOW64\cmd.exe') == 0x14C"
+
+    # dll: no MSVC on PATH, the prebuilt DLLs must be used. gcc: the library must be built with gcc.
     - name: '🚧 Feature tests'
       run: |
         ! command -v cl
+        if [ '${{ matrix.bridge }}' = gcc ]; then command -v gcc; fi
         python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
+        if [ '${{ matrix.bridge }}' = gcc ]; then
+          find "$RUNNER_TEMP/out dir" -path '*-win_amd64-gcc-*' -name vunit_python_bridge.dll | grep .
+        fi
 
 #
 # Packaging, sources and DLLs included, no Linux binaries
