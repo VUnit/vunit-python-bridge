@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "vunit-python-bridge"
 version = "0.1.0"
 description = "A VUnit package making Python callable from VHDL."
-urls = {homepage = "https://github.com/ru551n/vunit-python-bridge"}
+urls = {homepage = "https://github.com/VUnit/vunit-python-bridge"}
 readme = "README.md"
 license = "MPL-2.0"
 license-files = ["LICENSE"]

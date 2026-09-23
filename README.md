@@ -115,7 +115,7 @@ publish and leaves the distribution as an artifact of the run, which is how a re
 
 Publishing uses a [PyPI trusted publisher](https://docs.pypi.org/trusted-publishers/), so there is
 no API token in the repository. It has to be set up once on PyPI, for project
-`vunit-python-bridge`: owner `ru551n`, repository `vunit-python-bridge`, workflow `release.yml`,
+`vunit-python-bridge`: owner `VUnit`, repository `vunit-python-bridge`, workflow `release.yml`,
 environment `pypi`.
 
 ## License

@@ -618,7 +618,7 @@ Other simulators
 
 Riviera-PRO/Active-HDL (VHPI) implement ``python_ffi_pkg`` with a VHPI
 application, built from the C sources in `src/vunit_python_bridge/native/vhpi
-<https://github.com/ru551n/vunit-python-bridge/tree/main/src/vunit_python_bridge/native/vhpi>`__
+<https://github.com/VUnit/vunit-python-bridge/tree/main/src/vunit_python_bridge/native/vhpi>`__
 with their ``ccomp`` driver. On Windows, ``ccomp`` is given the directory of
 the gcc bundled with the simulator (``<installation>/mingw``) or, when there is
 none, of ``gcc`` on ``PATH``. The package builds the application under the
@@ -657,10 +657,10 @@ How it works (NVC, GHDL and Questa)
 
 For NVC, GHDL and Questa, the interpreter is embedded in the simulator process
 by a small C library, the VUnit Python bridge (`src/vunit_python_bridge/native
-<https://github.com/ru551n/vunit-python-bridge/tree/main/src/vunit_python_bridge/native>`__).
+<https://github.com/VUnit/vunit-python-bridge/tree/main/src/vunit_python_bridge/native>`__).
 NVC and GHDL call it through VHPIDIRECT; Questa/ModelSim calls it through the
 FLI, using the front end in `native/fli.c
-<https://github.com/ru551n/vunit-python-bridge/blob/main/src/vunit_python_bridge/native/fli.c>`__
+<https://github.com/VUnit/vunit-python-bridge/blob/main/src/vunit_python_bridge/native/fli.c>`__
 that converts the FLI parameters of one foreign subprogram per entry point. The generated VHDL
 and everything above it is the same for all three. The interpreter is started
 on first use, is never restarted within a simulation, and uses no signal
