@@ -49,8 +49,8 @@ jobs:
         echo "version=$(python tools/release.py version)" >> "$GITHUB_OUTPUT"
 
 #
-# The distribution: the prebuilt Windows DLLs, then the sdist and the one wheel,
-# py3-none-any, that carries them to every platform
+# The distribution: the prebuilt Windows DLLs, then the one wheel, py3-none-any,
+# that carries them to every platform
 #
 
   dlls:
@@ -77,14 +77,14 @@ jobs:
       with:
         python-version: '3.13'
 
-    - name: '📦 Build sdist and wheel'
+    - name: '📦 Build the wheel'
       run: |
         pip install -U build --progress-bar off
-        python -m build
+        python -m build --wheel
 
-    # As in python_bridge.yml: the single wheel for every platform, and the sdist,
-    # with sources of every kind, the manifest, the five DLLs, no other binary, and
-    # the version that is being released.
+    # As in python_bridge.yml: the single wheel for every platform, with sources of
+    # every kind, the manifest, the five DLLs, no other binary, and the version that
+    # is being released.
     - name: '🔍 Check distribution content'
       run: |
         # One wheel for every platform: pure Python, tagged py3-none-any
@@ -92,19 +92,15 @@ jobs:
         test "${#wheels[@]}" = 1 || { echo "expected one wheel: ${wheels[*]}"; exit 1; }
         case "${wheels[0]}" in *-py3-none-any.whl) ;; *) echo "${wheels[0]} is not py3-none-any"; exit 1;; esac
         unzip -Z1 "${wheels[0]}" > wheel.txt
-        tar tzf dist/*.tar.gz | sed 's#^[^/]*/src/##' > sdist.txt
-        # Every C source and every HDL source, the manifest and the Python modules, in both
+        # Every C source and every HDL source, the manifest and the Python modules
         for file in $(git ls-files src/vunit_python_bridge | grep -E '/(native|hdl/src)/|\.py$|\.toml$' | sed 's#^src/##'); do
           grep -qx "$file" wheel.txt || { echo "missing $file in the wheel"; exit 1; }
-          grep -qx "$file" sdist.txt || { echo "missing $file in the sdist"; exit 1; }
         done
         # The five DLLs and no other binary
         dlls='^vunit_python_bridge/bin/vunit_python_bridge-cp31[0-4]-win_amd64\.dll$'
         test "$(grep -c "$dlls" wheel.txt)" = 5
         test "$(grep -c '\.dll$' wheel.txt)" = 5
-        test "$(grep -c "$dlls" sdist.txt)" = 5
-        if grep -qE '\.(so|dylib|pyd)$' wheel.txt sdist.txt; then echo "the distribution has a binary"; exit 1; fi
-        test -f "dist/vunit_python_bridge-${{ needs.version.outputs.version }}.tar.gz"
+        if grep -qE '\.(so|dylib|pyd)$' wheel.txt; then echo "the wheel has a binary"; exit 1; fi
         test -f "dist/vunit_python_bridge-${{ needs.version.outputs.version }}-py3-none-any.whl"
 
     - name: '📤 Upload the distribution'

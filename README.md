@@ -106,7 +106,7 @@ A release is made by tagging the commit that sets the version:
 4. Push the tag: `git push origin v0.2.0`.
 
 The [release workflow](.github/workflows/release.yml) then checks that the tag names the version in
-`pyproject.toml`, builds the Windows DLLs, the sdist and one wheel, runs the tests against the
+`pyproject.toml`, builds the Windows DLLs, and one wheel, runs the tests against the
 installed wheel with GHDL, publishes to PyPI and creates the GitHub release with the tag message as
 its body. The wheel is pure Python (`py3-none-any`) and carries the five Windows DLLs, so the same
 wheel installs on every platform: Windows uses the DLL of its Python, Linux and macOS compile the

@@ -217,13 +217,13 @@ jobs:
       with:
         python-version: '3.13'
 
-    - name: '📦 Build sdist and wheel'
+    - name: '📦 Build the wheel'
       run: |
         pip install -U build --progress-bar off
-        python -m build
+        python -m build --wheel
 
-    # The single wheel for every platform, and the sdist: sources of every kind, the
-    # manifest, the five DLLs, no other binary
+    # The single wheel for every platform: sources of every kind, the manifest, the five
+    # DLLs, no other binary
     - name: '🔍 Check distribution content'
       run: |
         # One wheel for every platform: pure Python, tagged py3-none-any
@@ -231,18 +231,15 @@ jobs:
         test "${#wheels[@]}" = 1 || { echo "expected one wheel: ${wheels[*]}"; exit 1; }
         case "${wheels[0]}" in *-py3-none-any.whl) ;; *) echo "${wheels[0]} is not py3-none-any"; exit 1;; esac
         unzip -Z1 "${wheels[0]}" > wheel.txt
-        tar tzf dist/*.tar.gz | sed 's#^[^/]*/src/##' > sdist.txt
-        # Every C source and every HDL source, the manifest and the Python modules, in both
+        # Every C source and every HDL source, the manifest and the Python modules
         for file in $(git ls-files src/vunit_python_bridge | grep -E '/(native|hdl/src)/|\.py$|\.toml$' | sed 's#^src/##'); do
           grep -qx "$file" wheel.txt || { echo "missing $file in the wheel"; exit 1; }
-          grep -qx "$file" sdist.txt || { echo "missing $file in the sdist"; exit 1; }
         done
         # The five DLLs and no other binary
         dlls='^vunit_python_bridge/bin/vunit_python_bridge-cp31[0-4]-win_amd64\.dll$'
         test "$(grep -c "$dlls" wheel.txt)" = 5
         test "$(grep -c '\.dll$' wheel.txt)" = 5
-        test "$(grep -c "$dlls" sdist.txt)" = 5
-        if grep -qE '\.(so|dylib|pyd)$' wheel.txt sdist.txt; then echo "the distribution has a binary"; exit 1; fi
+        if grep -qE '\.(so|dylib|pyd)$' wheel.txt; then echo "the wheel has a binary"; exit 1; fi
 
     - name: '📤 Upload the distribution'
       uses: actions/upload-artifact@v4
