@@ -17,12 +17,16 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import tomllib
 import unittest
 from contextlib import contextmanager
 from glob import glob
 from pathlib import Path
 from unittest import mock
+
+if sys.version_info >= (3, 11):
+    import tomllib
+else:
+    import tomli as tomllib  # A dependency of VUnit before Python 3.11
 
 import vunit_python_bridge
 from vunit_python_bridge import bridge as bridge_setup, foreign_application, native_library, simulator_hooks
