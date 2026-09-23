@@ -69,8 +69,8 @@ The simulator runs Python in the same environment as VUnit itself, including
 an active virtual environment and its installed packages.
 
 A missing prerequisite, for example a missing C compiler or missing Python
-headers, is reported when the package is added as an ``ERROR`` explaining what
-to install, after which VUnit exits with code 1.
+headers, is reported when the package is added: ``add_package`` raises an error
+explaining what to install.
 
 .. _python_bridge:setup_and_cleanup:
 

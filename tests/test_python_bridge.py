@@ -249,10 +249,9 @@ class TestPackageSetup(unittest.TestCase):
         with mock.patch(
             "vunit_python_bridge.foreign_application.setup_vhpi_application",
             side_effect=RuntimeError("no compiler"),
-        ), mock.patch("vunit_python_bridge.LOGGER") as logger:
-            with self.assertRaises(SystemExit):
+        ):
+            with self.assertRaisesRegex(RuntimeError, "no compiler"):
                 vunit_python_bridge.setup(context)
-        logger.error.assert_called_once_with("%s", mock.ANY)
 
     def _fake_bridge(self):
         return bridge_setup.PythonBridge(
@@ -320,10 +319,9 @@ class TestPackageSetup(unittest.TestCase):
         with mock.patch(
             "vunit_python_bridge.bridge.setup",
             side_effect=native_library.PythonBridgeError("no compiler"),
-        ), mock.patch("vunit_python_bridge.LOGGER") as logger:
-            with self.assertRaises(SystemExit):
+        ):
+            with self.assertRaisesRegex(native_library.PythonBridgeError, "no compiler"):
                 vunit_python_bridge.setup(context)
-        logger.error.assert_called_once_with("%s", mock.ANY)
 
     def test_importing_the_package_has_no_side_effects(self):
         # Re-importing must not create any files or directories or run any subprocess.

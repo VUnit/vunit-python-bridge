@@ -27,8 +27,6 @@ Modules:
 * runtime: runs inside the simulator's embedded interpreter.
 """
 
-import logging
-import sys
 from pathlib import Path
 
 VHDL_PATH = Path(__file__).parent.resolve() / "vhdl" / "src"
@@ -48,8 +46,6 @@ FOREIGN_LANGUAGE_INTERFACES = {
 # The simulators of the table, named as a user knows them
 SUPPORTED_SIMULATORS = "NVC, GHDL, Questa/ModelSim, Riviera-PRO or Active-HDL"
 
-LOGGER = logging.getLogger(__name__)
-
 
 def setup(context):
     """
@@ -62,7 +58,6 @@ def setup(context):
     # pylint: disable=import-outside-toplevel
     from .bridge import setup as setup_bridge
     from .foreign_application import setup_vhpi_application
-    from .native_library import PythonBridgeError
     from . import simulator_hooks
 
     simulator_name = context.simulator_name
@@ -81,24 +76,16 @@ def setup(context):
     if interface == "VHPI":
         # Riviera-PRO/Active-HDL, the simulators served by the VHPI application
         context.add_source_files(context.library.name, [VHDL_PATH / "python_pkg_vhpi.vhd"])
-        try:
-            setup_vhpi_application(context.output_path, simulator_name, context.simulator_prefix)
-        except RuntimeError as exc:
-            LOGGER.error("%s", exc)
-            sys.exit(1)
+        setup_vhpi_application(context.output_path, simulator_name, context.simulator_prefix)
         return
 
-    try:
-        bridge = setup_bridge(
-            context.output_path,
-            context.run_script_path,
-            simulator_name,
-            context.simulator_prefix,
-            context.simulator_backend,
-        )
-    except PythonBridgeError as exc:
-        LOGGER.error("%s", exc)
-        sys.exit(1)
+    bridge = setup_bridge(
+        context.output_path,
+        context.run_script_path,
+        simulator_name,
+        context.simulator_prefix,
+        context.simulator_backend,
+    )
 
     context.add_source_files(context.library.name, list(bridge.vhdl_files))
 
