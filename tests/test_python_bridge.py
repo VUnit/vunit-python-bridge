@@ -520,8 +520,11 @@ class TestPosixBuildAndCache(unittest.TestCase):
         real_get_config_var = native_library.sysconfig.get_config_var
 
         def fake_get_config_var(name):
+            # A static build is not a macOS framework build either
             if name == "Py_ENABLE_SHARED":
                 return 0
+            if name == "PYTHONFRAMEWORK":
+                return ""
             return real_get_config_var(name)
 
         with mock.patch("vunit_python_bridge.native_library.sysconfig.get_config_var", side_effect=fake_get_config_var):
@@ -545,8 +548,11 @@ class TestPosixBuildAndCache(unittest.TestCase):
         if nm is None:
             self.skipTest("nm is not available")
         bridge = self._setup()
+        # macOS lists the external symbols of a dylib with -gU and prefixes C names with "_"
+        darwin = sys.platform == "darwin"
+        options = ["-gU"] if darwin else ["-D", "--defined-only"]
         proc = subprocess.run(
-            [nm, "-D", "--defined-only", str(bridge.library_file)],
+            [nm, *options, str(bridge.library_file)],
             check=True,
             capture_output=True,
             text=True,
@@ -555,7 +561,7 @@ class TestPosixBuildAndCache(unittest.TestCase):
         for line in proc.stdout.splitlines():
             fields = line.split()
             if len(fields) >= 3 and fields[-2] in "TtWwDdBb":
-                exported.add(fields[-1])
+                exported.add(fields[-1][1:] if darwin and fields[-1].startswith("_") else fields[-1])
         # -fvisibility=hidden plus VPY_EXPORT: only the contract is exported,
         # no bridge internals (vpy_initialize, vpy_set_error, ...) leak out.
         self.assertEqual(exported, set(EXPECTED_EXPORTS))
