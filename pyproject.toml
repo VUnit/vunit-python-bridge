@@ -48,12 +48,12 @@ vunit_python_bridge = [
   "vunit_pkg.toml",
   "vhdl/src/*.vhd",
   "vhdl/src/*.vhd.in",
-  "vhdl/src/*.c",
-  "vhdl/src/*.h",
   "vhdl/tools/*.vhd.in",
   "vhdl/tools/*.py",
   "native/*.c",
   "native/*.h",
+  "native/vhpi/*.c",
+  "native/vhpi/*.h",
   "bin/*.dll",
 ]
 
