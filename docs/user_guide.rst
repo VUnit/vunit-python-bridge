@@ -61,9 +61,11 @@ Requirements
   (``--enable-shared``), which is the case for distribution Pythons,
   ``actions/setup-python``, ``uv`` and ``pyenv`` builds with default settings.
 * Windows: a 64-bit CPython from python.org (or compatible, such as
-  ``actions/setup-python`` and ``uv``). No compiler is needed for NVC and GHDL;
-  Questa uses the MinGW compiler it ships with. MSYS2/MinGW Pythons are not
-  supported.
+  ``actions/setup-python`` and ``uv``). No compiler is needed for NVC and GHDL
+  when the package includes the prebuilt DLLs. Otherwise, and always for
+  Questa and Riviera-PRO/Active-HDL, a MinGW-w64 ``gcc`` is needed: ``CC``, the
+  one bundled with the simulator if there is one, or ``gcc`` on ``PATH``.
+  MSYS2/MinGW Pythons are not supported.
 
 The simulator runs Python in the same environment as VUnit itself, including
 an active virtual environment and its installed packages.
@@ -615,7 +617,9 @@ Other simulators
 Riviera-PRO/Active-HDL (VHPI) implement ``python_ffi_pkg`` with a VHPI
 application, built from the C sources in `src/vunit_python_bridge/native/vhpi
 <https://github.com/ru551n/vunit-python-bridge/tree/main/src/vunit_python_bridge/native/vhpi>`__
-with their ``ccomp`` driver. The package builds the application under the
+with their ``ccomp`` driver. On Windows, ``ccomp`` is given the directory of
+the gcc bundled with the simulator (``<installation>/mingw``) or, when there is
+none, of ``gcc`` on ``PATH``. The package builds the application under the
 output path (``<output path>/<simulator>/libraries``) the first time it is
 added and rebuilds it when the sources, the Python running VUnit or the
 simulator installation change, so a run script needs nothing beyond
@@ -674,11 +678,16 @@ Windows
   Python minor version (``src/vunit_python_bridge/bin``). The matching DLL is
   copied to the output path and nothing is compiled. A development checkout of
   the package does not contain the DLLs; they can be built with
-  ``tools/build_python_bridge.py`` from an MSVC developer prompt. For Questa
-  the library must be linked against the simulator's ``mtipli``, so it is
-  built on first use with the MinGW GCC bundled with Questa, against the
-  headers and the import library of the Python running VUnit. That build is
-  untested.
+  ``tools/build_python_bridge.py`` from an MSVC developer prompt, and without
+  them the library is built with gcc like for Questa. For Questa the library
+  must be linked against the simulator's ``mtipli``, so it is always built on
+  first use with gcc, against the headers and the import library of the
+  Python running VUnit. The compiler is ``CC`` if set, else the MinGW gcc
+  bundled with the simulator (``gcc-*-mingw64*`` next to the Questa
+  executables' directory), else ``gcc`` on ``PATH``. Many Questa installations
+  on Windows bundle none. A gcc build imports the Python DLL directly, so the
+  package adds its directory to ``PATH`` for the simulator processes. These
+  builds are untested.
 
 The bridge uses the full (version specific) CPython ABI rather than the
 Stable ABI since embedding the interpreter in the environment VUnit runs in

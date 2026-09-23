@@ -81,8 +81,9 @@ check(call_integer_vector("gain", arg(integer_vector'(1, 2))) = integer_vector'(
 - Linux and macOS: a C compiler (`cc`, `gcc` or `clang`, or `CC`) and the Python development headers
   (for example the `python3-dev` package). The bridge library is compiled on first use and cached
   under the VUnit output path.
-- Windows: nothing beyond a 64-bit CPython from python.org (or compatible). The package ships
-  prebuilt DLLs for NVC and GHDL. Questa builds its FLI library with the MinGW GCC it bundles.
+- Windows: a 64-bit CPython from python.org (or compatible). The package ships prebuilt DLLs
+  for NVC and GHDL. Questa builds its FLI library, and NVC and GHDL their library when the DLLs
+  are missing, with a MinGW-w64 gcc: `CC`, the one bundled with the simulator, or `gcc` on `PATH`.
 
 The simulator runs Python in the same environment as VUnit itself, including an active virtual
 environment and its installed packages.
