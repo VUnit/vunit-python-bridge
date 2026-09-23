@@ -115,51 +115,14 @@ jobs:
         if-no-files-found: error
 
 #
-# The built wheel, installed and run like a user would
+# The built wheel, installed and run like a user would on Linux, macOS and Windows
 #
 
   smoke:
     needs: build
-    runs-on: ubuntu-latest
-    name: '🚧 Smoke test the wheel · GHDL mcode'
-    env:
-      VUNIT_SIMULATOR: ghdl
-    steps:
-
-    - name: '🧰 Checkout'
-      uses: actions/checkout@v4
-
-    - name: '📥 Download the distribution'
-      uses: actions/download-artifact@v4
-      with:
-        name: distribution
-        path: dist
-
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
-      with:
-        python-version: '3.13'
-
-    - name: '⚙️ Setup GHDL'
-      uses: ghdl/setup-ghdl@main
-      with:
-        backend: mcode
-
-    - name: '🐍 Install the wheel in a virtual environment'
-      run: |
-        python -m venv "$RUNNER_TEMP/venv"
-        echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/venv/bin/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
-        "$RUNNER_TEMP/venv/bin/pip" install dist/*.whl --progress-bar off
-
-    # The tests are run from outside the checkout, so the package under test can only
-    # be the installed wheel and never the sources next to them.
-    - name: '🚧 Feature tests against the installed wheel'
-      run: |
-        cp -r tests "$RUNNER_TEMP/tests"
-        cd "$RUNNER_TEMP"
-        python -c 'import vunit_python_bridge, sys; assert "site-packages" in vunit_python_bridge.__file__, vunit_python_bridge.__file__; print(vunit_python_bridge.__file__)'
-        python tests/run.py -p 4 -o "$RUNNER_TEMP/out"
+    uses: ./.github/workflows/wheel_tests.yml
+    with:
+      artifact: distribution
 
 #
 # Publication, only of a tag

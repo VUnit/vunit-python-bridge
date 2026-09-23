@@ -726,7 +726,9 @@ Questa (FLI)               Altera Starter FPGA Edition 2025.3
 ========================== ========================================================
 
 On Windows, CI tests NVC 1.22 and GHDL mcode (nightly) with Python 3.10, 3.12
-and 3.14.
+and 3.14. The released wheel is also installed and tested on Linux, macOS and on
+Windows machines without a compiler, there with every supported Python, so
+each of its prebuilt DLLs is run.
 
 Questa is tested manually on Linux and is not covered by CI; the Windows build
 of its bridge library is untested. Riviera-PRO/Active-HDL (VHPI) is not tested

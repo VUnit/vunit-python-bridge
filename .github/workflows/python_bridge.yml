@@ -2,8 +2,8 @@ name: 'python bridge'
 
 # Tests of the vunit-python-bridge package on CPython from python.org: Linux
 # and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs, and
-# a gcc build without them), the Python unit tests, and the content of the
-# distribution.
+# a gcc build without them), the Python unit tests, the content of the
+# distribution, and the built wheel installed on every kind of system.
 #
 # VUnit is installed from the master branch of VUnit/vunit, which has the
 # package support (VUnit/vunit#1221), until that is part of a VUnit release.
@@ -243,3 +243,20 @@ jobs:
         test "$(grep -c '\.dll$' wheel.txt)" = 5
         test "$(grep -c "$dlls" sdist.txt)" = 5
         if grep -qE '\.(so|dylib|pyd)$' wheel.txt sdist.txt; then echo "the distribution has a binary"; exit 1; fi
+
+    - name: '📤 Upload the distribution'
+      uses: actions/upload-artifact@v4
+      with:
+        name: distribution
+        path: dist/*
+        if-no-files-found: error
+
+#
+# The wheel installed and tested on Linux, macOS and Windows, there with the DLLs only
+#
+
+  wheel:
+    needs: packaging
+    uses: ./.github/workflows/wheel_tests.yml
+    with:
+      artifact: distribution
