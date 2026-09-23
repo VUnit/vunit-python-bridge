@@ -62,7 +62,7 @@ def _ghdl_elab_flags(bridge: PythonBridge):
     def hook(simulator_interface) -> List[str]:
         if simulator_interface.backend not in GHDL_LINKING_BACKENDS:
             return []
-        return [f"-Wl,-L{bridge.directory!s}"]
+        return [f"-Wl,-L{bridge.library_file.parent!s}"]
 
     return hook
 
@@ -75,7 +75,9 @@ def _ghdl_run_env(bridge: PythonBridge):
     def hook(simulator_interface, env: Dict[str, str]) -> Dict[str, str]:  # pylint: disable=unused-argument
         variable = {"win32": "PATH", "darwin": "DYLD_LIBRARY_PATH"}.get(sys.platform, "LD_LIBRARY_PATH")
         env = dict(env)
-        env[variable] = os.pathsep.join(item for item in (str(bridge.directory), env.get(variable, "")) if item)
+        env[variable] = os.pathsep.join(
+            item for item in (str(bridge.library_file.parent), env.get(variable, "")) if item
+        )
         return env
 
     return hook

@@ -378,30 +378,17 @@ class TestBridgePackageSubstitution(unittest.TestCase):
         declared = set(re.findall(r'VHPIDIRECT \S+ (\w+)"', text))
         self.assertEqual(declared, set(EXPECTED_EXPORTS))
 
-    def test_token_is_library_file_name_for_nvc(self):
-        bridge = self._setup("nvc")
-        text = self._ffi_text(bridge)
-        self.assertIn('"VHPIDIRECT libvunit_python_bridge.so vpy_begin"', text)
-
-    def test_token_is_library_file_name_for_ghdl_mcode(self):
-        bridge = self._setup("ghdl", backend="mcode")
-        text = self._ffi_text(bridge)
-        self.assertIn('"VHPIDIRECT libvunit_python_bridge.so vpy_begin"', text)
-
-    def test_token_is_library_file_name_for_ghdl_llvm_jit(self):
-        bridge = self._setup("ghdl", backend="llvm-jit")
-        text = self._ffi_text(bridge)
-        self.assertIn('"VHPIDIRECT libvunit_python_bridge.so vpy_begin"', text)
-
-    def test_token_is_link_flag_for_ghdl_llvm(self):
-        bridge = self._setup("ghdl", backend="llvm")
-        text = self._ffi_text(bridge)
-        self.assertIn('"VHPIDIRECT -lvunit_python_bridge vpy_begin"', text)
-
-    def test_token_is_link_flag_for_ghdl_gcc(self):
-        bridge = self._setup("ghdl", backend="gcc")
-        text = self._ffi_text(bridge)
-        self.assertIn('"VHPIDIRECT -lvunit_python_bridge vpy_begin"', text)
+    def test_token_is_the_file_name_or_the_link_flag_of_the_backend(self):
+        # Only the GHDL backends linking ahead of time get the linker flag
+        for simulator_name, backend, token in (
+            ("nvc", None, "libvunit_python_bridge.so"),
+            ("ghdl", "mcode", "libvunit_python_bridge.so"),
+            ("ghdl", "llvm-jit", "libvunit_python_bridge.so"),
+            ("ghdl", "llvm", "-lvunit_python_bridge"),
+            ("ghdl", "gcc", "-lvunit_python_bridge"),
+        ):
+            with self.subTest(simulator=simulator_name, backend=backend):
+                self.assertIn(f'"VHPIDIRECT {token} vpy_begin"', self._ffi_text(self._setup(simulator_name, backend)))
 
     def test_no_remaining_placeholder(self):
         for bridge in (self._setup("nvc"), self._fli_setup()):
@@ -657,6 +644,10 @@ class TestPosixBuildAndCache(unittest.TestCase):
         self.assertEqual(matches, [])
 
 
+def _config_keys(text):
+    return dict(line.split("=", 1) for line in text.splitlines())
+
+
 class TestConfigFile(unittest.TestCase):
     """
     _config_text / _write_if_changed
@@ -665,7 +656,7 @@ class TestConfigFile(unittest.TestCase):
     def test_config_keys_linux(self):
         with mock.patch("sys.platform", "linux"):
             text = bridge_setup._config_text("/run/script/dir")  # pylint: disable=protected-access
-        keys = dict(line.split("=", 1) for line in text.splitlines())
+        keys = _config_keys(text)
         self.assertEqual(set(keys), {"executable", "prefix", "runtime", "run_script_dir"})
         self.assertEqual(keys["executable"], sys.executable)
         self.assertEqual(keys["prefix"], sys.prefix)
@@ -678,7 +669,7 @@ class TestConfigFile(unittest.TestCase):
             mock.patch("vunit_python_bridge.bridge.windows_python_dll", return_value=r"C:\python.dll"),
         ):
             text = bridge_setup._config_text("/run/script/dir")  # pylint: disable=protected-access
-        keys = dict(line.split("=", 1) for line in text.splitlines())
+        keys = _config_keys(text)
         self.assertEqual(keys["python_dll"], r"C:\python.dll")
 
     def test_write_if_changed_does_not_rewrite_identical_content(self):
@@ -703,7 +694,7 @@ class TestConfigFile(unittest.TestCase):
             with mock.patch("vunit_python_bridge.bridge.prepare_library", return_value=fake_library_file):
                 bridge_setup.setup(tempdir / "out", run_script)
             config = (fake_library_file.parent / bridge_setup.CONFIG_FILE_NAME).read_text(encoding="utf-8")
-            keys = dict(line.split("=", 1) for line in config.splitlines())
+            keys = _config_keys(config)
             self.assertEqual(keys["run_script_dir"], str(tempdir.resolve()))
 
     def test_config_paths_with_spaces_and_unicode_written_as_utf8(self):
@@ -732,16 +723,14 @@ class TestWindowsDllSelection(unittest.TestCase):
 
     def test_windows_dll_name_for_supported_versions(self):
         for minor in range(10, 15):
-            self.assertEqual(
-                native_library.windows_dll_name((3, minor)),
-                f"vunit_python_bridge-cp3{minor}-win_amd64.dll",
-            )
+            with mock.patch("sys.version_info", (3, minor)):
+                self.assertEqual(native_library.windows_dll_name(), f"vunit_python_bridge-cp3{minor}-win_amd64.dll")
 
     def _prepare(self, tempdir, dll_bytes, version_info=(3, 12)):
         binary_path = tempdir / "bin"
         binary_path.mkdir(exist_ok=True)
-        name = native_library.windows_dll_name(version_info)
-        (binary_path / name).write_bytes(dll_bytes)
+        with mock.patch("sys.version_info", version_info):
+            (binary_path / native_library.windows_dll_name()).write_bytes(dll_bytes)
         root = tempdir / "root"
         with (
             mock.patch("vunit_python_bridge.native_library.BINARY_PATH", binary_path),
@@ -962,4 +951,3 @@ class TestForeignApplicationBuild(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

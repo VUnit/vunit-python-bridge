@@ -13,7 +13,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Callable, List, Optional
+from typing import List, NamedTuple, Optional
 
 from .native_library import (
     PACKAGE_PATH,
@@ -40,20 +40,17 @@ GHDL_LINKING_BACKENDS = ("llvm", "gcc")
 
 # {foreign:<entry point>} placeholder of the bridge package template
 FOREIGN_PATTERN = re.compile(r"\{foreign:(\w+)\}")
+# The subprogram declarations of the template, whose bodies are generated
+SUBPROGRAM_PATTERN = re.compile(r"^  (impure function|procedure) (\w+)(\([^)]*\))?( return \w+)?;", re.MULTILINE)
 
 
-class PythonBridge:
+class PythonBridge(NamedTuple):
     """
-    A prepared bridge: native library, its configuration and the generated VHDL.
+    A prepared bridge: the native library and the generated VHDL.
     """
 
-    def __init__(self, library_file: Path, vhdl_files: List[Path]) -> None:
-        self.library_file = library_file
-        self.vhdl_files = vhdl_files
-
-    @property
-    def directory(self) -> Path:
-        return self.library_file.parent
+    library_file: Path
+    vhdl_files: List[Path]
 
 
 def setup(
@@ -93,15 +90,16 @@ def setup(
     run_script_dir = str(Path(run_script_path).resolve().parent)
     _write_if_changed(library_file.parent / CONFIG_FILE_NAME, _config_text(run_script_dir))
 
-    bridge_package = root / "vhdl" / "python_bridge_pkg.vhd"
-    _write_if_changed(
-        bridge_package,
-        _render_bridge_package(
-            _fli_foreign(library_file)
-            if is_fli
-            else _vhpidirect_foreign(_vhpidirect_token(simulator_name, simulator_backend, library_file))
-        ),
+    # The foreign attribute string of an entry point: the name of its wrapper in native/fli.c
+    # and the library, by absolute path since Questa accepts it, for the FLI; the VHPIDIRECT
+    # library token and the entry point itself for NVC and GHDL.
+    foreign = (
+        f"fli_{{entry_point}} {library_file!s}"
+        if is_fli
+        else f"VHPIDIRECT {_vhpidirect_token(simulator_name, simulator_backend, library_file)} {{entry_point}}"
     )
+    bridge_package = root / "vhdl" / "python_bridge_pkg.vhd"
+    _write_if_changed(bridge_package, _render_bridge_package(foreign))
 
     return PythonBridge(
         library_file,
@@ -122,29 +120,22 @@ def _vhpidirect_token(simulator_name, simulator_backend: Optional[str], library_
     return library_file.name
 
 
-def _vhpidirect_foreign(library_token: str) -> Callable[[str], str]:
+def _render_bridge_package(foreign: str) -> str:
     """
-    The VHPIDIRECT attribute string of an entry point, for NVC and GHDL.
-    """
-    return lambda entry_point: f"VHPIDIRECT {library_token} {entry_point}"
-
-
-def _fli_foreign(library_file: Path) -> Callable[[str], str]:
-    """
-    The FLI attribute string of an entry point: the name of its wrapper in native/fli.c and the
-    library to load it from. Questa accepts the absolute path, so the library can stay in the
-    bridge cache directory instead of being copied next to the simulation.
-    """
-    return lambda entry_point: f"fli_{entry_point} {library_file!s}"
-
-
-def _render_bridge_package(foreign: Callable[[str], str]) -> str:
-    """
-    The generated python_bridge_pkg.vhd: the template with every {foreign:<entry point>}
-    placeholder replaced by the attribute string of the selected simulator.
+    The generated python_bridge_pkg.vhd: the declarations of the template with the foreign
+    attribute of every subprogram, and a body reporting a failure for each of them since the
+    bodies are replaced by the foreign implementations and never executed.
     """
     template = BRIDGE_PACKAGE_TEMPLATE.read_text(encoding="utf-8")
-    return FOREIGN_PATTERN.sub(lambda match: foreign(match.group(1)), template)
+    declarations = FOREIGN_PATTERN.sub(lambda match: foreign.format(entry_point=match.group(1)), template)
+    stubs = []
+    for kind, name, parameters, result in SUBPROGRAM_PATTERN.findall(declarations):
+        stubs.append(f"  {kind} {name}{parameters}{result} is\n  begin")
+        stubs.append(f'    report "VUnit Python bridge: foreign subprogram {name} is not bound" severity failure;')
+        if result:
+            stubs.append(f"    return {'0.0' if result.endswith('real') else '1'};")
+        stubs.append("  end;\n")
+    return declarations + "\npackage body python_bridge_pkg is\n" + "\n".join(stubs) + "end package body;\n"
 
 
 def _config_text(run_script_dir: str) -> str:
