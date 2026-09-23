@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
   "numpy",
   # The VUnit adding packages and simulator hooks, VUnit/vunit#1221. Until that is
-  # part of a release: pip install git+https://github.com/ru551n/vunit.git@feature/package-setup-hooks
+  # part of a release: pip install git+https://github.com/VUnit/vunit.git@master
   "vunit_hdl>=5.0.0.dev12",
 ]
 

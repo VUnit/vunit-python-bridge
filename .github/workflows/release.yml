@@ -139,7 +139,7 @@ jobs:
       run: |
         python -m venv "$RUNNER_TEMP/venv"
         echo "$RUNNER_TEMP/venv/bin" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/venv/bin/pip" install "vunit_hdl @ git+https://github.com/ru551n/vunit.git@feature/package-setup-hooks" --progress-bar off
+        "$RUNNER_TEMP/venv/bin/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
         "$RUNNER_TEMP/venv/bin/pip" install dist/*.whl --progress-bar off
 
     # The tests are run from outside the checkout, so the package under test can only

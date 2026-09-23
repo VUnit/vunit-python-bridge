@@ -5,8 +5,8 @@ name: 'python bridge'
 # a gcc build without them), the Python unit tests, and the content of the
 # distribution.
 #
-# VUnit is installed from the branch carrying the package support (PR #1221)
-# until it is part of a VUnit release.
+# VUnit is installed from the master branch of VUnit/vunit, which has the
+# package support (VUnit/vunit#1221), until that is part of a VUnit release.
 
 on:
   push:
@@ -99,7 +99,7 @@ jobs:
       run: |
         python -m venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/venv with space/bin/pip" install "vunit_hdl @ git+https://github.com/ru551n/vunit.git@feature/package-setup-hooks" --progress-bar off
+        "$RUNNER_TEMP/venv with space/bin/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
         "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
 
     - name: '🚧 Python unit tests'
@@ -173,7 +173,7 @@ jobs:
       run: |
         python -m venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/Scripts" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/venv with space/Scripts/pip" install "vunit_hdl @ git+https://github.com/ru551n/vunit.git@feature/package-setup-hooks" --progress-bar off
+        "$RUNNER_TEMP/venv with space/Scripts/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
         "$RUNNER_TEMP/venv with space/Scripts/pip" install -e . --progress-bar off
 
     # The simulator is accepted as x64, and a 32-bit executable of Windows itself is detected
