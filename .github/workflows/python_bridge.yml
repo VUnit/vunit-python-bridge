@@ -1,0 +1,265 @@
+name: 'python bridge'
+
+# Tests of the vunit-python-bridge package on CPython from python.org: Linux
+# and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs, and
+# a gcc build without them), the Python unit tests, the content of the
+# distribution, and the built wheel installed on every kind of system.
+#
+# VUnit is installed from the master branch of VUnit/vunit, which has the
+# package support (VUnit/vunit#1221), until that is part of a VUnit release.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+#
+# Linux and macOS, bridge compiled on first use
+#
+
+  posix:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest and newest supported CPython; every GHDL backend, since
+        # the bridge library is loaded differently by the ones that link ahead
+        # of time (llvm, gcc), on the latest release; the NVC release VUnit is
+        # developed against.
+        #
+        # Canaries (allowed to fail): the GHDL nightly builds and NVC built
+        # from its master branch, with Python 3.14, where simulator changes
+        # show up first.
+        include:
+          - { os: ubuntu-24.04, py: '3.10', sim: nvc, nvc: '1.22.1' }
+          - { os: ubuntu-24.04, py: '3.14', sim: nvc, nvc: '1.22.1' }
+          - { os: ubuntu-24.04, py: '3.14', sim: nvc, nvc: master, canary: true }
+          - { os: ubuntu-24.04, py: '3.10', sim: ghdl, backend: mcode, ghdl: latest }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: mcode, ghdl: nightly, canary: true }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: llvm-jit, ghdl: latest }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: llvm-jit, ghdl: nightly, canary: true }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: llvm, ghdl: latest }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: llvm, ghdl: nightly, canary: true }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: gcc, ghdl: latest }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: gcc, ghdl: nightly, canary: true }
+          - { os: macos-15, py: '3.14', sim: nvc, nvc: brew }
+          # macos-15: setup-ghdl has no build for newer macOS versions yet, and only the llvm backend
+          - { os: macos-15, py: '3.14', sim: ghdl, backend: llvm, ghdl: latest }
+    name: '${{ matrix.os }} · Python ${{ matrix.py }} · ${{ matrix.sim }} ${{ matrix.backend }}${{ matrix.ghdl }}${{ matrix.nvc }}'
+    continue-on-error: ${{ matrix.canary || false }}
+    env:
+      VUNIT_SIMULATOR: ${{ matrix.sim }}
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '🐍 Setup Python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.py }}
+
+    - name: '⚙️ Setup NVC'
+      if: matrix.sim == 'nvc' && matrix.nvc != 'brew' && matrix.nvc != 'master'
+      run: |
+        curl -fsSL -o nvc.deb "https://github.com/nickg/nvc/releases/download/r${{ matrix.nvc }}/nvc_${{ matrix.nvc }}-1_amd64_ubuntu-24.04.deb"
+        sudo apt-get install -y ./nvc.deb
+
+    # As in NVC's README
+    - name: '⚙️ Build NVC from its master branch'
+      if: matrix.nvc == 'master'
+      run: |
+        sudo apt-get install -y -qq build-essential automake autoconf flex check llvm-dev pkg-config zlib1g-dev libdw-dev libffi-dev libzstd-dev
+        git clone --depth 1 https://github.com/nickg/nvc.git "$RUNNER_TEMP/nvc"
+        cd "$RUNNER_TEMP/nvc" && ./autogen.sh && mkdir build && cd build && ../configure && make -j"$(nproc)" && sudo make install
+        nvc --version
+
+    - name: '⚙️ Setup NVC with Homebrew'
+      if: matrix.nvc == 'brew'
+      run: brew install nvc
+
+    - name: '⚙️ Setup GHDL'
+      if: matrix.sim == 'ghdl'
+      uses: ghdl/setup-ghdl@main
+      with:
+        version: ${{ matrix.ghdl }}
+        backend: ${{ matrix.backend }}
+
+    # The environment and the output go to the runner's temporary directory,
+    # outside the checkout, so nothing built can end up in the tree. The space
+    # in the path is deliberate: the bridge builds command lines and simulator
+    # options from these paths.
+    - name: '🐍 Install the package in a virtual environment'
+      run: |
+        python -m venv "$RUNNER_TEMP/venv with space"
+        echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/venv with space/bin/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
+        "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
+
+    - name: '🚧 Python unit tests'
+      run: python -m pytest tests/test_python_bridge.py
+
+    - name: '🚧 Feature tests'
+      run: python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
+
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
+
+#
+# Windows, prebuilt MSVC DLLs, and a gcc build without them
+#
+
+  dlls:
+    uses: ./.github/workflows/python_bridge_dlls.yml
+
+  windows:
+    needs: dlls
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        py: ['3.10', '3.12', '3.14']
+        sim: [nvc, ghdl]
+        bridge: [dll]
+        # No prebuilt DLLs: the library is built with the MinGW gcc of the runner image, the
+        # build Questa/ModelSim always uses on Windows, which has no runner
+        include:
+          - {py: '3.13', sim: nvc, bridge: gcc}
+    name: '🟦 Windows · Python ${{ matrix.py }} · ${{ matrix.sim }} · ${{ matrix.bridge }}'
+    env:
+      VUNIT_SIMULATOR: ${{ matrix.sim }}
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '📥 Download bridge DLLs'
+      if: matrix.bridge == 'dll'
+      uses: actions/download-artifact@v4
+      with:
+        name: python-bridge-dlls
+        path: src/vunit_python_bridge/bin
+
+    - name: '⚙️ Put MinGW gcc on PATH'
+      if: matrix.bridge == 'gcc'
+      run: echo "C:/mingw64/bin" >> "$GITHUB_PATH"
+
+    - name: '🐍 Setup Python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.py }}
+        architecture: x64
+
+    - name: '⚙️ Setup NVC'
+      if: matrix.sim == 'nvc'
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri https://github.com/nickg/nvc/releases/download/r1.22.1/nvc-1.22.1.msi -OutFile nvc.msi
+        Start-Process msiexec.exe -Wait -ArgumentList '/i', 'nvc.msi', '/qn', '/norestart'
+        $bin = Get-ChildItem -Path 'C:\Program Files*' -Recurse -Filter nvc.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+        $bin.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: '⚙️ Setup GHDL'
+      if: matrix.sim == 'ghdl'
+      uses: ghdl/setup-ghdl@main
+      with:
+        backend: mcode
+
+    # Same as on Linux: outside the checkout, with a space in the path
+    - name: '🐍 Install the package in a virtual environment'
+      run: |
+        python -m venv "$RUNNER_TEMP/venv with space"
+        echo "$RUNNER_TEMP/venv with space/Scripts" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/venv with space/Scripts/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
+        "$RUNNER_TEMP/venv with space/Scripts/pip" install -e . --progress-bar off
+
+    # The simulator is accepted as x64, and a 32-bit executable of Windows itself is detected
+    - name: '🔍 64-bit check'
+      run: |
+        python -c "import shutil; from vunit_python_bridge.native_library import pe_machine; \
+          assert pe_machine(shutil.which('${{ matrix.sim }}')) == 0x8664; \
+          assert pe_machine(r'C:\Windows\SysWOW64\cmd.exe') == 0x14C"
+
+    # dll: no MSVC on PATH, the prebuilt DLLs must be used. gcc: the library must be built with gcc.
+    - name: '🚧 Feature tests'
+      run: |
+        ! command -v cl
+        if [ '${{ matrix.bridge }}' = gcc ]; then command -v gcc; fi
+        python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
+        if [ '${{ matrix.bridge }}' = gcc ]; then
+          find "$RUNNER_TEMP/out dir" -path '*-win_amd64-gcc-*' -name vunit_python_bridge.dll | grep .
+        fi
+
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
+
+#
+# Packaging: one py3-none-any wheel with the sources and the DLLs, no other binary
+#
+
+  packaging:
+    needs: dlls
+    runs-on: ubuntu-latest
+    name: '📦 Packaging'
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '📥 Download bridge DLLs'
+      uses: actions/download-artifact@v4
+      with:
+        name: python-bridge-dlls
+        path: src/vunit_python_bridge/bin
+
+    - name: '🐍 Setup Python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: '📦 Build the wheel'
+      run: |
+        pip install -U build --progress-bar off
+        python -m build --wheel
+
+    # The single wheel for every platform: sources of every kind, the manifest, the five
+    # DLLs, no other binary
+    - name: '🔍 Check distribution content'
+      run: |
+        # One wheel for every platform: pure Python, tagged py3-none-any
+        wheels=(dist/*.whl)
+        test "${#wheels[@]}" = 1 || { echo "expected one wheel: ${wheels[*]}"; exit 1; }
+        case "${wheels[0]}" in *-py3-none-any.whl) ;; *) echo "${wheels[0]} is not py3-none-any"; exit 1;; esac
+        unzip -Z1 "${wheels[0]}" > wheel.txt
+        # Every C source and every HDL source, the manifest and the Python modules
+        for file in $(git ls-files src/vunit_python_bridge | grep -E '/(native|hdl/src)/|\.py$|\.toml$' | sed 's#^src/##'); do
+          grep -qx "$file" wheel.txt || { echo "missing $file in the wheel"; exit 1; }
+        done
+        # The five DLLs and no other binary
+        dlls='^vunit_python_bridge/bin/vunit_python_bridge-cp31[0-4]-win_amd64\.dll$'
+        test "$(grep -c "$dlls" wheel.txt)" = 5
+        test "$(grep -c '\.dll$' wheel.txt)" = 5
+        if grep -qE '\.(so|dylib|pyd)$' wheel.txt; then echo "the wheel has a binary"; exit 1; fi
+
+    - name: '📤 Upload the distribution'
+      uses: actions/upload-artifact@v4
+      with:
+        name: distribution
+        path: dist/*
+        if-no-files-found: error
+
+#
+# The wheel installed and tested on Linux, macOS and Windows, there with the DLLs only
+#
+
+  wheel:
+    needs: packaging
+    uses: ./.github/workflows/wheel_tests.yml
+    with:
+      artifact: distribution

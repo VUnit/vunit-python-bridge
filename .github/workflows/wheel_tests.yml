@@ -1,0 +1,110 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this file,
+# You can obtain one at http://mozilla.org/MPL/2.0/.
+#
+# Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
+
+name: 'wheel tests'
+
+# The one wheel of the package, installed like a user would on every kind of
+# system it supports, and tested from outside the checkout so the package under
+# test can only be the installed wheel. Linux and macOS compile the bridge on
+# first use. Windows gets nothing but Python and the simulator: the bridge must
+# be the prebuilt DLL of the wheel for its Python, which is why every supported
+# Python is tested there. Called by python_bridge.yml and the release workflow
+# with the name of the artifact holding the distribution.
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        type: string
+        required: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+  wheel:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-24.04, py: '3.10', sim: nvc }
+          - { os: ubuntu-24.04, py: '3.14', sim: ghdl }
+          - { os: macos-15, py: '3.14', sim: nvc }
+          - { os: windows-latest, py: '3.10', sim: nvc }
+          - { os: windows-latest, py: '3.11', sim: nvc }
+          - { os: windows-latest, py: '3.12', sim: nvc }
+          - { os: windows-latest, py: '3.13', sim: nvc }
+          - { os: windows-latest, py: '3.14', sim: nvc }
+          - { os: windows-latest, py: '3.14', sim: ghdl }
+    name: '🎡 Wheel · ${{ matrix.os }} · Python ${{ matrix.py }} · ${{ matrix.sim }}'
+    env:
+      VUNIT_SIMULATOR: ${{ matrix.sim }}
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '📥 Download the distribution'
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ inputs.artifact }}
+        path: dist
+
+    - name: '🐍 Setup Python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: ${{ matrix.py }}
+
+    - name: '⚙️ Setup NVC'
+      if: matrix.sim == 'nvc' && runner.os == 'Linux'
+      run: |
+        curl -fsSL -o nvc.deb "https://github.com/nickg/nvc/releases/download/r1.22.1/nvc_1.22.1-1_amd64_ubuntu-24.04.deb"
+        sudo apt-get install -y ./nvc.deb
+
+    - name: '⚙️ Setup NVC with Homebrew'
+      if: matrix.sim == 'nvc' && runner.os == 'macOS'
+      run: brew install nvc
+
+    - name: '⚙️ Setup NVC'
+      if: matrix.sim == 'nvc' && runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Invoke-WebRequest -Uri https://github.com/nickg/nvc/releases/download/r1.22.1/nvc-1.22.1.msi -OutFile nvc.msi
+        Start-Process msiexec.exe -Wait -ArgumentList '/i', 'nvc.msi', '/qn', '/norestart'
+        $bin = Get-ChildItem -Path 'C:\Program Files*' -Recurse -Filter nvc.exe -ErrorAction SilentlyContinue | Select-Object -First 1
+        $bin.DirectoryName | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    - name: '⚙️ Setup GHDL'
+      if: matrix.sim == 'ghdl'
+      uses: ghdl/setup-ghdl@main
+      with:
+        backend: mcode
+
+    - name: '🐍 Install the wheel in a virtual environment'
+      run: |
+        python -m venv "$RUNNER_TEMP/venv"
+        scripts="$RUNNER_TEMP/venv/$([ "$RUNNER_OS" = Windows ] && echo Scripts || echo bin)"
+        echo "$scripts" >> "$GITHUB_PATH"
+        "$scripts/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
+        "$scripts/pip" install dist/*.whl --progress-bar off
+
+    - name: '🚧 Feature tests against the installed wheel'
+      run: |
+        cp -r tests "$RUNNER_TEMP/tests"
+        cd "$RUNNER_TEMP"
+        python -c 'import vunit_python_bridge; assert "site-packages" in vunit_python_bridge.__file__, vunit_python_bridge.__file__; print(vunit_python_bridge.__file__)'
+        python tests/run.py -p 4 -o "$RUNNER_TEMP/out"
+
+    # The bridge was the DLL of the wheel, copied to the output path, and nothing was compiled
+    - name: '🔍 The prebuilt DLL was used'
+      if: runner.os == 'Windows'
+      run: |
+        if command -v cl; then echo "MSVC is on PATH"; exit 1; fi
+        find "$RUNNER_TEMP/out" -path '*-win_amd64-*' -name vunit_python_bridge.dll | grep -v -- '-win_amd64-gcc-' | grep .
+        if find "$RUNNER_TEMP/out" -path '*-win_amd64-gcc-*' | grep .; then echo "the bridge was compiled"; exit 1; fi

@@ -1,0 +1,181 @@
+name: 'release'
+
+# Release of the vunit-python-bridge package. Pushing a tag vX.Y.Z naming the version
+# in pyproject.toml builds the distribution, smoke tests the built wheel, publishes it
+# to PyPI with a trusted publisher and creates the GitHub release of the tag.
+#
+# workflow_dispatch does everything but publish: the distribution is left as an
+# artifact of the run, which is how a release is rehearsed.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+
+#
+# The version to release, taken from pyproject.toml and checked against the tag
+#
+
+  version:
+    runs-on: ubuntu-latest
+    name: '🔍 Version'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '🐍 Setup Python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: '🔍 Check the version and the tag'
+      id: version
+      run: |
+        if [ "$GITHUB_REF_TYPE" = tag ]; then
+          python tools/release.py validate --tag "$GITHUB_REF_NAME"
+        else
+          python tools/release.py validate
+        fi
+        echo "version=$(python tools/release.py version)" >> "$GITHUB_OUTPUT"
+
+#
+# The distribution: the prebuilt Windows DLLs, then the one wheel, py3-none-any,
+# that carries them to every platform
+#
+
+  dlls:
+    needs: version
+    uses: ./.github/workflows/python_bridge_dlls.yml
+
+  build:
+    needs: [version, dlls]
+    runs-on: ubuntu-latest
+    name: '📦 Build the distribution'
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '📥 Download bridge DLLs'
+      uses: actions/download-artifact@v4
+      with:
+        name: python-bridge-dlls
+        path: src/vunit_python_bridge/bin
+
+    - name: '🐍 Setup Python'
+      uses: actions/setup-python@v6
+      with:
+        python-version: '3.13'
+
+    - name: '📦 Build the wheel'
+      run: |
+        pip install -U build --progress-bar off
+        python -m build --wheel
+
+    # As in python_bridge.yml: the single wheel for every platform, with sources of
+    # every kind, the manifest, the five DLLs, no other binary, and the version that
+    # is being released.
+    - name: '🔍 Check distribution content'
+      run: |
+        # One wheel for every platform: pure Python, tagged py3-none-any
+        wheels=(dist/*.whl)
+        test "${#wheels[@]}" = 1 || { echo "expected one wheel: ${wheels[*]}"; exit 1; }
+        case "${wheels[0]}" in *-py3-none-any.whl) ;; *) echo "${wheels[0]} is not py3-none-any"; exit 1;; esac
+        unzip -Z1 "${wheels[0]}" > wheel.txt
+        # Every C source and every HDL source, the manifest and the Python modules
+        for file in $(git ls-files src/vunit_python_bridge | grep -E '/(native|hdl/src)/|\.py$|\.toml$' | sed 's#^src/##'); do
+          grep -qx "$file" wheel.txt || { echo "missing $file in the wheel"; exit 1; }
+        done
+        # The five DLLs and no other binary
+        dlls='^vunit_python_bridge/bin/vunit_python_bridge-cp31[0-4]-win_amd64\.dll$'
+        test "$(grep -c "$dlls" wheel.txt)" = 5
+        test "$(grep -c '\.dll$' wheel.txt)" = 5
+        if grep -qE '\.(so|dylib|pyd)$' wheel.txt; then echo "the wheel has a binary"; exit 1; fi
+        test -f "dist/vunit_python_bridge-${{ needs.version.outputs.version }}-py3-none-any.whl"
+
+    - name: '📤 Upload the distribution'
+      uses: actions/upload-artifact@v4
+      with:
+        name: distribution
+        path: dist/*
+        if-no-files-found: error
+
+#
+# The built wheel, installed and run like a user would on Linux, macOS and Windows
+#
+
+  smoke:
+    needs: build
+    uses: ./.github/workflows/wheel_tests.yml
+    with:
+      artifact: distribution
+
+#
+# Publication, only of a tag
+#
+
+  publish:
+    needs: [version, smoke]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    name: '🚀 Publish to PyPI'
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+
+    - name: '📥 Download the distribution'
+      uses: actions/download-artifact@v4
+      with:
+        name: distribution
+        path: dist
+
+    # Trusted publishing: PyPI knows this repository and this workflow, so there is
+    # no API token to keep.
+    - name: '🚀 Publish'
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  release:
+    needs: [version, publish]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    name: '🏷️ GitHub release'
+    permissions:
+      contents: write
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: '📥 Download the distribution'
+      uses: actions/download-artifact@v4
+      with:
+        name: distribution
+        path: dist
+
+    # What was written when the tag was made is what the release says.
+    - name: '🏷️ Create the release'
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
+        if [ -s notes.md ]; then
+          notes=(--notes-file notes.md)
+        else
+          notes=(--generate-notes)
+        fi
+        gh release create "$GITHUB_REF_NAME" dist/* \
+          --title "vunit-python-bridge ${{ needs.version.outputs.version }}" \
+          "${notes[@]}"
