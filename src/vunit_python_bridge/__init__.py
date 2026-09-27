@@ -58,6 +58,7 @@ def setup(context):
     # pylint: disable=import-outside-toplevel
     from .bridge import setup as setup_bridge
     from .foreign_application import setup_vhpi_application
+    from .native_library import add_python_libraries_to_library_path
     from . import simulator_hooks
 
     simulator_name = context.simulator_name
@@ -72,6 +73,8 @@ def setup(context):
             f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, "
             f"it has no foreign language interface for {simulator_name}"
         )
+
+    add_python_libraries_to_library_path()
 
     if interface == "VHPI":
         # Riviera-PRO/Active-HDL, the simulators served by the VHPI application

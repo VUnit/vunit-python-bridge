@@ -71,31 +71,6 @@ begin
     variable coefficients : real_vector(0 to 2);
     variable table : integer_vector_ptr_t;
 
-    procedure set_tcl_installation is
-    begin
-      exec("from os import environ");
-      exec("from sys import prefix");
-      exec("from pathlib import Path");
-      exec("old_environ = environ");
-      exec(
-        "if (Path(prefix) / 'lib' / 'tcl8.6').exists():" +
-        "    environ['TCL_LIBRARY'] = str(Path(prefix) / 'lib' / 'tcl8.6')" +
-        "else:" +
-        "    environ['TCL_LIBRARY'] = str(Path(prefix) / 'tcl' / 'tcl8.6')"
-      );
-      exec(
-        "if (Path(prefix) / 'lib' / 'tk8.6').exists():" +
-        "    environ['TK_LIBRARY'] = str(Path(prefix) / 'lib' / 'tk8.6')" +
-        "else:" +
-        "    environ['TK_LIBRARY'] = str(Path(prefix) / 'tcl' / 'tk8.6')"
-      );
-    end;
-
-    procedure unset_tcl_installation is
-    begin
-      exec("environ = old_environ");
-    end;
-
     procedure query_if(expr : boolean; check_result : check_result_t) is
       variable logger : logger_t;
       variable log_level : log_level_t;
@@ -163,10 +138,8 @@ begin
   begin
     test_runner_setup(runner, runner_cfg);
 
-    -- To avoid mixup with the Riviera-PRO TCL installation I had to
-    -- set the TCL_LIBRARY and TK_LIBRARY environment variables
-    -- to the Python installation. TODO: Find a better way if possible
-    set_tcl_installation;
+    -- For the tests showing a Tk window: the Tcl/Tk of the Python installation
+    import_module_from_file(join(tb_path(runner_cfg), "tcl_library.py"), "tcl_library");
 
     show(display_handler, debug);
 
@@ -712,6 +685,12 @@ begin
       -- Simulators have a limited set of capabilities when it comes to
       -- Visualize simulation output beyond signal waveforms. Python has
       -- almost endless capabilities
+      --
+      -- On Windows, a simulator with a Tcl of its own, like NVC or Questa, can
+      -- crash when matplotlib opens a Tk window and Python has another Tcl
+      -- version: Pillow and matplotlib use the first Tcl they find in the
+      -- process. Use a Python with the Tcl version of the simulator, or another
+      -- backend, for example MPLBACKEND=QtAgg after pip install PySide6.
       ---------------------------------------------------------------------
       elsif run("Test simple plot") then
         exec("from matplotlib import pyplot as plt"); -- Matplotlib is installed with pip install matplotlib
@@ -743,8 +722,6 @@ begin
     end loop;
     -- @formatter:on
 
-    -- Revert to old environment variables
-    unset_tcl_installation;
     test_runner_cleanup(runner);
   end process;
 
