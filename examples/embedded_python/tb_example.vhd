@@ -690,10 +690,6 @@ begin
         exec("from matplotlib import pyplot as plt"); -- Matplotlib is installed with pip install matplotlib
         exec("fig = plt.figure()");
         exec("plt.plot([1,2,3,4,5], [1,2,3,4,5])");
-        -- Close the window after 5 s, or plt.show() waits for it to be closed
-        exec("timer = fig.canvas.new_timer(interval=5000)");
-        exec("timer.add_callback(plt.close)");
-        exec("timer.start()");
         exec("plt.show()");
 
       elsif run("Test advanced plot") then
