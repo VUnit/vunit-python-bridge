@@ -685,6 +685,12 @@ begin
       -- Simulators have a limited set of capabilities when it comes to
       -- Visualize simulation output beyond signal waveforms. Python has
       -- almost endless capabilities
+      --
+      -- On Windows, a simulator with a Tcl of its own, like NVC or Questa, can
+      -- crash when matplotlib opens a Tk window and Python has another Tcl
+      -- version: Pillow and matplotlib use the first Tcl they find in the
+      -- process. Use a Python with the Tcl version of the simulator, or another
+      -- backend, for example MPLBACKEND=QtAgg after pip install PySide6.
       ---------------------------------------------------------------------
       elsif run("Test simple plot") then
         exec("from matplotlib import pyplot as plt"); -- Matplotlib is installed with pip install matplotlib
