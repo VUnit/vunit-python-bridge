@@ -406,6 +406,25 @@ def add_python_dll_to_path() -> None:
         os.environ["PATH"] = os.pathsep.join([item for item in paths if item] + [directory])
 
 
+def add_python_libraries_to_library_path() -> None:
+    """
+    Standalone builds of Python (python-build-standalone) keep the shared libraries their extension
+    modules load, Tcl/Tk for tkinter, next to libpython. On Linux only the python executable finds
+    them, through its RPATH, not a simulator embedding the interpreter. They have no SONAME either,
+    so loading them from Python first does not help: the simulator processes VUnit starts must find
+    them through LD_LIBRARY_PATH.
+    """
+    # ponytail: changes LD_LIBRARY_PATH of the whole VUnit process, only for its children to find Tcl/Tk
+    if not sys.platform.startswith("linux"):
+        return
+    directory = Path(sys.base_prefix) / "lib"
+    if not any(directory.glob("libtcl*.so")):
+        return
+    paths = os.environ.get("LD_LIBRARY_PATH", "").split(os.pathsep)
+    if str(directory) not in paths:
+        os.environ["LD_LIBRARY_PATH"] = os.pathsep.join([item for item in paths if item] + [str(directory)])
+
+
 def _build_windows_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path:
     """
     Build the library on Windows with gcc (see windows_gcc) against the headers and the import

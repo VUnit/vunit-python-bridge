@@ -71,29 +71,16 @@ begin
     variable coefficients : real_vector(0 to 2);
     variable table : integer_vector_ptr_t;
 
+    -- The Tcl/Tk installation of the Python installation, see tcl_installation.py
     procedure set_tcl_installation is
     begin
-      exec("from os import environ");
-      exec("from sys import prefix");
-      exec("from pathlib import Path");
-      exec("old_environ = environ");
-      exec(
-        "if (Path(prefix) / 'lib' / 'tcl8.6').exists():" +
-        "    environ['TCL_LIBRARY'] = str(Path(prefix) / 'lib' / 'tcl8.6')" +
-        "else:" +
-        "    environ['TCL_LIBRARY'] = str(Path(prefix) / 'tcl' / 'tcl8.6')"
-      );
-      exec(
-        "if (Path(prefix) / 'lib' / 'tk8.6').exists():" +
-        "    environ['TK_LIBRARY'] = str(Path(prefix) / 'lib' / 'tk8.6')" +
-        "else:" +
-        "    environ['TK_LIBRARY'] = str(Path(prefix) / 'tcl' / 'tk8.6')"
-      );
+      import_module_from_file(join(tb_path(runner_cfg), "tcl_installation.py"), "tcl_installation");
+      exec("tcl_installation.set_tcl_installation()");
     end;
 
     procedure unset_tcl_installation is
     begin
-      exec("environ = old_environ");
+      exec("tcl_installation.unset_tcl_installation()");
     end;
 
     procedure query_if(expr : boolean; check_result : check_result_t) is

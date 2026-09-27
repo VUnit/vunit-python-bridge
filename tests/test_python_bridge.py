@@ -880,6 +880,32 @@ class TestWindowsGccBuild(unittest.TestCase):
             native_library.add_python_dll_to_path()
             self.assertEqual(os.environ["PATH"], os.pathsep.join(["first", "pydir"]))
 
+    def test_add_python_libraries_to_library_path_only_for_a_python_with_its_own_tcl(self):
+        with create_tempdir() as tempdir:
+            lib = tempdir / "lib"
+            lib.mkdir()
+            with (
+                mock.patch("sys.platform", "linux"),
+                mock.patch("sys.base_prefix", str(tempdir)),
+                mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "first"}),
+            ):
+                # A distribution Python: Tcl/Tk are in the system library directories
+                native_library.add_python_libraries_to_library_path()
+                self.assertEqual(os.environ["LD_LIBRARY_PATH"], "first")
+                # A standalone build: Tcl/Tk next to libpython, added once
+                (lib / "libtcl9.0.so").touch()
+                native_library.add_python_libraries_to_library_path()
+                native_library.add_python_libraries_to_library_path()
+                self.assertEqual(os.environ["LD_LIBRARY_PATH"], os.pathsep.join(["first", str(lib)]))
+            for platform in ("darwin", "win32"):
+                with (
+                    mock.patch("sys.platform", platform),
+                    mock.patch("sys.base_prefix", str(tempdir)),
+                    mock.patch.dict(os.environ, {"LD_LIBRARY_PATH": "first"}),
+                ):
+                    native_library.add_python_libraries_to_library_path()
+                    self.assertEqual(os.environ["LD_LIBRARY_PATH"], "first", platform)
+
 
 class TestWindows64Bit(unittest.TestCase):
     """
