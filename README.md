@@ -71,10 +71,7 @@ check(call_integer_vector("gain", arg(integer_vector'(1, 2))) = integer_vector'(
 
 ## Requirements
 
-- `vunit_hdl >= 5.0.0.dev12`, the version carrying the support for packages and simulator hooks
-  ([VUnit/vunit#1221](https://github.com/VUnit/vunit/pull/1221)). Until that is part of a release,
-  install VUnit from its master branch:
-  `pip install git+https://github.com/VUnit/vunit.git@master`
+- VUnit 5.0.0.dev12 or later (`vunit_hdl` on PyPI), which pip installs with the package.
 - VHDL-2008 or later.
 - CPython 3.10 or later, standard (GIL) build, with a shared `libpython` (`--enable-shared`), which
   is what distribution Pythons, `actions/setup-python`, `uv` and `pyenv` provide by default.

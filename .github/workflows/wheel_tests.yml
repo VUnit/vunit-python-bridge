@@ -91,7 +91,6 @@ jobs:
         python -m venv "$RUNNER_TEMP/venv"
         scripts="$RUNNER_TEMP/venv/$([ "$RUNNER_OS" = Windows ] && echo Scripts || echo bin)"
         echo "$scripts" >> "$GITHUB_PATH"
-        "$scripts/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@master" --progress-bar off
         "$scripts/pip" install dist/*.whl --progress-bar off
 
     - name: '🚧 Feature tests against the installed wheel'
