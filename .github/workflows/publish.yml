@@ -165,13 +165,17 @@ jobs:
         name: distribution
         path: dist
 
-    # What was written when the tag was made is what the release says.
+    # The release says what release_notes/<version>.md says, or else what was written
+    # when the tag was made, or else what GitHub generates from the merged pull requests.
     - name: '🏷️ Create the release'
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
+        release_notes="release_notes/${{ needs.version.outputs.version }}.md"
         git tag -l --format='%(contents)' "$GITHUB_REF_NAME" > notes.md
-        if [ -s notes.md ]; then
+        if [ -f "$release_notes" ]; then
+          notes=(--notes-file "$release_notes")
+        elif [ -s notes.md ]; then
           notes=(--notes-file notes.md)
         else
           notes=(--generate-notes)
