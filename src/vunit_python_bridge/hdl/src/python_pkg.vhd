@@ -28,6 +28,9 @@ use vunit_lib.logger_pkg.all;
 ------------------------------------------------------------------------------
 
 package python_pkg is
+  -- Import a Python file as a module. A relative path is relative to the
+  -- directory of the testbench file, tb_path, so test_runner_setup must have
+  -- been called. An absolute path is used as it is given.
   procedure import_module_from_file(
     module_path, as_module_name : string; session : python_session_t := default_session
   );
@@ -274,6 +277,8 @@ package python_pkg is
 end package;
 
 package body python_pkg is
+  impure function p_file_path(file_name : string) return string;
+
   -- @formatter:off
   procedure import_module_from_file(
     module_path, as_module_name : string; session : python_session_t := default_session
@@ -283,7 +288,7 @@ package body python_pkg is
     "from importlib.util import spec_from_file_location, module_from_spec" & LF &
     "from pathlib import Path" & LF &
     "import sys" & LF &
-    spec_name & " = spec_from_file_location('" & as_module_name & "', str(Path('" & module_path & "')))" & LF &
+    spec_name & " = spec_from_file_location('" & as_module_name & "', str(Path('" & p_file_path(module_path) & "')))" & LF &
     as_module_name & " = module_from_spec(" & spec_name & ")" & LF &
     "sys.modules['" & as_module_name & "'] = " & as_module_name & LF &
      spec_name & ".loader.exec_module(" & as_module_name & ")";
@@ -893,8 +898,9 @@ package body python_pkg is
     return false;
   end;
 
-  -- The file name of exec_file, a relative one taken from the directory of the
-  -- testbench file like the file names of the other VUnit subprograms
+  -- The file name of exec_file and import_module_from_file, a relative one taken
+  -- from the directory of the testbench file like the file names of the other
+  -- VUnit subprograms
   impure function p_file_path(file_name : string) return string is
   begin
     if p_is_absolute(file_name) then
