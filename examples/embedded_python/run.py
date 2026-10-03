@@ -15,8 +15,9 @@ types they convert, calls with positional, keyword and group arguments, wide
 ``unsigned``/``signed`` and ``std_ulogic`` argument values, an
 ``integer_array_t`` image shared with NumPy, Python files executed with
 ``exec_file`` or imported with ``import_module_from_file``, two models loaded
-into a session each, error reporting, and ``python_model``, a verification
-component whose behaviour is a Python function. Some tests need Python
+into a session each, error reporting, ``python_model``, a verification
+component whose behaviour is a Python function, and ``accumulator_model``, a
+component instantiated twice with a Python model state per instance. Some tests need Python
 packages the bridge does not depend on (``PySimpleGUI``, ``python-constraint``,
 ``crccheck`` and ``matplotlib``); the run script says which when they are
 missing. Three tests demonstrate error reporting and fail by design. See the
