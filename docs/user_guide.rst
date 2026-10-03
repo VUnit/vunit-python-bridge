@@ -459,11 +459,15 @@ import_module_from_file and to_py_list_str
 
 ``import_module_from_file`` imports any Python file as a module by path (also
 taking an optional :ref:`session <python_bridge:sessions>` parameter), and is
-what ``import_run_script`` uses internally:
+what ``import_run_script`` uses internally. Like the file name of
+``exec_file``, a relative path is relative to the directory of the testbench
+file, ``tb_path``, so ``test_runner_setup`` must have been called; this works
+from verification components without ``runner_cfg``. An absolute path is used
+as it is given:
 
 .. code-block:: vhdl
 
-    import_module_from_file(join(tb_path(runner_cfg), "reference_model.py"), "reference_model");
+    import_module_from_file("reference_model.py", "reference_model");
     exec("reference_model.configure(gain=4)");
 
 ``to_py_list_str`` converts an ``integer_vector``, ``integer_vector_ptr_t`` or
