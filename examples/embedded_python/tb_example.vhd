@@ -36,6 +36,10 @@ architecture tb of tb_example is
   -- Ports of the python_model component
   signal model_x : integer := 0;
   signal model_y : integer;
+
+  -- Ports of the two accumulator_model instances
+  signal acc_a_x, acc_b_x : integer := 0;
+  signal acc_a_y, acc_b_y : integer;
 begin
   test_runner : process
     constant pi : real := 3.141592653589793;
@@ -690,6 +694,17 @@ begin
           check_equal(model_y, 2 * idx + 1, result("for the output of the model"));
         end loop;
 
+      elsif run("Test independent models of two instances") then
+        -- Both accumulator_model instances execute the same Python file, each in a
+        -- session of its own, so each keeps a total of its own
+        for idx in 1 to 3 loop
+          acc_a_x <= idx;
+          acc_b_x <= 10 * idx;
+          wait for clk_period;
+          check_equal(acc_a_y, idx * (idx + 1) / 2, result("for the total of instance a"));
+          check_equal(acc_b_y, 10 * idx * (idx + 1) / 2, result("for the total of instance b"));
+        end loop;
+
 
       ---------------------------------------------------------------------
       -- Examples of string manipulation
@@ -772,4 +787,13 @@ begin
   python_model_inst : entity work.python_model
     generic map(model_file => join(tb_path(runner_cfg), "python_model.py"))
     port map(x => model_x, y => model_y);
+
+  -- Two instances of a component with a stateful Python model
+  acc_a_inst : entity work.accumulator_model
+    generic map(model_file => "accumulator_model.py")
+    port map(x => acc_a_x, y => acc_a_y);
+
+  acc_b_inst : entity work.accumulator_model
+    generic map(model_file => "accumulator_model.py")
+    port map(x => acc_b_x, y => acc_b_y);
 end;
