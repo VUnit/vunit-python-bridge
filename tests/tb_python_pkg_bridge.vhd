@@ -1068,7 +1068,6 @@ begin
       ---------------------------------------------------------------------
       -- dict_t
       ---------------------------------------------------------------------
-      -- The dicts are not deallocated: new_dict after the deallocate of a grown dict fails in VUnit's dict_pkg
       elsif run("Test eval of dict with every value type") then
         dict := eval_dict("{'i': -7, 'r': 0.5, 's': 'h\u00e9llo', 'b': True, 'l': [1, 2, 3], 'e': [], 'n': {'x': 1}}");
         check_equal(num_keys(dict), 7);
@@ -1095,6 +1094,13 @@ begin
 
         dict := eval_dict("{}");
         check_equal(num_keys(dict), 0);
+
+      elsif run("Test that a returned dict can be deallocated") then
+        for i in 1 to 3 loop
+          dict := eval_dict("{'a': 1, 'b': 2, 'c': 3, 'd': 4, 'e': 5, 'f': 6}");
+          check_equal(get_integer(dict, "f"), 6);
+          deallocate(dict);
+        end loop;
 
       elsif run("Test that eval of dict gives exact reals") then
         dict := eval_dict("{'a': 0.1, 'b': -2.5e-100, 'c': 1e300, 'e': 0.0, 'f': 1.7976931348623157e308}");
