@@ -58,6 +58,7 @@ ARG_VALUES = [
     dict(vhdl="unsigned", impure=True, fails=True, suffix="_unsigned"),
     dict(vhdl="signed", impure=True, fails=True, suffix="_signed"),
     dict(vhdl="integer_array_t", impure=True, fails=True, suffix=""),
+    dict(vhdl="dict_t", impure=True, fails=True, suffix=""),
 ]
 
 # Result types of eval and call.
@@ -155,6 +156,15 @@ RESULTS = [
         # No eval alias: length(eval(...)) would otherwise be ambiguous between
         # the integer_array_t and integer_vector_ptr_t results. Use eval_integer_array.
         alias_eval=False,
+    ),
+    dict(
+        name="dict",
+        vhdl="dict_t",
+        kind="p_kind_dict",
+        value="p_to_dict(p_result_string)",
+        default="new_dict",
+        hand_written_eval=False,
+        hand_written_call=False,
     ),
 ]
 

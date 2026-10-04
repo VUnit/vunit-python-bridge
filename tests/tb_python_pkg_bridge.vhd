@@ -16,6 +16,7 @@ library vunit_lib;
 context vunit_lib.vunit_context;
 library python_bridge;
 context python_bridge.python_context;
+use vunit_lib.dict_2008p_pkg.all;
 
 entity tb_python_pkg_bridge is
   generic (runner_cfg : string);
@@ -34,6 +35,9 @@ architecture tb of tb_python_pkg_bridge is
   constant std_ulogic_arg_error : string := "arg cannot convert 'X'; expected '0', '1', 'L' or 'H'";
   constant std_ulogic_arg_call : string :=
     "describe(__vunit__.error(""arg cannot convert 'X'; expected '0', '1', 'L' or 'H'""))";
+  constant dict_arg_error : string := "arg cannot convert the character value of the dict key ""c""";
+  constant dict_arg_call : string :=
+    "describe({""c"": __vunit__.error(""arg cannot convert the character value of the dict key \""c\"""")})";
   constant unsigned_arg_error : string := "kwarg_unsigned cannot convert ""1010X010""; the value has metavalues";
   constant unsigned_arg_call : string :=
     "describe(v=__vunit__.error(""kwarg_unsigned cannot convert \""1010X010\""; the value has metavalues""))";
@@ -59,6 +63,7 @@ begin
 
     variable arr, arr_b, result : integer_array_t;
     variable ptr : integer_vector_ptr_t;
+    variable dict, inner : dict_t;
     variable slv4 : std_ulogic_vector(3 downto 0);
     variable slv9_desc : std_ulogic_vector(8 downto 0) := "UX01ZWLH-";
     variable slv9_asc : std_ulogic_vector(0 to 8) := "UX01ZWLH-";
@@ -1059,6 +1064,171 @@ begin
         unmock(python_logger);
         unmock(default_logger);
         unmock(golden_logger);
+
+      ---------------------------------------------------------------------
+      -- dict_t
+      ---------------------------------------------------------------------
+      -- The dicts are not deallocated: new_dict after the deallocate of a grown dict fails in VUnit's dict_pkg
+      elsif run("Test eval of dict with every value type") then
+        dict := eval_dict("{'i': -7, 'r': 0.5, 's': 'h\u00e9llo', 'b': True, 'l': [1, 2, 3], 'e': [], 'n': {'x': 1}}");
+        check_equal(num_keys(dict), 7);
+        check_equal(get_integer(dict, "i"), -7);
+        check_equal(get_real(dict, "r"), 0.5);
+        check_equal(get_string(dict, "s"), "h" & character'val(195) & character'val(169) & "llo");
+        check_equal(get_boolean(dict, "b"), true);
+        ptr := get_integer_vector_ptr_t_ref(dict, "l");
+        check_equal(length(ptr), 3);
+        check_equal(get(ptr, 2), 3);
+        check_equal(length(get_integer_vector_ptr_t_ref(dict, "e")), 0);
+        inner := get_dict_t_ref(dict, "n");
+        check_equal(get_integer(inner, "x"), 1);
+
+        -- The eval and call aliases select the overload from the result type
+        dict := eval("{'a': 1}");
+        check_equal(get_integer(dict, "a"), 1);
+        exec("def make(n):" + "    return {'n': n, 'sq': {'v': n * n}}");
+        dict := call("make", arg(5));
+        check_equal(get_integer(dict, "n"), 5);
+        check_equal(get_integer(get_dict_t_ref(dict, "sq"), "v"), 25);
+        dict := call_dict("make", arg(3));
+        check_equal(num_keys(dict), 2);
+
+        dict := eval_dict("{}");
+        check_equal(num_keys(dict), 0);
+
+      elsif run("Test that eval of dict gives exact reals") then
+        dict := eval_dict("{'a': 0.1, 'b': -2.5e-100, 'c': 1e300, 'e': 0.0, 'f': 1.7976931348623157e308}");
+        check_equal(get_real(dict, "a"), 0.1, max_diff => 0.0);
+        check_equal(get_real(dict, "b"), -2.5e-100, max_diff => 0.0);
+        check_equal(get_real(dict, "c"), 1.0e300, max_diff => 0.0);
+        check_equal(get_real(dict, "e"), 0.0, max_diff => 0.0);
+        check_equal(get_real(dict, "f"), 1.7976931348623157e308, max_diff => 0.0);
+
+      elsif run("Test that eval of dict is strict about keys and values") then
+        mock(default_logger, failure);
+        dict := eval_dict("[1]");
+        check_log(
+          default_logger,
+          "eval(""[1]"") failed:" & LF &
+          "TypeError: Cannot convert Python list ([1]) to VHDL dict_t; expected a dict",
+          failure
+        );
+        check_equal(num_keys(dict), 0);
+
+        dict := eval_dict("{1: 2}");
+        check_log(
+          default_logger,
+          "eval(""{1: 2}"") failed:" & LF &
+          "TypeError: Cannot convert the dict key 1, a int; expected str",
+          failure
+        );
+
+        dict := eval_dict("{'a': None}");
+        check_log(
+          default_logger,
+          "eval(""{'a': None}"") failed:" & LF &
+          "TypeError: Cannot convert the value of dict key 'a', a NoneType (None); " &
+          "expected int, float, str, bool, a list of int or a dict",
+          failure
+        );
+
+        dict := eval_dict("{'a': 2**31}");
+        check_log(
+          default_logger,
+          "eval(""{'a': 2**31}"") failed:" & LF &
+          "OverflowError: 2147483648 of dict key 'a' is outside the range of VHDL integer " &
+          "(-2147483648 to 2147483647)",
+          failure
+        );
+
+        dict := eval_dict("{'a': {'b': [1, 'x']}}");
+        check_log(
+          default_logger,
+          "eval(""{'a': {'b': [1, 'x']}}"") failed:" & LF &
+          "TypeError: Cannot convert the value of dict key 'b', a list ([1, 'x']); " &
+          "expected int, float, str, bool, a list of int or a dict",
+          failure
+        );
+
+        dict := call_dict("dict", kwarg("a", 1.5));
+        check_equal(get_real(dict, "a"), 1.5);
+        check_no_log;
+        unmock(default_logger);
+
+      elsif run("Test arg and kwarg of dict_t values") then
+        define_describe;
+        dict := new_dict;
+        set_integer(dict, "i", 5);
+        check_equal(call_string("describe", arg(dict)), "{'i': 5}");
+        check_equal(call_string("describe", kwarg("d", dict)), "d={'i': 5}");
+        check_equal(call_string("describe", arg(new_dict)), "{}");
+
+        dict := new_dict;
+        set_real(dict, "r", 0.5);
+        set_string(dict, "s", "a ""q""");
+        set_boolean(dict, "b", false);
+        set_std_ulogic(dict, "u", 'H');
+        set_integer_vector(dict, "iv", integer_vector'(1, 2));
+        set_real_vector(dict, "rv", real_vector'(1.5, 2.5));
+        inner := new_dict;
+        set_integer(inner, "n", 1);
+        set_dict_t_ref(dict, "d", inner);
+        exec("def show(d):" + "    return repr(sorted(d.items()))");
+        check_equal(
+          call_string("show", arg(dict)),
+          "[('b', False), ('d', {'n': 1}), ('iv', [1, 2]), ('r', 0.5), ('rv', [1.5, 2.5]), ('s', 'a ""q""'), ('u', True)]"
+        );
+
+      elsif run("Test dict_t round trip through Python") then
+        exec("def identity(**kwargs):" + "    return kwargs['d']");
+        dict := new_dict;
+        inner := new_dict;
+        set_integer(inner, "x", -3);
+        set_dict_t_ref(dict, "inner", inner);
+        ptr := new_integer_vector_ptr(2);
+        set(ptr, 0, 4);
+        set(ptr, 1, 5);
+        set_integer_vector_ptr_t_ref(dict, "ints", ptr);
+        set_integer(dict, "i", 1);
+        set_real(dict, "r", 0.1);
+        set_string(dict, "s", "a ""quoted"" \ string");
+        set_boolean(dict, "b", true);
+        set_std_ulogic(dict, "u", '1');
+        set_integer_vector(dict, "iv", integer_vector'(7, 8));
+        inner := call_dict("identity", kwarg("d", dict));
+        check_equal(num_keys(inner), 8);
+        check_equal(get(get_integer_vector_ptr_t_ref(inner, "iv"), 0), 7);
+        check_equal(get_integer(inner, "i"), 1);
+        check_equal(get_real(inner, "r"), 0.1);
+        check_equal(get_string(inner, "s"), "a ""quoted"" \ string");
+        check_equal(get_boolean(inner, "b"), true);
+        check_equal(get_integer(get_dict_t_ref(inner, "inner"), "x"), -3);
+        check_equal(get(get_integer_vector_ptr_t_ref(inner, "ints"), 1), 5);
+
+      elsif run("Test dict_t values that cannot be converted to Python") then
+        define_describe;
+        define_error_helper;
+        dict := new_dict;
+        set_character(dict, "c", 'x');
+        mock(python_logger, failure);
+        mock(default_logger, failure);
+        check_equal(call_string("describe", arg(dict)), "");
+        check_log(python_logger, dict_arg_error, failure);
+        exec("failing_source = r" & py_quotes & dict_arg_call & py_quotes);
+        check_log(
+          default_logger,
+          "eval(""" & dict_arg_call & """) failed:" & LF &
+          eval_string("expected_error(failing_source, '<eval #1>', True)"),
+          failure
+        );
+        unmock(python_logger);
+        unmock(default_logger);
+
+      elsif run("Test a dict_t keyword argument in a group") then
+        define_describe;
+        dict := new_dict;
+        set_integer(dict, "k", 1);
+        check_equal(call_string("describe", arg(1), arg(2) & kwarg("d", dict) & kwarg("e", 3)), "1, 2, d={'k': 1}, e=3");
 
       end if;
     end loop;
