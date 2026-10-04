@@ -105,6 +105,7 @@ bridge, ``eval`` has more result types:
 * ``eval_std_ulogic_vector``, returning an unconstrained ``std_ulogic_vector``.
 * ``eval_integer_array``, returning ``integer_array_t``, see
   :ref:`python_bridge:integer_array`.
+* ``eval_dict``, returning ``dict_t``, see :ref:`python_bridge:dict`.
 
 ``eval_boolean`` and ``eval_std_ulogic`` are aliased ``eval`` like the other
 result types. ``eval_std_ulogic_vector`` and ``eval_integer_array`` are not,
@@ -164,6 +165,7 @@ VHDL                       Python
 ``unsigned``               ``int``, passed as ``arg_unsigned``/``kwarg_unsigned``
 ``signed``                 ``int``, passed as ``arg_signed``/``kwarg_signed``
 ``integer_array_t``        NumPy array, not on Riviera-PRO/Active-HDL
+``dict_t``                 ``dict`` with ``str`` keys, see :ref:`python_bridge:dict`
 ========================== ========================================================
 
 An ``unsigned`` or ``signed`` value of any width becomes an exact Python
@@ -201,7 +203,7 @@ passed as a number or as the string of its characters:
 
 On NVC, GHDL and Questa, ``call`` returns the same types as ``eval``:
 ``call_boolean``, ``call_std_ulogic``, ``call_std_ulogic_vector``,
-``call_integer_array``, ``call_string``, ``call_real_vector`` and
+``call_integer_array``, ``call_dict``, ``call_string``, ``call_real_vector`` and
 ``call_integer_vector_ptr``, plus the procedures ``call_std_ulogic_vector``,
 ``call_signed`` and ``call_unsigned`` taking the result as an ``out``
 parameter. All of the functions but ``call_std_ulogic_vector`` are aliased

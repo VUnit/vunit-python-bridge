@@ -16,6 +16,8 @@ Type mapping
 * ``signed``/``unsigned`` ↔ ``int`` (procedure results only, Python bridge).
 * ``integer_array_t`` ↔ ``numpy.ndarray`` (Python bridge), see
   :ref:`python_bridge:integer_array`.
+* ``dict_t`` ↔ ``dict`` (results need the Python bridge), see
+  :ref:`python_bridge:dict`.
 
 The types marked as needing the Python bridge are available on NVC, GHDL and
 Questa, but not on Riviera-PRO/Active-HDL.
@@ -23,6 +25,44 @@ Questa, but not on Riviera-PRO/Active-HDL.
 Results are strict: a value that does not fit the VHDL type, or is of the
 wrong Python type, is an error. Values are never silently truncated or
 wrapped.
+
+.. _python_bridge:dict:
+
+dict_t and dict
+---------------
+
+A ``dict_t`` from VUnit's ``dict_pkg`` (string keys, values of mixed types) is
+a Python ``dict``. As an argument, ``arg(dict)`` and ``kwarg("name", dict)``
+write the ``dict`` as the Python literal ``{"key": value, ...}``, which works
+on all simulators. The values are ``integer``, ``real``, ``string``,
+``boolean``, ``std_ulogic``, ``integer_vector``, ``real_vector``,
+``integer_vector_ptr_t`` and nested ``dict_t``. Any other value type is
+reported like any other argument that cannot be converted. The keys are
+visited in the order of ``get_key``, which VUnit does not specify.
+
+.. code-block:: vhdl
+
+    constant cfg : dict_t := new_dict;
+    set_integer(cfg, "taps", 8);
+    set_real(cfg, "gain", 0.5);
+    call("model.configure", arg(cfg));
+
+``eval_dict`` and ``call_dict`` (aliased ``eval`` and ``call``) convert a
+Python ``dict`` with ``str`` keys to a new ``dict_t`` that the caller owns and
+deallocates. The values are converted strictly: ``int`` to ``integer``,
+``float`` to ``real``, ``str`` to ``string``, ``bool`` to ``boolean``, a
+``list`` of ``int`` to ``integer_vector_ptr_t`` and a ``dict`` to a nested
+``dict_t``, the last two stored with ``set_integer_vector_ptr_t_ref`` and
+``set_dict_t_ref``. ``None``, an ``int`` outside the VHDL integer range, a key
+that is not a ``str`` or any other value is an error, and ``eval_dict`` then
+returns an empty ``dict_t`` after reporting it. ``eval_dict`` and ``call_dict``
+are implemented by the Python bridge: Riviera-PRO/Active-HDL reports that they require NVC, GHDL or
+Questa.
+
+.. code-block:: vhdl
+
+    constant result : dict_t := eval("{'name': 'fir', 'taps': [1, 2, 1], 'gain': 0.5}");
+    check_equal(get_string(result, "name"), "fir");
 
 .. _python_bridge:integer_array:
 
