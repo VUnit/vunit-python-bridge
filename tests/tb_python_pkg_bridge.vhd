@@ -143,6 +143,12 @@ begin
       check_equal(integer'(call("bump", data)), 5);
     end;
 
+    -- Imports the way a verification component would, without runner_cfg
+    procedure import_filters is
+    begin
+      import_module_from_file("models/filters.py", "filters_model");
+    end;
+
   begin
     test_runner_setup(runner, runner_cfg);
 
@@ -218,6 +224,16 @@ begin
         exec_file("models/counter.py");
         exec_file("models/counter.py");
         check_equal(integer'(call("get_call_count")), 2);
+
+      elsif run("Test importing a module with a relative file name") then
+        -- The simulator runs in the VUnit output path, not the testbench directory
+        check_false(eval_boolean("__import__('os').path.samefile('.', '" & tb_path(runner_cfg) & "')"));
+        import_filters;
+        check_equal(integer'(call("filters_model.fir", arg(2))), 3);
+
+      elsif run("Test importing a module with an absolute file name") then
+        import_module_from_file(join(tb_path(runner_cfg), "models/filters.py"), "filters_model");
+        check_equal(integer'(call("filters_model.fir", arg(2))), 3);
 
       elsif run("Test that exec_file with a missing file fails") then
         -- The error message shows the path in the native format of the OS
