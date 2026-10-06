@@ -106,7 +106,10 @@ package python_ffi_pkg is
   constant p_kind_integer_vector : integer := 9;
   constant p_kind_real_vector : integer := 10;
 
-  -- Name of the operation, used in the error messages
+  -- Names of the operations, used in the error messages
+  impure function p_exec_file_operation(
+    file_name : string; session : python_session_t := default_session
+  ) return string;
   impure function p_eval_operation(expr : string; session : python_session_t := default_session) return string;
 
   -- Execute the Python file with the given name
@@ -214,6 +217,16 @@ package body python_ffi_pkg is
   procedure p_unsupported(name : string) is
   begin
     failure(python_logger, name & " requires NVC, GHDL or Questa");
+  end;
+
+  impure function p_exec_file_operation(
+    file_name : string; session : python_session_t := default_session
+  ) return string is
+  begin
+    if p_is_default(session) then
+      return "exec_file(""" & file_name & """)";
+    end if;
+    return "exec_file(""" & file_name & """, session => """ & name(session) & """)";
   end;
 
   impure function p_eval_operation(expr : string; session : python_session_t := default_session) return string is
