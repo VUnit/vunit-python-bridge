@@ -124,9 +124,7 @@ def _vhpidirect_token(simulator_name, simulator_backend: Optional[str], library_
     or the linker flag of the GHDL backends that link the design ahead of time.
     """
     if simulator_name == "ghdl" and simulator_backend in GHDL_LINKING_BACKENDS:
-        # libvunit_python_bridge.so, or the versioned name of a prebuilt Windows DLL
-        stem = library_file.stem
-        return f"-l{stem[3:] if stem.startswith('lib') else stem}"
+        return "-lvunit_python_bridge"
     return library_file.name
 
 
