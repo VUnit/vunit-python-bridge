@@ -92,6 +92,8 @@ jobs:
         scripts="$RUNNER_TEMP/venv/$([ "$RUNNER_OS" = Windows ] && echo Scripts || echo bin)"
         echo "$scripts" >> "$GITHUB_PATH"
         "$scripts/pip" install dist/*.whl --progress-bar off
+        # TEMPORARY: VUnit with dict_pkg get_key/get_value_type, until VUnit/vunit#1229 is released
+        "$scripts/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@refs/pull/1229/head" --progress-bar off
 
     - name: '🚧 Feature tests against the installed wheel'
       run: |

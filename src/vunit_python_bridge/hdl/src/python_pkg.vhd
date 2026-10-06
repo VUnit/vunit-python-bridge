@@ -13,6 +13,9 @@ use vunit_lib.run_pkg.all;
 use vunit_lib.runner_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
 use vunit_lib.string_ops.all;
+use vunit_lib.dict_pkg.all;
+use vunit_lib.dict_2008p_pkg.all;
+use vunit_lib.data_types_private_pkg.all;
 
 use std.textio.all;
 
@@ -81,6 +84,11 @@ package python_pkg is
   --
   -- H and L are read as 1 and 0. Any other metavalue is an error.
   --
+  -- A dict_t value becomes a Python dict, {"key": value, ...}, whose values
+  -- are written the same way: integer, real, string, boolean, std_ulogic,
+  -- integer_vector, real_vector, integer_vector_ptr_t and dict_t values.
+  -- Any other value type is an error.
+  --
   -- An integer_array_t value is transferred to Python by the Python bridge,
   -- which is only available for NVC, GHDL and Questa, and is referred to by
   -- the expression, which means that it can be used in several calls.
@@ -96,6 +104,8 @@ package python_pkg is
   impure function kwarg_signed(kw : string; value : signed) return arg_t;
   impure function arg(value : integer_array_t) return arg_t;
   impure function kwarg(kw : string; value : integer_array_t) return arg_t;
+  impure function arg(value : dict_t) return arg_t;
+  impure function kwarg(kw : string; value : dict_t) return arg_t;
 
   -- The Python expression calling identifier with the given arguments, for
   -- example to embed a call in a larger exec or eval string:
@@ -167,6 +177,10 @@ package python_pkg is
   -----------------------------------------------------------------------------
   -- Results of eval: boolean, std_ulogic, vectors and arrays
   -----------------------------------------------------------------------------
+  -- The result of eval_dict and call_dict is a new dict_t that the caller owns
+  -- and deallocates. Its values are integer, real, string, boolean,
+  -- integer_vector_ptr_t (a list of int) and dict_t (a nested dict).
+  --
   -- std_ulogic_vector and integer_array_t results are only available under
   -- their explicit names, not as eval overloads, which keeps
   -- check_equal(eval("17"), 17) and length(eval("[1, 2]")) unambiguous.
@@ -189,6 +203,11 @@ package python_pkg is
   impure function eval_integer_array(
     expr : string; session : python_session_t := default_session
   ) return integer_array_t;
+
+  impure function eval_dict(
+    expr : string; session : python_session_t := default_session
+  ) return dict_t;
+  alias eval is eval_dict[string, python_session_t return dict_t];
 
   procedure eval_std_ulogic_vector(
     expr : string; result : out std_ulogic_vector; session : python_session_t := default_session
@@ -249,6 +268,13 @@ package python_pkg is
   ) return integer_array_t;
   alias call is call_integer_array[
     string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer_array_t];
+
+  impure function call_dict(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return dict_t;
+  alias call is call_dict[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return dict_t];
 
   procedure call_std_ulogic_vector(
     identifier : string; result : out std_ulogic_vector;
@@ -606,6 +632,44 @@ package body python_pkg is
     return "__vunit__.staged(" & integer'image(staged_id) & ")";
   end;
 
+  impure function p_arg_value(value : dict_t; operation : string) return string;
+
+  -- The Python source text of the value stored for a key of a dict
+  impure function p_dict_item(value : dict_t; key, operation : string) return string is
+  begin
+    case get_value_type(value, key) is
+      when vhdl_integer => return to_string(get_integer(value, key));
+      when vhdl_real => return to_string(get_real(value, key), "%.16e");
+      when vhdl_string => return p_quoted(get_string(value, key));
+      when vhdl_boolean => return arg(get_boolean(value, key)).value;
+      when ieee_std_ulogic => return p_arg_value(get_std_ulogic(value, key), operation);
+      when vhdl_integer_vector => return to_py_list_str(get_integer_vector(value, key));
+      when vhdl_real_vector => return to_py_list_str(get_real_vector(value, key));
+      when vunit_integer_vector_ptr_t => return p_arg_value(get_integer_vector_ptr_t_ref(value, key));
+      when vunit_dict_t => return p_arg_value(get_dict_t_ref(value, key), operation);
+      when others =>
+        return p_failed_value(
+          operation & " cannot convert the " & to_string(get_value_type(value, key)) &
+          " value of the dict key """ & key & """"
+        );
+    end case;
+  end;
+
+  impure function p_arg_value(value : dict_t; operation : string) return string is
+    variable result : line;
+  begin
+    swrite(result, "{");
+    for idx in 0 to num_keys(value) - 1 loop
+      if idx > 0 then
+        swrite(result, ", ");
+      end if;
+      swrite(result, p_quoted(get_key(value, idx)) & ": " & p_dict_item(value, get_key(value, idx), operation));
+    end loop;
+    swrite(result, "}");
+
+    return result.all;
+  end;
+
   function arg(value : real_vector) return arg_t is
   begin
     return (p_positional_arg, p_arg_value(value));
@@ -662,6 +726,16 @@ package body python_pkg is
   end;
 
   impure function kwarg(kw : string; value : integer_array_t) return arg_t is
+  begin
+    return (kw, p_arg_value(value, "kwarg"));
+  end;
+
+  impure function arg(value : dict_t) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value, "arg"));
+  end;
+
+  impure function kwarg(kw : string; value : dict_t) return arg_t is
   begin
     return (kw, p_arg_value(value, "kwarg"));
   end;
@@ -880,6 +954,102 @@ package body python_pkg is
     return result;
   end;
 
+  -- The integers of a comma separated list
+  function p_split_integers(text : string) return integer_vector is
+    alias items : string(1 to text'length) is text;
+    variable count : natural := 0;
+    variable first : natural := 1;
+    variable result : integer_vector(0 to text'length);
+  begin
+    if items'length = 0 then
+      return result(1 to 0);
+    end if;
+    for idx in items'range loop
+      if items(idx) = ',' then
+        result(count) := integer'value(items(first to idx - 1));
+        count := count + 1;
+        first := idx + 1;
+      end if;
+    end loop;
+    result(count) := integer'value(items(first to items'length));
+    return result(0 to count);
+  end;
+
+  impure function p_to_integer_vector_ptr(text : string) return integer_vector_ptr_t is
+    constant items : integer_vector := p_split_integers(text);
+    constant result : integer_vector_ptr_t := new_integer_vector_ptr(items'length);
+  begin
+    for idx in items'range loop
+      set(result, idx - items'left, items(idx));
+    end loop;
+    return result;
+  end;
+
+  -- The real of "hi,lo,exponent,sign", which is sign * (hi * 2**26 + lo) * 2**exponent. The 53 bit
+  -- integer is exact and the scaling by a power of two is split in two to avoid underflowing 2**exponent.
+  function p_to_real(text : string) return real is
+    constant parts : integer_vector := p_split_integers(text);
+    constant mantissa : real := real(parts(0)) * 67108864.0 + real(parts(1));
+    constant half : integer := parts(2) / 2;
+  begin
+    return real(parts(3)) * mantissa * 2.0 ** half * 2.0 ** (parts(2) - half);
+  end;
+
+  -- The dict_t of the records the dict_t result of the bridge is made of, see
+  -- _dict_entries of runtime.py
+  impure function p_to_dict(text : string) return dict_t is
+    alias records : string(1 to text'length) is text;
+    constant result : dict_t := new_dict;
+    variable pos : natural := 1;
+    variable tag : character;
+    variable key_start, key_length, payload_start, payload_length : natural;
+
+    -- The length in front of a colon, leaving pos after the colon
+    procedure read_length(length : out natural) is
+      variable colon : natural := pos;
+    begin
+      while records(colon) /= ':' loop
+        colon := colon + 1;
+      end loop;
+      length := natural'value(records(pos to colon - 1));
+      pos := colon + 1;
+    end;
+
+    procedure add(key, payload : string) is
+      alias value : string(1 to payload'length) is payload;
+      variable ints : integer_vector_ptr_t;
+      variable nested : dict_t;
+    begin
+      case tag is
+        when 'i' => set_integer(result, key, integer'value(value));
+        when 'r' => set_real(result, key, p_to_real(value));
+        when 'b' => set_boolean(result, key, value = "1");
+        when 's' => set_string(result, key, value);
+        when 'd' =>
+          nested := p_to_dict(value);
+          set_dict_t_ref(result, key, nested);
+        when others =>
+          ints := p_to_integer_vector_ptr(value);
+          set_integer_vector_ptr_t_ref(result, key, ints);
+      end case;
+    end;
+  begin
+    while pos <= records'length loop
+      tag := records(pos);
+      pos := pos + 1;
+      read_length(key_length);
+      key_start := pos;
+      pos := pos + key_length;
+      read_length(payload_length);
+      payload_start := pos;
+      pos := pos + payload_length;
+      add(records(key_start to key_start + key_length - 1),
+          records(payload_start to payload_start + payload_length - 1));
+    end loop;
+
+    return result;
+  end;
+
   -----------------------------------------------------------------------------
   -- exec
   -----------------------------------------------------------------------------
@@ -956,6 +1126,16 @@ package body python_pkg is
       return p_result_integer_array;
     end if;
     return null_integer_array;
+  end;
+
+  impure function eval_dict(
+    expr : string; session : python_session_t := default_session
+  ) return dict_t is
+  begin
+    if p_eval(expr, p_kind_dict, -1, p_eval_operation(expr, session), session) then
+      return p_to_dict(p_result_string);
+    end if;
+    return new_dict;
   end;
 
   procedure eval_std_ulogic_vector(
@@ -1054,6 +1234,16 @@ package body python_pkg is
   ) return integer_array_t is
   begin
     return eval_integer_array(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_dict(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return dict_t is
+  begin
+    return eval_dict(
       to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
     );
   end;

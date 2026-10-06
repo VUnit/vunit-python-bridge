@@ -38,6 +38,7 @@ KIND_UNSIGNED = 7
 KIND_INTEGER_ARRAY = 8
 KIND_INTEGER_VECTOR = 9
 KIND_REAL_VECTOR = 10
+KIND_DICT = 11
 
 VHDL_TYPE_NAMES = {
     KIND_INTEGER: "integer",
@@ -51,6 +52,7 @@ VHDL_TYPE_NAMES = {
     KIND_INTEGER_ARRAY: "integer_array_t",
     KIND_INTEGER_VECTOR: "integer_vector",
     KIND_REAL_VECTOR: "real_vector",
+    KIND_DICT: "dict_t",
 }
 
 STD_ULOGIC_VALUES = frozenset("UX01ZWLH-")
@@ -435,6 +437,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         if kind not in VHDL_TYPE_NAMES:
             raise RuntimeError(f"Internal error: unknown result kind {kind}")
         converter = "bits" if kind in (KIND_SIGNED, KIND_UNSIGNED) else VHDL_TYPE_NAMES[kind]
+        converter = "dict" if kind == KIND_DICT else converter
         return getattr(self, f"_{converter}_result")(kind, value, width)
 
     @staticmethod
@@ -576,6 +579,63 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             reals.append(element)
         data = struct.pack(f"={len(reals)}d", *reals)
         return (0, 0.0, data, (len(reals),))
+
+    def _dict_result(self, kind, value, _width):
+        """
+        Convert a dict with str keys to text records, see _dict_entries.
+        """
+        data = _encode(self._dict_entries(kind, value))
+        return (0, 0.0, data, (len(data),))
+
+    def _dict_entries(self, kind, value):
+        """
+        The entries of a dict as <tag><key bytes>:<key><payload bytes>:<payload>
+        records, with the tags i, r, s, b, v (int list) and d (nested dict).
+        """
+        if not isinstance(value, dict):
+            raise _type_error(kind, value, "a dict")
+        records = []
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"Cannot convert the dict key {key!r:.100}, a {_type_name(key)}; expected str")
+            if _is_bool(item):
+                tag, payload = "b", str(int(bool(item)))
+            elif _is_integer(item):
+                tag, payload = "i", str(self._dict_integer(key, item))
+            elif _is_float(item):
+                tag, payload = "r", self._dict_real(key, item)
+            elif isinstance(item, str):
+                tag, payload = "s", item
+            elif isinstance(item, dict):
+                tag, payload = "d", self._dict_entries(kind, item)
+            elif isinstance(item, list) and all(_is_integer(element) for element in item):
+                tag, payload = "v", ",".join(str(self._dict_integer(key, element)) for element in item)
+            else:
+                raise TypeError(
+                    f"Cannot convert the value of dict key {key!r:.100}, a {_type_name(item)} ({item!r:.100}); "
+                    "expected int, float, str, bool, a list of int or a dict"
+                )
+            records.append(f"{tag}{len(_encode(key))}:{key}{len(_encode(payload))}:{payload}")
+        return "".join(records)
+
+    @staticmethod
+    def _dict_integer(key, value):
+        value = int(value)
+        if not INTEGER_LOW <= value <= INTEGER_HIGH:
+            raise OverflowError(
+                f"{value} of dict key {key!r:.100} is outside the range of VHDL integer "
+                f"({INTEGER_LOW} to {INTEGER_HIGH})"
+            )
+        return value
+
+    @staticmethod
+    def _dict_real(key, value):
+        if not math.isfinite(value):
+            raise ValueError(f"{value} of dict key {key!r:.100} cannot be represented as VHDL real")
+        # hi,lo,exponent,sign of an exact 53 bit mantissa, which VHDL cannot parse from decimal text exactly
+        mantissa, exponent = math.frexp(abs(float(value)))
+        high, low = divmod(int(mantissa * 2**53), 2**26)
+        return f"{high},{low},{exponent - 53},{int(math.copysign(1, value))}"
 
     _DTYPE_WORD_SIZE = {
         # dtype.str without byte order: (bit_width, is_signed)
