@@ -32,6 +32,9 @@ BINARY_PATH = PACKAGE_PATH / "bin"
 # Front end only compiled into the FLI variant of the library
 FLI_SOURCE_NAME = "fli.c"
 
+# Directory of the bridge libraries, overriding the default of library_directory()
+LIBRARY_DIR_VARIABLE = "VUNIT_PYTHON_BRIDGE_LIBRARY_DIR"
+
 
 class PythonBridgeError(RuntimeError):
     """
@@ -50,6 +53,23 @@ def check_python_build() -> None:
         )
     if sys.implementation.name != "cpython":
         raise PythonBridgeError(f"VHDL Python support requires CPython, not {sys.implementation.name}")
+
+
+def library_directory() -> Path:
+    """
+    Where the bridge libraries are built or copied: VUNIT_PYTHON_BRIDGE_LIBRARY_DIR, else the
+    cache directory of the user, since the VUnit output path may not allow executing them.
+    """
+    configured = os.environ.get(LIBRARY_DIR_VARIABLE)
+    if configured:
+        return Path(configured).absolute()
+    if sys.platform == "win32":
+        cache = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
+    elif sys.platform == "darwin":
+        cache = str(Path.home() / "Library" / "Caches")
+    else:
+        cache = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    return Path(cache) / "vunit-python-bridge"
 
 
 def prepare_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path:
@@ -164,6 +184,9 @@ def _prepare_windows_library(root: Path) -> Path:
     source = BINARY_PATH / name
     if not source.is_file():
         return _build_windows_library(root)
+    if not os.environ.get(LIBRARY_DIR_VARIABLE):
+        # Loaded from the installed package, nothing is copied
+        return source
     data = source.read_bytes()
     directory = root / f"cp{sys.version_info[0]}{sys.version_info[1]}-win_amd64-{hashlib.sha256(data).hexdigest()[:12]}"
     target = directory / "vunit_python_bridge.dll"
