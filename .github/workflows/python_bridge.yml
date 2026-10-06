@@ -97,6 +97,8 @@ jobs:
         python -m venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
+        # TEMPORARY: VUnit with dict_pkg get_key/get_value_type, until VUnit/vunit#1229 is released
+        "$RUNNER_TEMP/venv with space/bin/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@refs/pull/1229/head" --progress-bar off
 
     - name: '🚧 Python unit tests'
       run: python -m pytest tests/test_python_bridge.py
@@ -173,6 +175,8 @@ jobs:
         python -m venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/Scripts" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/venv with space/Scripts/pip" install -e . --progress-bar off
+        # TEMPORARY: VUnit with dict_pkg get_key/get_value_type, until VUnit/vunit#1229 is released
+        "$RUNNER_TEMP/venv with space/Scripts/pip" install "vunit_hdl @ git+https://github.com/VUnit/vunit.git@refs/pull/1229/head" --progress-bar off
 
     # The simulator is accepted as x64, and a 32-bit executable of Windows itself is detected
     - name: '🔍 64-bit check'
