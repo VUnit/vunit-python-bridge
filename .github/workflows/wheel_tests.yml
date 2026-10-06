@@ -99,11 +99,12 @@ jobs:
         cd "$RUNNER_TEMP"
         python -c 'import vunit_python_bridge; assert "site-packages" in vunit_python_bridge.__file__, vunit_python_bridge.__file__; print(vunit_python_bridge.__file__)'
         python tests/run.py -p 4 -o "$RUNNER_TEMP/out"
+        if find "$RUNNER_TEMP/out" -name '*.so' -o -name '*.dll' | grep .; then echo "a library is in the output path"; exit 1; fi
 
-    # The bridge was the DLL of the wheel, copied to the output path, and nothing was compiled
+    # The bridge was the DLL of the wheel, loaded from the package: nothing was compiled or copied
     - name: '🔍 The prebuilt DLL was used'
       if: runner.os == 'Windows'
       run: |
         if command -v cl; then echo "MSVC is on PATH"; exit 1; fi
-        find "$RUNNER_TEMP/out" -path '*-win_amd64-*' -name vunit_python_bridge.dll | grep -v -- '-win_amd64-gcc-' | grep .
-        if find "$RUNNER_TEMP/out" -path '*-win_amd64-gcc-*' | grep .; then echo "the bridge was compiled"; exit 1; fi
+        cache="$(cygpath -u "$LOCALAPPDATA")/vunit-python-bridge"
+        if [ -d "$cache" ] && find "$cache" -name '*.dll' | grep .; then echo "the bridge was compiled or copied"; exit 1; fi

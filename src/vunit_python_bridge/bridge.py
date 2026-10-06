@@ -20,6 +20,7 @@ from .native_library import (
     PythonBridgeError,
     check_python_build,
     check_windows_64bit_simulator,
+    library_directory,
     prepare_library,
     windows_python_dll,
 )
@@ -51,6 +52,7 @@ class PythonBridge(NamedTuple):
     """
 
     library_file: Path
+    config_file: Path
     vhdl_files: List[Path]
 
 
@@ -88,9 +90,12 @@ def setup(
         )
 
     root = Path(output_path) / "python_bridge"
-    library_file = prepare_library(root, Path(simulator_prefix) if is_fli else None)
+    library_file = prepare_library(library_directory(), Path(simulator_prefix) if is_fli else None)
     run_script_dir = str(Path.cwd() if run_script_path is None else Path(run_script_path).resolve().parent)
-    _write_if_changed(library_file.parent / CONFIG_FILE_NAME, _config_text(run_script_dir))
+    # The configuration belongs to the project, the library may be shared. The simulator
+    # hooks tell the library where the configuration is.
+    config_file = root / CONFIG_FILE_NAME
+    _write_if_changed(config_file, _config_text(run_script_dir))
 
     # The foreign attribute string of an entry point: the name of its wrapper in native/fli.c
     # and the library, by absolute path since Questa accepts it, for the FLI; the VHPIDIRECT
@@ -105,6 +110,7 @@ def setup(
 
     return PythonBridge(
         library_file,
+        config_file,
         [
             bridge_package,
             VHDL_SOURCE_PATH / "python_ffi_pkg_bridge.vhd",
@@ -118,7 +124,9 @@ def _vhpidirect_token(simulator_name, simulator_backend: Optional[str], library_
     or the linker flag of the GHDL backends that link the design ahead of time.
     """
     if simulator_name == "ghdl" and simulator_backend in GHDL_LINKING_BACKENDS:
-        return "-lvunit_python_bridge"
+        # libvunit_python_bridge.so, or the versioned name of a prebuilt Windows DLL
+        stem = library_file.stem
+        return f"-l{stem[3:] if stem.startswith('lib') else stem}"
     return library_file.name
 
 
