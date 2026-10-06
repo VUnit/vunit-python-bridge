@@ -169,6 +169,75 @@ included:
 On Riviera-PRO/Active-HDL (VHPI), only the default session is supported:
 passing any other session fails with a clear error.
 
+.. _python_bridge:instance_sessions:
+
+Independent models of component instances
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The bridge runs one Python interpreter per simulation, so a component with a
+Python model that is instantiated more than once needs a session per instance
+to give every instance a model state of its own. Without sessions, or with a
+session made from a fixed name, all instances execute the model in the same
+namespace and overwrite or share its functions and variables. The
+``'instance_name`` attribute gives every instance a distinct identity to make
+the session from:
+
+.. code-block:: vhdl
+
+    architecture python of accumulator_model is
+    begin
+      model : process is
+        variable session : python_session_t;
+      begin
+        session := new_session(accumulator_model'instance_name);
+
+        wait on x;
+        exec_file(model_file, session);
+
+        loop
+          y <= call("accumulate", arg(x), session => session);
+          wait on x;
+        end loop;
+      end process;
+    end architecture;
+
+Every instance executes the same file in its own session and passes that
+session to every operation. The session is made in the statement part of the
+process since GHDL leaves the instance labels out of ``'instance_name`` in a
+declaration, which would give all instances the same session. A relative ``model_file`` is relative to the
+testbench file (``tb_path``), which is only known after
+``test_runner_setup``, so the file is executed when the first input arrives
+rather than at the start of the simulation. The ``Test independent models of
+two instances`` test case of the `embedded_python example
+<https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__
+drives two instances of this component, ``accumulator_model.vhd``, with
+different inputs and checks that each keeps a total of its own.
+
+An alternative is to define the model as a class and create one object per
+session, keeping the mutable model state on ``self`` rather than in globals:
+
+.. code-block:: python
+
+    # accumulator.py
+    class Accumulator:
+        def __init__(self):
+            self.total = 0
+
+        def accumulate(self, x):
+            self.total += x
+            return self.total
+
+.. code-block:: vhdl
+
+    import_module_from_file(join(tb_path(runner_cfg), "accumulator.py"), "accumulator", session);
+    exec("model = accumulator.Accumulator()", session);
+
+    y <= call("model.accumulate", arg(x), session => session);
+
+The module, and so the class, is shared by all sessions (see the caveats
+below), while every session has a ``model`` object of its own. Like all
+non-default sessions, this needs the Python bridge: NVC, GHDL or Questa.
+
 Caveats
 ~~~~~~~
 
@@ -181,7 +250,8 @@ functions, classes and variables, are separate. Everything else is shared:
   imported in one session is the same module object in another session, so
   changes to module state, such as ``np.random.seed(...)`` or attributes set
   on a module, are visible in all sessions. The same applies to sibling
-  modules imported by a Python file executed in several sessions.
+  modules imported by a Python file executed in several sessions. State kept
+  in the globals of an imported module is therefore not isolated by sessions.
 * ``sys.path``, ``sys.modules``, environment variables, the current directory
   and open files are process wide.
 * Only the default session runs in ``__main__``. Classes defined in other
