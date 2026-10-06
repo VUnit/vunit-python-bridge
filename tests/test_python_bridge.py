@@ -801,13 +801,6 @@ class TestWindowsDllSelection(unittest.TestCase):
             self.assertEqual(target.name, "vunit_python_bridge.dll")
             self.assertEqual(target.read_bytes(), b"fake-dll-content")
 
-    def test_loads_the_dll_from_the_package_without_a_library_directory(self):
-        with create_tempdir() as tempdir, mock.patch.dict(os.environ):
-            del os.environ[native_library.LIBRARY_DIR_VARIABLE]
-            target = self._prepare(tempdir, b"fake-dll-content")
-            self.assertEqual(target, tempdir / "bin" / "vunit_python_bridge-cp312-win_amd64.dll")
-            self.assertFalse((tempdir / "root").exists())
-
     def test_reuses_existing_file_when_content_unchanged(self):
         with create_tempdir() as tempdir:
             first = self._prepare(tempdir, b"same-content")

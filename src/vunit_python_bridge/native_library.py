@@ -184,9 +184,6 @@ def _prepare_windows_library(root: Path) -> Path:
     source = BINARY_PATH / name
     if not source.is_file():
         return _build_windows_library(root)
-    if not os.environ.get(LIBRARY_DIR_VARIABLE):
-        # Loaded from the installed package, nothing is copied
-        return source
     data = source.read_bytes()
     directory = root / f"cp{sys.version_info[0]}{sys.version_info[1]}-win_amd64-{hashlib.sha256(data).hexdigest()[:12]}"
     target = directory / "vunit_python_bridge.dll"

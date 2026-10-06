@@ -683,7 +683,7 @@ Linux
 Windows
   For NVC and GHDL, the package ships DLLs built with MSVC for each supported
   Python minor version (``src/vunit_python_bridge/bin``). The matching DLL is
-  loaded from the installed package and nothing is compiled. A development checkout of
+  copied to the library directory, see below, and nothing is compiled. A development checkout of
   the package does not contain the DLLs; they can be built with
   ``tools/build_python_bridge.py`` from an MSVC developer prompt, and without
   them the library is built with gcc like for Questa. For Questa the library
@@ -697,13 +697,13 @@ Windows
   builds are untested.
 
 Library directory
-  Built libraries are cached in a directory of their own rather than in the
+  The libraries are built or copied to a directory of their own rather than to the
   VUnit output path, which may not allow executing files: the cache directory
   of the user (``~/.cache/vunit-python-bridge``, or under ``XDG_CACHE_HOME``,
   on Linux, ``~/Library/Caches/vunit-python-bridge`` on macOS and
   ``%LOCALAPPDATA%\vunit-python-bridge`` on Windows). The environment
   variable ``VUNIT_PYTHON_BRIDGE_LIBRARY_DIR`` selects another directory on
-  every platform; a prebuilt DLL is then copied there as well. The cache can be
+  every platform. The directory can be
   shared by projects since every build has a directory named after what it was
   built from. The configuration of a project stays in
   ``<output path>/python_bridge`` and the simulator hooks pass its path to the

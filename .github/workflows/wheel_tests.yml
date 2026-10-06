@@ -101,10 +101,11 @@ jobs:
         python tests/run.py -p 4 -o "$RUNNER_TEMP/out"
         if find "$RUNNER_TEMP/out" -name '*.so' -o -name '*.dll' | grep .; then echo "a library is in the output path"; exit 1; fi
 
-    # The bridge was the DLL of the wheel, loaded from the package: nothing was compiled or copied
+    # The bridge was the DLL of the wheel, copied to the cache directory of the user, and nothing was compiled
     - name: '🔍 The prebuilt DLL was used'
       if: runner.os == 'Windows'
       run: |
         if command -v cl; then echo "MSVC is on PATH"; exit 1; fi
         cache="$(cygpath -u "$LOCALAPPDATA")/vunit-python-bridge"
-        if [ -d "$cache" ] && find "$cache" -name '*.dll' | grep .; then echo "the bridge was compiled or copied"; exit 1; fi
+        find "$cache" -path '*-win_amd64-*' -name vunit_python_bridge.dll | grep -v -- '-win_amd64-gcc-' | grep .
+        if find "$cache" -path '*-win_amd64-gcc-*' | grep .; then echo "the bridge was compiled"; exit 1; fi
