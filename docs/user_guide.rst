@@ -591,6 +591,24 @@ A relative file name is relative to the directory of the testbench file
 it takes an optional trailing :ref:`session <python_bridge:sessions>`
 parameter.
 
+The testbench path is set by ``test_runner_setup``, so a relative file name
+used before it has completed, or without a test runner, is reported as a
+failure rather than taken from the working directory of the simulator. This
+applies to ``import_module_from_file`` too. A verification component that
+loads its model at the start of the simulation runs concurrently with the
+testbench process and must therefore wait for ``test_runner_setup`` to complete
+first, or be given an absolute path, for example through a generic:
+
+.. code-block:: vhdl
+
+    if get_phase <= test_runner_setup then
+      wait on runner until get_phase > test_runner_setup;
+    end if;
+    exec_file("model.py", session);
+
+``wait_until(runner, test_runner_setup)`` is not enough, since the phase is
+entered before the testbench path is set.
+
 .. _python_bridge:semantics:
 
 Semantics to be aware of
