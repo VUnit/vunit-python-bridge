@@ -91,20 +91,40 @@ begin
   end process;
 
   vc_a : entity work.counter_vc
-    generic map(vc => new_counter_vc(id => get_id("vc_a")))
-    port map(tick => tick, count => count_a);
+    generic map (
+      vc => new_counter_vc(id => get_id("vc_a"))
+    )
+    port map (
+      tick  => tick,
+      count => count_a
+    );
 
   -- No id: an enumerated anonymous identity
   vc_b : entity work.counter_vc
-    generic map(vc => new_counter_vc(step => 2))
-    port map(tick => tick, count => count_b);
+    generic map (
+      vc => new_counter_vc(step => 2)
+    )
+    port map (
+      tick  => tick,
+      count => count_b
+    );
 
   vc_c : entity work.counter_vc
-    generic map(vc => new_counter_vc(model => shared_model))
-    port map(tick => tick, count => count_c);
+    generic map (
+      vc => new_counter_vc(model => shared_model)
+    )
+    port map (
+      tick  => tick,
+      count => count_c
+    );
 
   -- Without a handle: the instance path is the identity
   vc_d : entity work.path_counter_vc
-    generic map(step => 3)
-    port map(tick => tick, count => count_d);
+    generic map (
+      step => 3
+    )
+    port map (
+      tick  => tick,
+      count => count_d
+    );
 end architecture;
