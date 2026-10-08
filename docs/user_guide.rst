@@ -237,6 +237,9 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 The module, and so the class, is shared by all sessions (see the caveats
 below), while every session has a ``model`` object of its own. Like all
 non-default sessions, this needs the Python bridge: NVC, GHDL or Questa.
+:ref:`Python objects <python_bridge:objects>` package this pattern: an object
+is an instance of a class in a session of its own, with no module loading or
+session handling left to the component.
 
 Caveats
 ~~~~~~~
@@ -259,6 +262,138 @@ functions, classes and variables, are separate. Everything else is shared:
   which matters for example when pickling their instances.
 * All sessions end with the simulation. Test cases run in the same simulation
   (``run_all_in_same_sim``) share the sessions.
+
+.. _python_bridge:objects:
+
+Python objects
+--------------
+
+A ``python_object_t`` is an instance of a Python class owned by VHDL. Every
+object lives in a :ref:`session <python_bridge:sessions>` of its own, where it
+is bound to ``self``, so several objects, of the same class or not, never
+share names or state. This makes an object the natural backend of a
+verification component: every instance of the component gets an object of its
+own, and a testbench can create one and give it to a component.
+
+.. code-block:: vhdl
+
+    constant model : python_object_t := new_object(
+      "my_models.uart:UartModel", kwarg("baud", 115200), id => get_id("uart")
+    );
+
+    ...
+
+    count := call(model, "push", arg(byte));   -- calls self.push(byte)
+    call(model, "reset");                      -- no return value
+    check_true(eval_boolean(model, "self.is_idle()"));
+
+``new_object(class_name, args, id)`` names the class and its constructor
+arguments, given like the arguments of ``call``, including groups made with
+``&``. The class is
+
+* ``"package.module.Class"`` or ``"package.module:Class"``, imported by module
+  name from ``sys.path``: an installed package, the directory of the run
+  script or a directory on ``PYTHONPATH``. No file name is involved, so the
+  class is found the same way wherever the object is created.
+* ``"Class"``, a class defined in the default session, for example by ``exec``
+  or ``exec_file`` in the testbench.
+
+The object is created on first use, not by ``new_object``. An object can
+therefore be a constant or a generic, created during elaboration, and does not
+depend on the order of the processes or on ``test_runner_setup``. ``create``
+creates it explicitly.
+
+``call(object, method, ...)`` calls a method and ``eval(object, expr)``
+evaluates an expression in the session of the object, where the object is
+``self``. They have the same arguments, result types and aliases as ``call``
+and ``eval``, including the procedure forms taking a ``std_ulogic_vector``,
+``signed`` or ``unsigned`` result as an ``out`` parameter.
+
+Identity
+~~~~~~~~
+
+The ``id`` of an object names its session and its logger, which reports the
+errors of its calls. Without an ``id``, an object gets a unique identity of
+its own (``python_bridge:python:object_<n>``). Two objects with the same
+identity would share a session, so the second ``new_object`` of an identity is
+reported as a failure on its logger.
+
+A verification component that has an identity, given by its handle or a
+generic as is usual for VUnit verification components, gives it to its object.
+One without takes the path of its instance, ``'path_name``, in the statement
+part of a process: GHDL leaves the instance labels out of ``'path_name`` and
+``'instance_name`` when they are evaluated during elaboration, which would give
+all instances the same identity.
+
+Backends of verification components
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``get(object, class_name, args, id)`` returns ``object`` when it is given, and
+a new object otherwise, like ``get_logger`` and ``get_id``. A component taking
+an object as a generic thereby gets a backend of its own by default and the
+one of the testbench when given:
+
+.. code-block:: vhdl
+
+    entity counter_vc is
+      generic(
+        id : id_t := null_id;
+        model : python_object_t := null_python_object;
+        step : natural := 1
+      );
+      port(tick : in natural; count : out integer);
+    end entity;
+
+    architecture python of counter_vc is
+    begin
+      process
+        variable vc_id : id_t := id;
+        variable backend : python_object_t;
+      begin
+        if vc_id = null_id then
+          vc_id := get_id(counter_vc'path_name);
+        end if;
+        backend := get(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+
+        loop
+          wait on tick;
+          count <= call(backend, "add", arg(1));
+        end loop;
+      end process;
+    end architecture;
+
+A testbench giving several components, or a component and itself, the same
+object shares its state between them, for example a scoreboard filled by a
+monitor and checked by the test:
+
+.. code-block:: vhdl
+
+    constant scoreboard : python_object_t := new_object("my_models.Scoreboard");
+
+    ...
+
+    monitor : entity work.my_monitor generic map(model => scoreboard) ...;
+
+    ...
+
+    check_equal(integer'(call(scoreboard, "num_mismatches")), 0);
+
+The class can be made a choice of the user in the same way, with a ``string``
+generic as its name.
+
+Errors and limitations
+~~~~~~~~~~~~~~~~~~~~~~
+
+* An object that cannot be created, for example since its module is not
+  found, reports the error of the import or the constructor once. Its later
+  calls fail with ``The <class> object could not be created: <error>``.
+* The caveats of sessions apply: the module of a class, and any state kept in
+  it, is shared by all objects.
+* String arguments are passed to Python verbatim, see
+  :ref:`python_bridge:semantics`, which applies to constructor arguments too.
+* ``integer_array_t`` constructor arguments are transferred when the object is
+  given them, which is during elaboration for an object made there.
+* Objects need sessions, and so the Python bridge: NVC, GHDL or Questa.
 
 exec
 ----

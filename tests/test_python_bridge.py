@@ -158,6 +158,46 @@ class TestManifest(unittest.TestCase):
             self.assertNotIn(f"hdl/src/{name}", includes)
 
 
+class TestObjectCreation(unittest.TestCase):
+    """
+    __vunit__.create, which creates the object of a python_object_t in its session.
+    """
+
+    def setUp(self):
+        from vunit_python_bridge import runtime  # pylint: disable=import-outside-toplevel
+
+        self.namespace = {}
+        self.handle = runtime.BridgeHandle(mock.Mock(namespace=self.namespace))
+
+    def test_binds_an_instance_of_a_module_class_to_self(self):
+        for class_name in ("collections.OrderedDict", "collections:OrderedDict"):
+            self.namespace.clear()
+            self.handle.create(class_name, a=1)
+            self.assertEqual(self.namespace["self"], {"a": 1}, class_name)
+
+    def test_a_bare_name_is_a_class_of_the_default_session(self):
+        class Model:  # pylint: disable=too-few-public-methods
+            pass
+
+        with mock.patch.dict("__main__.__dict__", {"Model": Model}):
+            self.handle.create("Model")
+        self.assertIsInstance(self.namespace["self"], Model)
+
+    def test_a_second_object_in_a_session_is_an_error(self):
+        self.handle.create("collections.OrderedDict")
+        with self.assertRaisesRegex(RuntimeError, "same identity"):
+            self.handle.create("collections.OrderedDict")
+
+    def test_an_object_that_cannot_be_created_tells_why_when_used(self):
+        with self.assertRaises(ModuleNotFoundError):
+            self.handle.create("no_such_module.Model", 1)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "The no_such_module.Model object could not be created: ModuleNotFoundError: No module named 'no_such_module'",
+        ):
+            self.namespace["self"].step()
+
+
 class TestGeneratedPackages(unittest.TestCase):
     """
     The generated VHDL packages are those the generator gives for the templates.
