@@ -41,9 +41,9 @@ package python_object_pkg is
   impure function new_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
     return python_object_t;
 
-  -- object when it is given, else a new object: the default backend of a
-  -- verification component that can also be given one
-  impure function object_or_new(
+  -- object when it is given, else a new object, like get_logger and get_id:
+  -- the default backend of a verification component that can also be given one
+  impure function get(
     object : python_object_t; class_name : string; args : arg_t := null_arg; id : id_t := null_id
   ) return python_object_t;
 
@@ -197,7 +197,7 @@ package body python_object_pkg is
     return (p_data => data);
   end;
 
-  impure function object_or_new(
+  impure function get(
     object : python_object_t; class_name : string; args : arg_t := null_arg; id : id_t := null_id
   ) return python_object_t is
   begin
