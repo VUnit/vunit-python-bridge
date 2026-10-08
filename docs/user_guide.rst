@@ -277,7 +277,7 @@ own, and a testbench can create one and give it to a component.
 
 .. code-block:: vhdl
 
-    constant model : python_object_t := new_object(
+    constant model : python_object_t := new_python_object(
       "my_models.uart:UartModel", kwarg("baud", 115200), id => get_id("uart")
     );
 
@@ -287,7 +287,7 @@ own, and a testbench can create one and give it to a component.
     call(model, "reset");                      -- no return value
     check_true(eval_boolean(model, "self.is_idle()"));
 
-``new_object(class_name, args, id)`` names the class and its constructor
+``new_python_object(class_name, args, id)`` names the class and its constructor
 arguments, given like the arguments of ``call``, including groups made with
 ``&``. The class is
 
@@ -298,7 +298,7 @@ arguments, given like the arguments of ``call``, including groups made with
 * ``"Class"``, a class defined in the default session, for example by ``exec``
   or ``exec_file`` in the testbench.
 
-The object is created on first use, not by ``new_object``. An object can
+The object is created on first use, not by ``new_python_object``. An object can
 therefore be a constant or a generic, created during elaboration, and does not
 depend on the order of the processes or on ``test_runner_setup``. ``create``
 creates it explicitly.
@@ -313,54 +313,74 @@ Identity
 ~~~~~~~~
 
 The ``id`` of an object names its session and its logger, which reports the
-errors of its calls. Without an ``id``, an object gets a unique identity of
-its own (``python_bridge:python:object_<n>``). Two objects with the same
-identity would share a session, so the second ``new_object`` of an identity is
-reported as a failure on its logger.
-
-A verification component that has an identity, given by its handle or a
-generic as is usual for VUnit verification components, gives it to its object.
-One without takes the path of its instance, ``'path_name``, in the statement
-part of a process: GHDL leaves the instance labels out of ``'path_name`` and
-``'instance_name`` when they are evaluated during elaboration, which would give
-all instances the same identity.
+errors of its calls. Without an ``id``, objects are enumerated the way VUnit
+enumerates verification components: ``python_bridge:python:object:1``,
+``python_bridge:python:object:2`` and so on. Two objects with the same
+identity would share a session, so the second ``new_python_object`` of an
+identity is reported as a failure on its logger.
 
 Backends of verification components
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``get(object, class_name, args, id)`` returns ``object`` when it is given, and
-a new object otherwise, like ``get_logger`` and ``get_id``. A component taking
-an object as a generic thereby gets a backend of its own by default and the
-one of the testbench when given:
+``get_python_object(object, class_name, args, id)`` returns ``object`` when it
+is given, and a new object otherwise, like ``get_logger`` and ``get_id``. A
+verification component made the way VUnit's own are creates its object in the
+constructor of its handle, with the identity of the component. Every instance
+then gets a backend of its own by default and the object of the testbench when
+given one:
 
 .. code-block:: vhdl
 
-    entity counter_vc is
-      generic(
-        id : id_t := null_id;
-        model : python_object_t := null_python_object;
-        step : natural := 1
-      );
-      port(tick : in natural; count : out integer);
-    end entity;
+    type uart_master_t is record
+      p_std_cfg : std_cfg_t;
+      p_model : python_object_t;
+    end record;
 
-    architecture python of counter_vc is
+    impure function new_uart_master(
+      baud : positive; model : python_object_t := null_python_object; id : id_t := null_id
+    ) return uart_master_t is
+      constant std_cfg : std_cfg_t := create_std_cfg(id, "my_vcs", "uart_master");
     begin
-      process
-        variable vc_id : id_t := id;
-        variable backend : python_object_t;
-      begin
-        if vc_id = null_id then
-          vc_id := get_id(counter_vc'path_name);
-        end if;
-        backend := get(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+      return (
+        p_std_cfg => std_cfg,
+        p_model => get_python_object(model, "my_vcs.uart:UartModel", kwarg("baud", baud), get_id(std_cfg))
+      );
+    end;
 
-        loop
-          wait on tick;
-          count <= call(backend, "add", arg(1));
-        end loop;
-      end process;
-    end architecture;
+The component itself only calls the object of its handle:
+
+.. code-block:: vhdl
+
+    entity uart_master is
+      generic(master : uart_master_t);
+      ...
+
+      busy <= call_boolean(master.p_model, "transmit", arg(to_integer(data)));
+
+The handle is a constant made during elaboration, and so is the object, which
+is not created in Python until its first call. ``create_std_cfg`` gives
+instances without an ``id`` the identities ``my_vcs:uart_master:1``,
+``my_vcs:uart_master:2`` and so on, which become the identities of their
+objects. ``tests/counter_vc_pkg.vhd`` and ``tests/counter_vc.vhd`` of the
+repository are a complete component of this kind.
+
+A component without a handle can take the path of its instance, ``'path_name``,
+as the identity, in the statement part of a process: GHDL leaves the instance
+labels out of ``'path_name`` and ``'instance_name`` when they are evaluated
+during elaboration, which would give all instances the same identity.
+``tests/path_counter_vc.vhd`` shows this:
+
+.. code-block:: vhdl
+
+    process
+      variable vc_id : id_t := id;
+      variable backend : python_object_t;
+    begin
+      if vc_id = null_id then
+        vc_id := get_id(path_counter_vc'path_name);
+      end if;
+      backend := get_python_object(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+      ...
 
 A testbench giving several components, or a component and itself, the same
 object shares its state between them, for example a scoreboard filled by a
@@ -368,11 +388,11 @@ monitor and checked by the test:
 
 .. code-block:: vhdl
 
-    constant scoreboard : python_object_t := new_object("my_models.Scoreboard");
+    constant scoreboard : python_object_t := new_python_object("my_models.Scoreboard");
 
     ...
 
-    monitor : entity work.my_monitor generic map(model => scoreboard) ...;
+    monitor : entity work.my_monitor generic map(monitor => new_my_monitor(model => scoreboard)) ...;
 
     ...
 

@@ -83,7 +83,9 @@ def main():
     if simulator_name in BRIDGE_SIMULATORS:
         # The operations implemented by the Python bridge
         lib.add_source_file(ROOT / "tb_python_pkg_bridge.vhd")
-        lib.add_source_files([ROOT / "tb_python_objects.vhd", ROOT / "counter_vc.vhd"])
+        lib.add_source_files(
+            [ROOT / name for name in ("tb_python_objects.vhd", "counter_vc_pkg.vhd", "counter_vc.vhd", "path_counter_vc.vhd")]
+        )
 
     vu.set_compile_option("rivierapro.vcom_flags", ["-dbg"])
     vu.set_sim_option("rivierapro.vsim_flags", ["-interceptcoutput"])

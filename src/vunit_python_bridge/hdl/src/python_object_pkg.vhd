@@ -36,14 +36,15 @@ package python_object_pkg is
 
   -- An instance of class_name ("package.module.Class", "package.module:Class",
   -- or "Class" defined in the default session) created with args on first use.
-  -- The identity names the object and its session; it gets a unique one when
-  -- none is given. Two objects with the same identity are an error.
-  impure function new_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
+  -- The identity names the object and its session. Without one, objects are
+  -- enumerated like VUnit's verification components: python_bridge:python:object:<n>.
+  -- Two objects with the same identity are an error.
+  impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
     return python_object_t;
 
   -- object when it is given, else a new object, like get_logger and get_id:
   -- the default backend of a verification component that can also be given one
-  impure function get(
+  impure function get_python_object(
     object : python_object_t; class_name : string; args : arg_t := null_arg; id : id_t := null_id
   ) return python_object_t;
 
@@ -172,18 +173,19 @@ package body python_object_pkg is
   constant session_idx : natural := 0;
   constant code_idx : natural := 1;
   constant created_idx : natural := 2;
-  constant num_anonymous : integer_vector_ptr_t := new_integer_vector_ptr(1);
+  -- The parent of the identities of the objects created without one
+  constant anonymous_id : id_t := get_id("object", parent => p_python_id);
   -- The identities of the objects, by full name
   constant identities : dict_t := new_dict;
 
-  impure function new_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
+  impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
     return python_object_t is
     variable object_id : id_t := id;
     variable data : integer_vector_ptr_t := new_integer_vector_ptr(3);
   begin
     if object_id = null_id then
-      object_id := get_id("object_" & integer'image(get(num_anonymous, 0)), parent => p_python_id);
-      set(num_anonymous, 0, get(num_anonymous, 0) + 1);
+      -- Like enumerate of vc_pkg, which is only there with the verification components
+      object_id := get_id(to_string(num_children(anonymous_id) + 1), parent => anonymous_id);
     end if;
     if has_key(identities, full_name(object_id)) then
       failure(
@@ -197,14 +199,14 @@ package body python_object_pkg is
     return (p_data => data);
   end;
 
-  impure function get(
+  impure function get_python_object(
     object : python_object_t; class_name : string; args : arg_t := null_arg; id : id_t := null_id
   ) return python_object_t is
   begin
     if object /= null_python_object then
       return object;
     end if;
-    return new_object(class_name, args, id);
+    return new_python_object(class_name, args, id);
   end;
 
   impure function get_session(object : python_object_t) return python_session_t is
