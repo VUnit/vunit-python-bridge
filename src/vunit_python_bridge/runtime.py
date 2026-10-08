@@ -15,6 +15,7 @@ exec/eval operations.
 """
 
 import builtins
+import importlib
 import linecache
 import math
 import numbers
@@ -136,6 +137,23 @@ class BridgeHandle:
         """
         raise RuntimeError(message)
 
+    def create(self, class_name, *args, **kwargs):
+        """
+        Create the object of a VHDL python_object_t and bind it to self in its
+        session: an instance of "package.module.Class", "package.module:Class"
+        or "Class" defined in the default session.
+        """
+        namespace = self._runtime.namespace
+        if "self" in namespace:
+            raise RuntimeError("Two Python objects have the same identity, give each one an id of its own")
+        module_name, separator, attributes = class_name.partition(":")
+        if not separator:
+            module_name, _, attributes = class_name.rpartition(".")
+        target = importlib.import_module(module_name) if module_name else __main__
+        for attribute in attributes.split("."):
+            target = getattr(target, attribute)
+        namespace["self"] = target(*args, **kwargs)
+
     def __repr__(self):
         return "<VUnit python bridge>"
 
@@ -249,6 +267,13 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self._session = name
         self._result = _NO_VALUE
         self._array_meta = {}
+
+    @property
+    def namespace(self):
+        """
+        The namespace of the current session.
+        """
+        return self._namespace
 
     @property
     def _namespace(self):

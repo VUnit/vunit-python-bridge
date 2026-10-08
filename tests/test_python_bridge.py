@@ -146,7 +146,7 @@ class TestManifest(unittest.TestCase):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         self.assertEqual(
             sorted(includes),
-            ["hdl/src/python_context.vhd", "hdl/src/python_pkg.vhd"],
+            ["hdl/src/python_context.vhd", "hdl/src/python_object_pkg.vhd", "hdl/src/python_pkg.vhd"],
         )
         for include in includes:
             self.assertTrue((PACKAGE_ROOT / include).is_file(), include)
