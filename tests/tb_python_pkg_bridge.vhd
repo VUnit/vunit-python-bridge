@@ -37,6 +37,18 @@ architecture tb of tb_python_pkg_bridge is
   constant unsigned_arg_error : string := "kwarg_unsigned cannot convert ""1010X010""; the value has metavalues";
   constant unsigned_arg_call : string :=
     "describe(v=__vunit__.error(""kwarg_unsigned cannot convert \""1010X010\""; the value has metavalues""))";
+
+  impure function one_to_four return integer_array_t is
+    variable values : integer_array_t := new_1d(4);
+  begin
+    for idx in 0 to 3 loop
+      set(values, idx, idx + 1);
+    end loop;
+    return values;
+  end;
+
+  -- An integer_array_t argument made during elaboration, before the bridge can be called
+  constant elaborated_values : arg_t := kwarg("data", one_to_four);
 begin
   main : process
     constant golden : python_session_t := new_session("golden");
@@ -137,6 +149,13 @@ begin
 
     -- The same staged array used in two calls. The function modifies its
     -- argument in place but every use gets its own copy.
+    -- The argument is transferred when it is used, but has the values it was made with
+    procedure call_after_changing_arr(data : arg_t) is
+    begin
+      set(arr, 0, 100);
+      check_equal(integer'(call("total", data)), 3);
+    end;
+
     procedure bump_twice(data : arg_t) is
     begin
       check_equal(integer'(call("bump", data)), 5);
@@ -564,6 +583,18 @@ begin
         set(arr_b, 0, 10);
         set(arr_b, 1, 20);
         check_equal(integer'(call("total", arg(arr), kwarg("data", arr_b))), 40);
+
+      elsif run("Test an integer_array_t argument made during elaboration") then
+        exec("def total(*args, **kwargs):" + "    return int(sum(a.sum() for a in list(args) + list(kwargs.values())))");
+        check_equal(integer'(call("total", elaborated_values)), 10);
+        check_equal(integer'(call("total", elaborated_values)), 10, "used again");
+
+      elsif run("Test that an integer_array_t argument has the values it was made with") then
+        exec("def total(data):" + "    return int(data.sum())");
+        arr := new_1d(2);
+        set(arr, 0, 1);
+        set(arr, 1, 2);
+        call_after_changing_arr(arg(arr));
 
       elsif run("Test positional and keyword arguments together") then
         exec("def scale(x, gain=1, offset=0):" + "    return x * gain + offset");
