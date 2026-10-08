@@ -5,7 +5,11 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
 -- A verification component whose behaviour is the Python object of its handle.
--- Its object is not created in Python until the first input arrives.
+-- Every clock cycle with valid set, x is given to the object and its result is
+-- the next y. The object is not created in Python until the first valid input.
+
+library ieee;
+use ieee.std_logic_1164.all;
 
 library vunit_lib;
 context vunit_lib.vunit_context;
@@ -18,6 +22,8 @@ use work.filter_vc_pkg.all;
 entity filter_vc is
   generic(filter : filter_vc_t);
   port(
+    clk : in std_logic;
+    valid : in std_logic;
     x : in integer;
     y : out integer
   );
@@ -25,9 +31,10 @@ end entity;
 
 architecture python of filter_vc is
 begin
-  process
+  process(clk)
   begin
-    wait on x;
-    y <= call(get_model(filter), "push", arg(x));
+    if rising_edge(clk) and valid = '1' then
+      y <= call(get_model(filter), "push", arg(x));
+    end if;
   end process;
 end architecture;

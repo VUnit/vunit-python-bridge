@@ -41,8 +41,6 @@ package python_ffi_pkg is
   -- that cannot be converted to Python and the transfer of an integer_array_t.
   constant python_logger : logger_t := get_logger(p_python_id);
 
-  -- Whether sessions other than the default one, and so Python objects, are supported
-  constant p_supports_sessions : boolean := true;
 
   -- A session is a Python namespace. Sessions are isolated from each other
   -- and have an identity, which is what they are created from:

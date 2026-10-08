@@ -48,6 +48,7 @@ architecture tb of tb_example is
   constant shared_average : python_object_t := new_python_object("filter_model.MovingAverage", kwarg("window", 3));
 
   -- Ports of the three filter_vc instances
+  signal filter_valid : std_logic := '0';
   signal filter_x : integer := 0;
   signal filter_a_y, filter_b_y, filter_c_y : integer;
 begin
@@ -720,9 +721,13 @@ begin
         -- Every filter_vc has a MovingAverage object of its own, but filter_c_inst
         -- uses the one of the testbench, which the testbench can query too
         for idx in 1 to 4 loop
+          wait until rising_edge(clk);
+          filter_valid <= '1';
           filter_x <= 10 * idx;
-          wait for clk_period;
         end loop;
+        wait until rising_edge(clk);
+        filter_valid <= '0';
+        wait until rising_edge(clk);
         check_equal(filter_a_y, 35, result("for the average of the last 2 inputs"));
         check_equal(filter_b_y, 25, result("for the average of the last 4 inputs"));
         check_equal(filter_c_y, 30, result("for the average of the last 3 inputs"));
@@ -841,8 +846,10 @@ begin
       filter => new_filter_vc(window => 2, id => get_id("filter_a"))
     )
     port map (
-      x => filter_x,
-      y => filter_a_y
+      clk   => clk,
+      valid => filter_valid,
+      x     => filter_x,
+      y     => filter_a_y
     );
 
   filter_b_inst : entity work.filter_vc
@@ -850,8 +857,10 @@ begin
       filter => new_filter_vc(window => 4)
     )
     port map (
-      x => filter_x,
-      y => filter_b_y
+      clk   => clk,
+      valid => filter_valid,
+      x     => filter_x,
+      y     => filter_b_y
     );
 
   filter_c_inst : entity work.filter_vc
@@ -859,7 +868,9 @@ begin
       filter => new_filter_vc(model => shared_average)
     )
     port map (
-      x => filter_x,
-      y => filter_c_y
+      clk   => clk,
+      valid => filter_valid,
+      x     => filter_x,
+      y     => filter_c_y
     );
 end;

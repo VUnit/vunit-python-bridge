@@ -36,8 +36,8 @@ package python_object_pkg is
   end record;
   constant null_python_object : python_object_t := (p_data => null_ptr);
 
-  -- An instance of class_name ("package.module.Class", "package.module:Class",
-  -- or "Class" defined in the default session) created with args on first use.
+  -- An instance of class_name, a dotted name like "package.module.Class" or the
+  -- name of a class defined in the default session, constructed with args on first use.
   -- The identity names the object and its session. Without one, objects are
   -- enumerated like VUnit's verification components: python_bridge:python:object:<n>.
   -- Two objects with the same identity are an error.
@@ -200,7 +200,7 @@ package body python_object_pkg is
     end if;
     set_string(identities, full_name(object_id), "");
     set(data, session_idx, to_integer(new_session(object_id).p_data));
-    set(data, code_idx, to_integer(new_string_ptr(to_call_str("__vunit__.create", arg(class_name), args))));
+    set(data, code_idx, to_integer(new_string_ptr(to_call_str("__vunit__.instantiate_as_self", arg(class_name), args))));
     set(data, class_name_idx, to_integer(new_string_ptr(class_name)));
     return (p_data => data);
   end;
@@ -230,9 +230,7 @@ package body python_object_pkg is
   procedure p_create(object : python_object_t) is
     variable ok : boolean;
   begin
-    if not p_supports_sessions then
-      failure(get_logger(object), "Python objects require NVC, GHDL or Questa");
-    elsif get(object.p_data, created_idx) = 0 then
+    if get(object.p_data, created_idx) = 0 then
       set(object.p_data, created_idx, 1);
       ok := p_exec(
         to_string(to_string_ptr(get(object.p_data, code_idx))), 0,

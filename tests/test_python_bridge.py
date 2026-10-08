@@ -18,6 +18,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from contextlib import contextmanager
 from glob import glob
@@ -160,7 +161,7 @@ class TestManifest(unittest.TestCase):
 
 class TestObjectCreation(unittest.TestCase):
     """
-    __vunit__.create, which creates the object of a python_object_t in its session.
+    __vunit__.instantiate_as_self, which creates the object of a python_object_t in its session.
     """
 
     def setUp(self):
@@ -169,28 +170,40 @@ class TestObjectCreation(unittest.TestCase):
         self.namespace = {}
         self.handle = runtime.BridgeHandle(mock.Mock(namespace=self.namespace))
 
-    def test_binds_an_instance_of_a_module_class_to_self(self):
-        for class_name in ("collections.OrderedDict", "collections:OrderedDict"):
-            self.namespace.clear()
-            self.handle.create(class_name, a=1)
-            self.assertEqual(self.namespace["self"], {"a": 1}, class_name)
+    def test_binds_an_instance_of_a_class_of_a_module_to_self(self):
+        self.handle.instantiate_as_self("collections.OrderedDict", a=1)
+        self.assertEqual(self.namespace["self"], {"a": 1})
+
+    def test_a_dotted_name_can_name_a_class_in_a_class(self):
+        module = types.ModuleType("models_under_test")
+        module.Outer = type("Outer", (), {"Inner": type("Inner", (), {})})
+        with mock.patch.dict(sys.modules, {"models_under_test": module}):
+            self.handle.instantiate_as_self("models_under_test.Outer.Inner")
+        self.assertIsInstance(self.namespace["self"], module.Outer.Inner)
 
     def test_a_bare_name_is_a_class_of_the_default_session(self):
         class Model:  # pylint: disable=too-few-public-methods
             pass
 
         with mock.patch.dict("__main__.__dict__", {"Model": Model}):
-            self.handle.create("Model")
+            self.handle.instantiate_as_self("Model")
         self.assertIsInstance(self.namespace["self"], Model)
 
+    def test_a_failing_import_inside_the_module_is_not_hidden(self):
+        with create_tempdir() as tempdir:
+            (tempdir / "broken_model.py").write_text("import no_such_dependency\n", encoding="utf-8")
+            with mock.patch.object(sys, "path", [str(tempdir)] + sys.path):
+                with self.assertRaisesRegex(ModuleNotFoundError, "no_such_dependency"):
+                    self.handle.instantiate_as_self("broken_model.Model")
+
     def test_a_second_object_in_a_session_is_an_error(self):
-        self.handle.create("collections.OrderedDict")
+        self.handle.instantiate_as_self("collections.OrderedDict")
         with self.assertRaisesRegex(RuntimeError, "same identity"):
-            self.handle.create("collections.OrderedDict")
+            self.handle.instantiate_as_self("collections.OrderedDict")
 
     def test_an_object_that_cannot_be_created_tells_why_when_used(self):
         with self.assertRaises(ModuleNotFoundError):
-            self.handle.create("no_such_module.Model", 1)
+            self.handle.instantiate_as_self("no_such_module.Model", 1)
         with self.assertRaisesRegex(
             RuntimeError,
             "The no_such_module.Model object could not be created: ModuleNotFoundError: No module named 'no_such_module'",
