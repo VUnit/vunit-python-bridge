@@ -498,14 +498,11 @@ package body python_pkg is
     return p_to_hex_literal(std_ulogic_vector(magnitude), true);
   end;
 
+  -- The array is transferred when the argument is first used, which lets the
+  -- argument be made during elaboration
   impure function p_arg_value(value : integer_array_t; operation : string) return string is
-    constant staged_id : integer := p_stage_array(value, operation);
   begin
-    if staged_id < 1 then
-      -- p_stage_array reported the error of the transfer
-      return "__vunit__.error(" & p_quoted(operation & " failed") & ")";
-    end if;
-    return "__vunit__.staged(" & integer'image(staged_id) & ")";
+    return p_defer_array(value, operation);
   end;
 
 $arg_functions
