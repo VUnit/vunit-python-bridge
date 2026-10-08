@@ -105,17 +105,22 @@ Where Python code is found
 --------------------------
 
 The interpreter in the simulator imports modules the way Python started on the
-run script does. Without any setup, it finds:
+run script does.
+
+Found without setup
+~~~~~~~~~~~~~~~~~~~
 
 * Modules in the directory of the run script, which is the first entry of
   ``sys.path``. This is also how ``import_run_script`` imports the run script.
 * The packages of the Python environment VUnit runs in, for example an active
   virtual environment. That includes packages installed with ``pip install -e``.
 
-Anything else has to be added to ``PYTHONPATH``. The simulator inherits the
-environment of VUnit, so the run script can set it before VUnit starts the
-simulations. A verification component that is used by many testbenches keeps
-its Python code in a folder of its own, for example:
+Adding a folder
+~~~~~~~~~~~~~~~
+
+Python code anywhere else is not found until its folder is on ``PYTHONPATH``. A
+typical case is a verification component that is used by many testbenches and
+keeps its Python model in a folder of its own:
 
 .. code-block:: text
 
@@ -125,8 +130,10 @@ its Python code in a folder of its own, for example:
         my_vc_model/
           __init__.py
 
-and the run script puts that folder on the path, after which the model is
-``my_vc_model`` wherever the component is used:
+``my_vc/python`` is neither the directory of the run script nor part of the
+Python environment, so ``my_vc_model`` cannot be imported as it is. The run
+script adds the folder to ``PYTHONPATH`` before VUnit starts the simulations,
+which inherit the environment of VUnit:
 
 .. code-block:: python
 
@@ -142,11 +149,22 @@ and the run script puts that folder on the path, after which the model is
     vu = VUnit.from_argv()
     ...
 
-Files given by name are found differently. A relative file name given to
-``exec_file`` or ``import_module_from_file`` is relative to the directory of
-the testbench file, ``tb_path``, and an absolute one is used as given.
-``exec_file`` also puts the directory of the file on ``sys.path`` while it
-executes, so the file can import the modules next to it.
+After that, ``my_vc_model`` is importable in every simulation, wherever the
+component is used, for example as the class ``"my_vc_model.Model"`` of a
+:ref:`Python object <python_bridge:objects>`. Installing the model as a Python
+package, for example with ``pip install -e``, has the same effect without
+changing the run script.
+
+Files given by name
+~~~~~~~~~~~~~~~~~~~
+
+A relative file name given to ``exec_file`` or ``import_module_from_file`` is
+relative to the directory of the testbench file, ``tb_path``, and an absolute
+one is used as given. ``exec_file`` also puts the directory of the file on
+``sys.path`` while it executes, so the file can import the modules next to it.
+
+Module names
+~~~~~~~~~~~~
 
 There is one ``sys.path`` and one ``sys.modules`` per simulation, shared by all
 :ref:`sessions <python_bridge:sessions>`. Two modules with the same name are
