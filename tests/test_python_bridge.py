@@ -11,6 +11,7 @@ These tests must never invoke an HDL simulator. Compiling the small C bridge
 library with the system C compiler, and reading/writing files, is fine.
 """
 
+import importlib.util
 import os
 import re
 import shutil
@@ -155,6 +156,23 @@ class TestManifest(unittest.TestCase):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         for name in ("python_pkg_vhpi.vhd", "python_ffi_pkg_bridge.vhd"):
             self.assertNotIn(f"hdl/src/{name}", includes)
+
+
+class TestGeneratedPackages(unittest.TestCase):
+    """
+    The generated VHDL packages are those the generator gives for the templates.
+    """
+
+    def test_generated_packages_are_up_to_date(self):
+        generator_path = PACKAGE_ROOT / "hdl" / "tools" / "generate_python_pkg.py"
+        spec = importlib.util.spec_from_file_location("generate_python_pkg", generator_path)
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        for name, text in (
+            ("python_pkg.vhd", generator.generate_package()),
+            ("python_object_pkg.vhd", generator.generate_object_package()),
+        ):
+            self.assertEqual((generator.SRC_PATH / name).read_text(encoding="utf-8"), text, f"regenerate {name}")
 
 
 class TestForeignLanguageInterfaces(unittest.TestCase):

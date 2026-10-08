@@ -5,6 +5,9 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
 
+library ieee;
+use ieee.numeric_std.all;
+
 library vunit_lib;
 context vunit_lib.vunit_context;
 
@@ -25,6 +28,7 @@ begin
   main : process
     constant duplicate_id : id_t := get_id("duplicate");
     variable object : python_object_t;
+    variable byte : unsigned(7 downto 0);
   begin
     test_runner_setup(runner, runner_cfg);
 
@@ -39,6 +43,17 @@ begin
         check_equal(count_c, 103, "vc_c, the shared Counter");
         check_equal(integer'(call(shared_model, "value")), 103);
         check_equal(eval_string(shared_model, "type(self).__name__"), "Counter");
+
+      elsif run("Test the result types of the calls of an object") then
+        object := new_object("models.counter_model.Counter", kwarg("start", 5));
+        check_equal(integer'(eval(object, "self.count")), 5);
+        check_equal(real'(call(object, "ratio")), 1.25);
+        call(object, "add", arg(1));
+        call_unsigned(object, "value", byte);
+        check(byte = 6, "unsigned result");
+        check(integer_vector'(call(object, "history")) = (0, 1, 2, 3, 4, 5, 6));
+        check_equal(length(call_integer_array(object, "history")), 7);
+        check_true(eval_boolean(object, "self.count == 6"));
 
       elsif run("Test an object of a class defined in the default session") then
         exec("class Doubler:" + "    def apply(self, x):" + "        return 2 * x");

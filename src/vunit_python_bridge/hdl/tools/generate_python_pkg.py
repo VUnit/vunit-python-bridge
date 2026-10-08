@@ -5,7 +5,7 @@
 # Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 
 """
-Generate python_pkg.vhd from python_pkg.vhd.in in this directory.
+Generate python_pkg.vhd and python_object_pkg.vhd from the templates in this directory.
 
 The template holds the parts of python_pkg that are written by hand. The
 generated parts are the argument value types of call, the result types of eval
@@ -363,6 +363,137 @@ def call_subprograms():
     return "\n".join(parts).rstrip("\n")
 
 
+# -------------------------------------------------------------------------
+# call and eval of an object
+# -------------------------------------------------------------------------
+OBJECT = "object : python_object_t"
+OBJECT_ARG_SIGNATURE = ", ".join(["python_object_t", "string"] + ["arg_t"] * len(ARGS))
+
+
+def object_declarations():
+    """
+    Declarations of the call and eval overloads of an object: those of
+    python_pkg with the object first, the method or expression second.
+    """
+    lines = [
+        "  -- Call a method of the object, like call",
+        "  procedure call(",
+        f"    {OBJECT}; method : string;",
+        f"    {ARG_PARAMETERS}",
+        "  );",
+        "",
+    ]
+    for result in RESULTS:
+        name = call_name(result)
+        lines.append(f"  impure function {name}(")
+        lines.append(f"    {OBJECT}; method : string;")
+        lines.append(f"    {ARG_PARAMETERS}")
+        lines.append(f"  ) return {result['vhdl']};")
+        if result.get("alias_call", True):
+            lines.append(f"  alias call is {name}[")
+            lines.append(f"    {OBJECT_ARG_SIGNATURE} return {result['vhdl']}];")
+        lines.append("")
+    for result in PROCEDURE_RESULTS:
+        lines.append(f"  procedure call_{result['name']}(")
+        lines.append(f"    {OBJECT}; method : string; result : out {result['vhdl']};")
+        lines.append(f"    {ARG_PARAMETERS}")
+        lines.append("  );")
+    lines += ["", "  -- Evaluate an expression in the session of the object, where it is self, like eval"]
+    for result in RESULTS:
+        lines.append(f"  impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']};")
+        if result.get("alias_eval", True):
+            lines.append(f"  alias eval is eval_{result['name']}[python_object_t, string return {result['vhdl']}];")
+    for result in PROCEDURE_RESULTS:
+        lines.append(f"  procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']});")
+    return "\n".join(lines)
+
+
+def object_subprograms():
+    """
+    Bodies of the call and eval overloads of an object. Each creates the object
+    if needed and performs the python_pkg operation in the session of the object.
+    """
+    session = "session => get_session(object)"
+    parts = [
+        f"""\
+  procedure call(
+    {OBJECT}; method : string;
+    {ARG_PARAMETERS}
+  ) is
+  begin
+    p_create(object);
+    call(
+      p_self(method), {ARG_ACTUALS}, {session}
+    );
+  end;
+"""
+    ]
+    for result in RESULTS:
+        name = call_name(result)
+        parts.append(
+            f"""\
+  impure function {name}(
+    {OBJECT}; method : string;
+    {ARG_PARAMETERS}
+  ) return {result['vhdl']} is
+  begin
+    p_create(object);
+    return {name}(
+      p_self(method), {ARG_ACTUALS}, {session}
+    );
+  end;
+"""
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            f"""\
+  procedure call_{result['name']}(
+    {OBJECT}; method : string; result : out {result['vhdl']};
+    {ARG_PARAMETERS}
+  ) is
+  begin
+    p_create(object);
+    call_{result['name']}(
+      p_self(method), result,
+      {ARG_ACTUALS}, {session}
+    );
+  end;
+"""
+        )
+    for result in RESULTS:
+        parts.append(
+            f"""\
+  impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']} is
+  begin
+    p_create(object);
+    return eval_{result['name']}(expr, {session});
+  end;
+"""
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            f"""\
+  procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']}) is
+  begin
+    p_create(object);
+    eval_{result['name']}(expr, result, {session});
+  end;
+"""
+        )
+    return "\n".join(parts).rstrip("\n")
+
+
+def generate_object_package():
+    """
+    Generate python_object_pkg from its template and the generated overloads.
+    """
+    template = (TEMPLATE_PATH / "python_object_pkg.vhd.in").read_text(encoding="utf-8")
+    return Template(template).substitute(
+        object_declarations=object_declarations(),
+        object_subprograms=object_subprograms(),
+    )
+
+
 def generate_package():
     """
     Generate python_pkg from the template and the generated declarations.
@@ -380,6 +511,7 @@ def generate_package():
 
 def main():
     (SRC_PATH / "python_pkg.vhd").write_text(generate_package(), encoding="utf-8", newline="\n")
+    (SRC_PATH / "python_object_pkg.vhd").write_text(generate_object_package(), encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

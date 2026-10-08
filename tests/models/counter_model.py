@@ -21,3 +21,9 @@ class Counter:
 
     def value(self):
         return self.count
+
+    def history(self):
+        return list(range(self.count + 1))
+
+    def ratio(self):
+        return self.count / 4
