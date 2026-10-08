@@ -4,8 +4,10 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- PROTOTYPE: Python objects owned by VHDL. An object is an instance of a
--- Python class living in a session of its own, created on first use.
+-- Python objects owned by VHDL. An object is an instance of a Python class
+-- living in a session of its own, where it is self, created on first use. It
+-- is typically the backend of a verification component, see "Python objects"
+-- in the user guide.
 --
 -- The call and eval overloads of an object are those of python_pkg with the
 -- object first, generated from the same result tables.
@@ -169,15 +171,13 @@ package python_object_pkg is
   procedure eval_std_ulogic_vector(object : python_object_t; expr : string; result : out std_ulogic_vector);
   procedure eval_signed(object : python_object_t; expr : string; result : out signed);
   procedure eval_unsigned(object : python_object_t; expr : string; result : out unsigned);
-
-  procedure p_create(object : python_object_t);
-  function p_self(method : string) return string;
 end package;
 
 package body python_object_pkg is
   constant session_idx : natural := 0;
   constant code_idx : natural := 1;
   constant created_idx : natural := 2;
+  constant class_name_idx : natural := 3;
   -- The parent of the identities of the objects created without one
   constant anonymous_id : id_t := get_id("object", parent => p_python_id);
   -- The identities of the objects, by full name
@@ -186,7 +186,7 @@ package body python_object_pkg is
   impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
     return python_object_t is
     variable object_id : id_t := id;
-    variable data : integer_vector_ptr_t := new_integer_vector_ptr(3);
+    variable data : integer_vector_ptr_t := new_integer_vector_ptr(4);
   begin
     if object_id = null_id then
       -- Like enumerate of vc_pkg, which is only there with the verification components
@@ -201,6 +201,7 @@ package body python_object_pkg is
     set_string(identities, full_name(object_id), "");
     set(data, session_idx, to_integer(new_session(object_id).p_data));
     set(data, code_idx, to_integer(new_string_ptr(to_call_str("__vunit__.create", arg(class_name), args))));
+    set(data, class_name_idx, to_integer(new_string_ptr(class_name)));
     return (p_data => data);
   end;
 
@@ -224,13 +225,20 @@ package body python_object_pkg is
     return get_id(get_session(object));
   end;
 
+  -- Create the object unless it is created. A failure is reported once, as the
+  -- failure of new_python_object, and the object then raises it on every use.
   procedure p_create(object : python_object_t) is
+    variable ok : boolean;
   begin
     if not p_supports_sessions then
       failure(get_logger(object), "Python objects require NVC, GHDL or Questa");
     elsif get(object.p_data, created_idx) = 0 then
       set(object.p_data, created_idx, 1);
-      exec(to_string(to_string_ptr(get(object.p_data, code_idx))), get_session(object));
+      ok := p_exec(
+        to_string(to_string_ptr(get(object.p_data, code_idx))), 0,
+        "new_python_object(""" & to_string(to_string_ptr(get(object.p_data, class_name_idx))) & """)",
+        get_session(object)
+      );
     end if;
   end;
 
@@ -255,14 +263,23 @@ package body python_object_pkg is
     return "self." & method;
   end;
 
+  -- The name of a method call in error messages
+  function p_call_operation(method : string) return string is
+  begin
+    return "call(""" & method & """)";
+  end;
+
   procedure call(
     object : python_object_t; method : string;
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
   ) is
+    variable ok : boolean;
   begin
     p_create(object);
-    call(
-      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    -- An error is reported as that of the method rather than of the code executed
+    ok := p_exec(
+      to_call_str(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), 0, p_call_operation(method),
+      get_session(object)
     );
   end;
 

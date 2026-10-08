@@ -420,10 +420,13 @@ def object_subprograms():
     {OBJECT}; method : string;
     {ARG_PARAMETERS}
   ) is
+    variable ok : boolean;
   begin
     p_create(object);
-    call(
-      p_self(method), {ARG_ACTUALS}, {session}
+    -- An error is reported as that of the method rather than of the code executed
+    ok := p_exec(
+      to_call_str(p_self(method), {ARG_ACTUALS}), 0, p_call_operation(method),
+      get_session(object)
     );
   end;
 """

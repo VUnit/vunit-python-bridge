@@ -80,6 +80,11 @@ package python_ffi_pkg is
 
   procedure p_exec(code : string);
   attribute foreign of p_exec : procedure is "VHPI libraries/python exec";
+  -- Only for the declarations python_object_pkg shares with the Python bridge:
+  -- objects need sessions, which are only supported there
+  impure function p_exec(
+    text : string; is_file : integer; operation : string; session : python_session_t := default_session
+  ) return boolean;
   procedure exec(code : string; session : python_session_t := default_session);
 
   -----------------------------------------------------------------------------
@@ -169,6 +174,15 @@ package body python_ffi_pkg is
     if not p_is_default(session) then
       report "Python sessions are only supported with NVC, GHDL and Questa" severity failure;
     end if;
+  end;
+
+  impure function p_exec(
+    text : string; is_file : integer; operation : string; session : python_session_t := default_session
+  ) return boolean is
+  begin
+    p_check_session(session);
+    p_exec(text);
+    return true;
   end;
 
   impure function eval_integer(expr : string; session : python_session_t := default_session) return integer is

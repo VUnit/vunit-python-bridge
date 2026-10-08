@@ -306,9 +306,10 @@ creates it explicitly.
 
 ``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
 ``exec(object, code)`` evaluate an expression and execute code in the session
-of the object, where the object is ``self``. They have the same arguments, result types and aliases as ``call``
-and ``eval``, including the procedure forms taking a ``std_ulogic_vector``,
-``signed`` or ``unsigned`` result as an ``out`` parameter.
+of the object, where the object is ``self``. They have the same arguments,
+result types and aliases as ``call``, ``eval`` and ``exec``, including the
+procedure forms taking a ``std_ulogic_vector``, ``signed`` or ``unsigned``
+result as an ``out`` parameter.
 
 Making a class importable
 ~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -349,9 +350,10 @@ it in the virtual environment of the project with ``pip install -e``.
 Identity
 ~~~~~~~~
 
-The ``id`` of an object names its session and its logger, ``get_logger(object)``,
-which reports the errors of its operations. Without an ``id``, objects are enumerated the way VUnit
-enumerates verification components: ``python_bridge:python:object:1``,
+The ``id`` of an object names its session and its logger,
+``get_logger(object)``, which reports the errors of its operations. Without an
+``id``, objects are enumerated the way VUnit enumerates verification
+components: ``python_bridge:python:object:1``,
 ``python_bridge:python:object:2`` and so on. Two objects with the same
 identity would share a session, so the second ``new_python_object`` of an
 identity is reported as a failure on its logger.
@@ -392,7 +394,11 @@ The component itself only calls the object of its handle:
       generic(master : uart_master_t);
       ...
 
-      busy <= call_boolean(master.p_model, "transmit", arg(to_integer(data)));
+      process
+      begin
+        wait until rising_edge(clk) and start = '1';
+        call(master.p_model, "transmit", arg(to_integer(data)));
+      end process;
 
 The handle is a constant made during elaboration, and so is the object, which
 is not created in Python until its first call. ``create_std_cfg`` gives
@@ -445,9 +451,12 @@ generic as its name.
 Errors and limitations
 ~~~~~~~~~~~~~~~~~~~~~~
 
+* Errors are reported on the logger of the object, named after what failed,
+  for example ``call("push") failed:`` followed by the Python traceback.
 * An object that cannot be created, for example since its module is not
-  found, reports the error of the import or the constructor once. Its later
-  calls fail with ``The <class> object could not be created: <error>``.
+  found, reports the error of the import or the constructor once, as
+  ``new_python_object("<class>") failed:``. Its later calls fail with
+  ``The <class> object could not be created: <error>``.
 * The caveats of sessions apply: the module of a class, and any state kept in
   it, is shared by all objects.
 * String arguments are passed to Python verbatim, see
