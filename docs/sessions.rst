@@ -128,7 +128,7 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 
 .. code-block:: vhdl
 
-    import_module_from_file(join(tb_path(runner_cfg), "accumulator.py"), "accumulator", session);
+    import_module_from_file(model_file, "accumulator", session);
     exec("model = accumulator.Accumulator()", session);
 
     y <= call("model.accumulate", arg(x), session => session);
