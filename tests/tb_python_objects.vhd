@@ -60,6 +60,8 @@ begin
 
       elsif run("Test exec and get_logger of an object") then
         object := new_python_object("models.counter_model.Counter", id => get_id("exec_test"));
+        create(object);
+        check(get_id(get_session(object)) = get_id("exec_test"), "session of the object");
         exec(object, "self.count = 41");
         check_equal(integer'(call(object, "add", arg(1))), 42);
         check(get_logger(object) = get_logger(get_id("exec_test")), "logger of the object");
