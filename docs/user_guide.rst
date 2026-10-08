@@ -362,8 +362,12 @@ The handle is a constant made during elaboration, and so is the object, which
 is not created in Python until its first call. ``create_std_cfg`` gives
 instances without an ``id`` the identities ``my_vcs:uart_master:1``,
 ``my_vcs:uart_master:2`` and so on, which become the identities of their
-objects. ``tests/counter_vc_pkg.vhd`` and ``tests/counter_vc.vhd`` of the
-repository are a complete component of this kind.
+objects. ``filter_vc_pkg.vhd`` and ``filter_vc.vhd`` of the `embedded_python
+example <https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__
+are a complete component of this kind, with a Python model in
+``filter_model.py``. Its ``Test Python objects as backends of verification
+components`` test case drives three instances: two with objects of their own
+and one given an object of the testbench, which the testbench queries too.
 
 A component without a handle can take the path of its instance, ``'path_name``,
 as the identity, in the statement part of a process: GHDL leaves the instance
@@ -415,7 +419,8 @@ Errors and limitations
 * An ``integer_array_t`` argument is transferred to Python when it is made, so
   it cannot be a constructor argument of an object made during elaboration,
   before the simulation starts. Give the values to the object in a call
-  instead: ``call(model, "load", arg(values))``.
+  instead: ``call(model, "load", arg(values))``. See `#17
+  <https://github.com/VUnit/vunit-python-bridge/issues/17>`__.
 * An object that holds resources, such as files or threads, is closed by a
   call like any other method: ``call(model, "close")``.
 * Objects need sessions, and so the Python bridge: NVC, GHDL or Questa. On
@@ -883,8 +888,9 @@ arguments, a 20 register status dump, wide
 ``call``, Python files executed with ``exec_file`` or imported with
 ``import_module_from_file``, two models loaded into a session each, and a
 Python model failing with the logger of the default session mocked. Its last
-test case drives ``python_model``, a verification component whose behaviour is
-the Python function in ``python_model.py`` rather than VHDL.
+test cases drive ``python_model``, a verification component whose behaviour is
+the Python function in ``python_model.py`` rather than VHDL, and ``filter_vc``,
+whose instances have Python objects as backends.
 
 .. _python_bridge:native:
 

@@ -11,6 +11,8 @@ use vunit_lib.random_pkg.all;
 library python_bridge;
 context python_bridge.python_context;
 
+use work.filter_vc_pkg.all;
+
 library ieee;
 use ieee.std_logic_1164.all;
 use ieee.math_real.all;
@@ -40,6 +42,14 @@ architecture tb of tb_example is
   -- Ports of the two accumulator_model instances
   signal acc_a_x, acc_b_x : integer := 0;
   signal acc_a_y, acc_b_y : integer;
+
+  -- A Python object made by the testbench and given to a filter_vc, which the
+  -- testbench keeps using
+  constant shared_average : python_object_t := new_python_object("filter_model.MovingAverage", kwarg("window", 3));
+
+  -- Ports of the three filter_vc instances
+  signal filter_x : integer := 0;
+  signal filter_a_y, filter_b_y, filter_c_y : integer;
 begin
   test_runner : process
     constant pi : real := 3.141592653589793;
@@ -706,6 +716,18 @@ begin
         end loop;
 
 
+      elsif run("Test Python objects as backends of verification components") then
+        -- Every filter_vc has a MovingAverage object of its own, but filter_c_inst
+        -- uses the one of the testbench, which the testbench can query too
+        for idx in 1 to 4 loop
+          filter_x <= 10 * idx;
+          wait for clk_period;
+        end loop;
+        check_equal(filter_a_y, 35, result("for the average of the last 2 inputs"));
+        check_equal(filter_b_y, 25, result("for the average of the last 4 inputs"));
+        check_equal(filter_c_y, 30, result("for the average of the last 3 inputs"));
+        check_equal(integer'(call(shared_average, "num_samples")), 4, result("for the shared object"));
+
       ---------------------------------------------------------------------
       -- Examples of string manipulation
       --
@@ -796,4 +818,18 @@ begin
   acc_b_inst : entity work.accumulator_model
     generic map(model_file => "accumulator_model.py")
     port map(x => acc_b_x, y => acc_b_y);
+
+  -- Verification components whose behaviour is a Python object: two of their
+  -- own, one named by an id and one enumerated, and the one of the testbench
+  filter_a_inst : entity work.filter_vc
+    generic map(filter => new_filter_vc(window => 2, id => get_id("filter_a")))
+    port map(x => filter_x, y => filter_a_y);
+
+  filter_b_inst : entity work.filter_vc
+    generic map(filter => new_filter_vc(window => 4))
+    port map(x => filter_x, y => filter_b_y);
+
+  filter_c_inst : entity work.filter_vc
+    generic map(filter => new_filter_vc(model => shared_average))
+    port map(x => filter_x, y => filter_c_y);
 end;
