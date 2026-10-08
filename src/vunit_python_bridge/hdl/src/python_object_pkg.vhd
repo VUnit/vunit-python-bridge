@@ -6,9 +6,18 @@
 --
 -- PROTOTYPE: Python objects owned by VHDL. An object is an instance of a
 -- Python class living in a session of its own, created on first use.
+--
+-- This file is a template, generated into hdl/src/python_object_pkg.vhd by
+-- generate_python_pkg.py: the call and eval overloads of the objects are
+-- those of python_pkg with the object first.
+
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
 
 library vunit_lib;
 use vunit_lib.dict_pkg.all;
+use vunit_lib.integer_array_pkg.all;
 use vunit_lib.id_pkg.all;
 use vunit_lib.logger_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
@@ -43,21 +52,115 @@ package python_object_pkg is
   -- Create the object now rather than on first use
   procedure create(object : python_object_t);
 
-  impure function call_integer(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return integer;
-  alias call is call_integer[python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return integer];
-  impure function call_real(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return real;
-  alias call is call_real[python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return real];
-  impure function call_string(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return string;
-  alias call is call_string[python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return string];
-  impure function call_boolean(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return boolean;
-  alias call is call_boolean[python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return boolean];
-  impure function call_integer_vector(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return integer_vector;
-  alias call is call_integer_vector[python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return integer_vector];
-  procedure call(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg);
+  -- Call a method of the object, like call
+  procedure call(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  );
 
-  -- Evaluate an expression in the session of the object, where it is self
+  impure function call_integer_w_arg(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer;
+  alias call is call_integer_w_arg[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return integer];
+
+  impure function call_real(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return real;
+  alias call is call_real[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return real];
+
+  impure function call_integer_vector(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer_vector;
+  alias call is call_integer_vector[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return integer_vector];
+
+  impure function call_real_vector(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return real_vector;
+  alias call is call_real_vector[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return real_vector];
+
+  impure function call_string(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return string;
+  alias call is call_string[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return string];
+
+  impure function call_integer_vector_ptr(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer_vector_ptr_t;
+  alias call is call_integer_vector_ptr[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return integer_vector_ptr_t];
+
+  impure function call_boolean(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return boolean;
+  alias call is call_boolean[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return boolean];
+
+  impure function call_std_ulogic(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic;
+  alias call is call_std_ulogic[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return std_ulogic];
+
+  impure function call_std_ulogic_vector(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic_vector;
+
+  impure function call_integer_array(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer_array_t;
+  alias call is call_integer_array[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t return integer_array_t];
+
+  procedure call_std_ulogic_vector(
+    object : python_object_t; method : string; result : out std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  );
+  procedure call_signed(
+    object : python_object_t; method : string; result : out signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  );
+  procedure call_unsigned(
+    object : python_object_t; method : string; result : out unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  );
+
+  -- Evaluate an expression in the session of the object, where it is self, like eval
   impure function eval_integer(object : python_object_t; expr : string) return integer;
+  alias eval is eval_integer[python_object_t, string return integer];
+  impure function eval_real(object : python_object_t; expr : string) return real;
+  alias eval is eval_real[python_object_t, string return real];
+  impure function eval_integer_vector(object : python_object_t; expr : string) return integer_vector;
+  alias eval is eval_integer_vector[python_object_t, string return integer_vector];
+  impure function eval_real_vector(object : python_object_t; expr : string) return real_vector;
+  alias eval is eval_real_vector[python_object_t, string return real_vector];
   impure function eval_string(object : python_object_t; expr : string) return string;
+  alias eval is eval_string[python_object_t, string return string];
+  impure function eval_integer_vector_ptr(object : python_object_t; expr : string) return integer_vector_ptr_t;
+  alias eval is eval_integer_vector_ptr[python_object_t, string return integer_vector_ptr_t];
+  impure function eval_boolean(object : python_object_t; expr : string) return boolean;
+  alias eval is eval_boolean[python_object_t, string return boolean];
+  impure function eval_std_ulogic(object : python_object_t; expr : string) return std_ulogic;
+  alias eval is eval_std_ulogic[python_object_t, string return std_ulogic];
+  impure function eval_std_ulogic_vector(object : python_object_t; expr : string) return std_ulogic_vector;
+  impure function eval_integer_array(object : python_object_t; expr : string) return integer_array_t;
+  procedure eval_std_ulogic_vector(object : python_object_t; expr : string; result : out std_ulogic_vector);
+  procedure eval_signed(object : python_object_t; expr : string; result : out signed);
+  procedure eval_unsigned(object : python_object_t; expr : string; result : out unsigned);
 
   procedure p_create(object : python_object_t);
   function p_self(method : string) return string;
@@ -130,46 +233,238 @@ package body python_object_pkg is
     return "self." & method;
   end;
 
-  impure function call_integer(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return integer is
+  procedure call(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) is
   begin
     p_create(object);
-    return call_integer_w_arg(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object));
+    call(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
   end;
-  impure function call_real(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return real is
+
+  impure function call_integer_w_arg(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer is
   begin
     p_create(object);
-    return call_real(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object));
+    return call_integer_w_arg(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
   end;
-  impure function call_string(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return string is
+
+  impure function call_real(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return real is
   begin
     p_create(object);
-    return call_string(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object));
+    return call_real(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
   end;
-  impure function call_boolean(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return boolean is
+
+  impure function call_integer_vector(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer_vector is
   begin
     p_create(object);
-    return call_boolean(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object));
+    return call_integer_vector(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
   end;
-  impure function call_integer_vector(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) return integer_vector is
+
+  impure function call_real_vector(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return real_vector is
   begin
     p_create(object);
-    return call_integer_vector(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object));
+    return call_real_vector(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
   end;
-  procedure call(object : python_object_t; method : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg) is
+
+  impure function call_string(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return string is
   begin
     p_create(object);
-    call(p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object));
+    return call_string(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  impure function call_integer_vector_ptr(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer_vector_ptr_t is
+  begin
+    p_create(object);
+    return call_integer_vector_ptr(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  impure function call_boolean(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return boolean is
+  begin
+    p_create(object);
+    return call_boolean(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  impure function call_std_ulogic(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic is
+  begin
+    p_create(object);
+    return call_std_ulogic(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  impure function call_std_ulogic_vector(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic_vector is
+  begin
+    p_create(object);
+    return call_std_ulogic_vector(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  impure function call_integer_array(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return integer_array_t is
+  begin
+    p_create(object);
+    return call_integer_array(
+      p_self(method), arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  procedure call_std_ulogic_vector(
+    object : python_object_t; method : string; result : out std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) is
+  begin
+    p_create(object);
+    call_std_ulogic_vector(
+      p_self(method), result,
+      arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  procedure call_signed(
+    object : python_object_t; method : string; result : out signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) is
+  begin
+    p_create(object);
+    call_signed(
+      p_self(method), result,
+      arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
+  end;
+
+  procedure call_unsigned(
+    object : python_object_t; method : string; result : out unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) is
+  begin
+    p_create(object);
+    call_unsigned(
+      p_self(method), result,
+      arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session => get_session(object)
+    );
   end;
 
   impure function eval_integer(object : python_object_t; expr : string) return integer is
   begin
     p_create(object);
-    return eval_integer(expr, get_session(object));
+    return eval_integer(expr, session => get_session(object));
+  end;
+
+  impure function eval_real(object : python_object_t; expr : string) return real is
+  begin
+    p_create(object);
+    return eval_real(expr, session => get_session(object));
+  end;
+
+  impure function eval_integer_vector(object : python_object_t; expr : string) return integer_vector is
+  begin
+    p_create(object);
+    return eval_integer_vector(expr, session => get_session(object));
+  end;
+
+  impure function eval_real_vector(object : python_object_t; expr : string) return real_vector is
+  begin
+    p_create(object);
+    return eval_real_vector(expr, session => get_session(object));
   end;
 
   impure function eval_string(object : python_object_t; expr : string) return string is
   begin
     p_create(object);
-    return eval_string(expr, get_session(object));
+    return eval_string(expr, session => get_session(object));
+  end;
+
+  impure function eval_integer_vector_ptr(object : python_object_t; expr : string) return integer_vector_ptr_t is
+  begin
+    p_create(object);
+    return eval_integer_vector_ptr(expr, session => get_session(object));
+  end;
+
+  impure function eval_boolean(object : python_object_t; expr : string) return boolean is
+  begin
+    p_create(object);
+    return eval_boolean(expr, session => get_session(object));
+  end;
+
+  impure function eval_std_ulogic(object : python_object_t; expr : string) return std_ulogic is
+  begin
+    p_create(object);
+    return eval_std_ulogic(expr, session => get_session(object));
+  end;
+
+  impure function eval_std_ulogic_vector(object : python_object_t; expr : string) return std_ulogic_vector is
+  begin
+    p_create(object);
+    return eval_std_ulogic_vector(expr, session => get_session(object));
+  end;
+
+  impure function eval_integer_array(object : python_object_t; expr : string) return integer_array_t is
+  begin
+    p_create(object);
+    return eval_integer_array(expr, session => get_session(object));
+  end;
+
+  procedure eval_std_ulogic_vector(object : python_object_t; expr : string; result : out std_ulogic_vector) is
+  begin
+    p_create(object);
+    eval_std_ulogic_vector(expr, result, session => get_session(object));
+  end;
+
+  procedure eval_signed(object : python_object_t; expr : string; result : out signed) is
+  begin
+    p_create(object);
+    eval_signed(expr, result, session => get_session(object));
+  end;
+
+  procedure eval_unsigned(object : python_object_t; expr : string; result : out unsigned) is
+  begin
+    p_create(object);
+    eval_unsigned(expr, result, session => get_session(object));
   end;
 end package body;
