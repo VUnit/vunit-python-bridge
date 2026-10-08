@@ -98,7 +98,6 @@ package python_ffi_pkg is
   -- Logger of the Python interface, the parent of the session loggers
   constant python_logger : logger_t := get_logger(p_python_id);
 
-
   -- Result kinds, must match src/vunit_python_bridge/runtime.py
   constant p_kind_integer : integer := 0;
   constant p_kind_real : integer := 1;

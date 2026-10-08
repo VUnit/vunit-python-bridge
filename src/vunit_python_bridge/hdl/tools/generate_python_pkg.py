@@ -422,10 +422,10 @@ def object_subprograms():
   ) is
     variable ok : boolean;
   begin
-    p_create(object);
+    create(object);
     -- An error is reported as that of the method rather than of the code executed
     ok := p_exec(
-      to_call_str(p_self(method), {ARG_ACTUALS}), 0, p_call_operation(method),
+      to_call_str("self." & method, {ARG_ACTUALS}), 0, p_call_operation(method),
       get_session(object)
     );
   end;
@@ -440,9 +440,9 @@ def object_subprograms():
     {ARG_PARAMETERS}
   ) return {result['vhdl']} is
   begin
-    p_create(object);
+    create(object);
     return {name}(
-      p_self(method), {ARG_ACTUALS}, {session}
+      "self." & method, {ARG_ACTUALS}, {session}
     );
   end;
 """
@@ -455,9 +455,9 @@ def object_subprograms():
     {ARG_PARAMETERS}
   ) is
   begin
-    p_create(object);
+    create(object);
     call_{result['name']}(
-      p_self(method), result,
+      "self." & method, result,
       {ARG_ACTUALS}, {session}
     );
   end;
@@ -468,7 +468,7 @@ def object_subprograms():
             f"""\
   impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']} is
   begin
-    p_create(object);
+    create(object);
     return eval_{result['name']}(expr, {session});
   end;
 """
@@ -478,7 +478,7 @@ def object_subprograms():
             f"""\
   procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']}) is
   begin
-    p_create(object);
+    create(object);
     eval_{result['name']}(expr, result, {session});
   end;
 """
