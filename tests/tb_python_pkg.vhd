@@ -269,6 +269,12 @@ begin
 
         check_equal(eval("local_test()"), 1);
 
+      elsif run("Test string arguments are escaped") then
+        check_equal(call("len", arg(string'("a""b\c'd" & LF & HT))), 9);
+        check_equal(call("ord", arg(string'("\"))), 92);
+        check_equal(call("len", arg("é")), 1);
+        check_equal(call("ord", arg(string'(""""))), 34);
+
       elsif run("Test call functions") then
         check_equal(call("len", arg("Hello")), 5);
         check_equal(call("len", arg(integer_vector'(1, 2, 3))), 3);
