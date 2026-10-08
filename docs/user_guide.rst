@@ -229,7 +229,7 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 
 .. code-block:: vhdl
 
-    import_module_from_file(join(tb_path(runner_cfg), "accumulator.py"), "accumulator", session);
+    import_module_from_file(model_file, "accumulator", session);
     exec("model = accumulator.Accumulator()", session);
 
     y <= call("model.accumulate", arg(x), session => session);
@@ -237,6 +237,135 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 The module, and so the class, is shared by all sessions (see the caveats
 below), while every session has a ``model`` object of its own. Like all
 non-default sessions, this needs the Python bridge: NVC, GHDL or Questa.
+A verification component that is used by many testbenches imports its model
+by module name instead, as described in :ref:`Verification components with a
+Python model <python_bridge:verification_components>`.
+
+.. _python_bridge:verification_components:
+
+Verification components with a Python model
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A verification component (VC) is used by many testbenches, often with several
+instances in each, and lives in a folder of its own. A relative file name given
+to ``exec_file`` or ``import_module_from_file`` is resolved against ``tb_path``
+of whichever testbench is running, and only after ``test_runner_setup``, while
+the process of a VC usually starts at time 0. A VC should therefore not find its
+model by a relative file name. The pattern is instead:
+
+* The model is a Python package next to the VC, imported by its module name
+  without a file name:
+
+  .. code-block:: text
+
+      my_vc/
+        my_vc.vhd
+        python/
+          my_vc_model/
+            __init__.py
+
+* All mutable state lives on an object of a model class, one object per VC
+  instance, rather than in module globals.
+* Every instance makes a session of its own with
+  ``new_session(my_vc'instance_name)``. As in :ref:`Independent models of
+  component instances <python_bridge:instance_sessions>`, this is done in the
+  statement part of the process rather than in a declaration, since GHDL leaves
+  the instance labels out of ``'instance_name`` in a declaration.
+
+The model keeps its state on ``self``:
+
+.. code-block:: python
+
+    # my_vc/python/my_vc_model/__init__.py
+    class Model:
+        def __init__(self, gain):
+            self.gain = gain
+            self.total = 0
+
+        def accumulate(self, x):
+            self.total += self.gain * x
+            return self.total
+
+The VC imports the package, creates a model object in its session and calls it
+for every input:
+
+.. code-block:: vhdl
+
+    -- my_vc/my_vc.vhd
+    library vunit_lib;
+
+    library python_bridge;
+    context python_bridge.python_context;
+
+    entity my_vc is
+      generic(gain : integer);
+      port(
+        x : in integer;
+        y : out integer
+      );
+    end entity;
+
+    architecture python of my_vc is
+    begin
+      model : process is
+        variable session : python_session_t;
+      begin
+        session := new_session(my_vc'instance_name);
+        exec("import my_vc_model", session);
+        exec("model = " & to_call_str("my_vc_model.Model", kwarg("gain", gain)), session);
+
+        loop
+          wait on x;
+          y <= call("model.accumulate", arg(x), session => session);
+        end loop;
+      end process;
+    end architecture;
+
+None of this needs ``test_runner_setup``, so the model is imported and created
+at time 0. For the import to find the package, the run script prepends the
+Python folder of the VC to ``PYTHONPATH`` before VUnit starts. The simulator
+runs Python in the environment of VUnit, so the setting reaches the interpreter
+in the simulator:
+
+.. code-block:: python
+
+    import os
+    from pathlib import Path
+    from vunit import VUnit
+
+    my_vc_python = Path(__file__).parent / "my_vc" / "python"
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(my_vc_python), os.environ.get("PYTHONPATH")])
+    )
+
+    vu = VUnit.from_argv()
+    ...
+
+An alternative is to make the model an installable Python package and install
+it in the virtual environment of the project with ``pip install -e``.
+
+Things to keep in mind:
+
+* Imported modules are shared by all sessions (see the caveats below), so
+  module-level and class-level variables are shared by all instances of the
+  VC, even with a session per instance. Only state on the model object is
+  per instance. A file executed with ``exec_file`` is different: its globals
+  are defined in the namespace of the session.
+* Module names are global, since there is one ``sys.path`` and one
+  ``sys.modules`` per simulation. Name the package after the VC to avoid
+  clashes with the models of other VCs.
+* Errors are reported on the logger of the session, whose identity follows the
+  instance path:
+
+  .. code-block:: text
+
+      FAILURE - python_bridge:python:tb_vc(tb):vc2@my_vc(python) - eval("model.acumulate(2)", session => "vc2@my_vc(python)") failed:
+      Traceback (most recent call last):
+        ...
+      AttributeError: 'Model' object has no attribute 'acumulate'. Did you mean: 'accumulate'?
+
+* A model given as a file rather than a package needs an absolute path, for
+  example through a generic set by the run script.
 
 Caveats
 ~~~~~~~
