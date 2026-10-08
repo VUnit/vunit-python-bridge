@@ -69,7 +69,7 @@ package body python_object_pkg is
   constant session_idx : natural := 0;
   constant code_idx : natural := 1;
   constant created_idx : natural := 2;
-  constant class_name_idx : natural := 3;
+  constant operation_idx : natural := 3;
   -- The parent of the identities of the objects created without one
   constant anonymous_id : id_t := get_id("object", parent => p_python_id);
   -- The identities of the objects, by full name
@@ -93,7 +93,7 @@ package body python_object_pkg is
     set_string(identities, full_name(object_id), "");
     set(data, session_idx, to_integer(new_session(object_id).p_data));
     set(data, code_idx, to_integer(new_string_ptr(to_call_str("__vunit__.instantiate_as_self", arg(class_name), args))));
-    set(data, class_name_idx, to_integer(new_string_ptr(class_name)));
+    set(data, operation_idx, to_integer(new_string_ptr("new_python_object(""" & class_name & """)")));
     return (p_data => data);
   end;
 
@@ -117,40 +117,30 @@ package body python_object_pkg is
     return get_id(get_session(object));
   end;
 
-  -- Create the object unless it is created. A failure is reported once, as the
-  -- failure of new_python_object, and the object then raises it on every use.
-  procedure p_create(object : python_object_t) is
+  -- A failure is reported once, as the failure of new_python_object, and the
+  -- object then raises it on every use
+  procedure create(object : python_object_t) is
     variable ok : boolean;
   begin
     if get(object.p_data, created_idx) = 0 then
       set(object.p_data, created_idx, 1);
       ok := p_exec(
         to_string(to_string_ptr(get(object.p_data, code_idx))), 0,
-        "new_python_object(""" & to_string(to_string_ptr(get(object.p_data, class_name_idx))) & """)",
+        to_string(to_string_ptr(get(object.p_data, operation_idx))),
         get_session(object)
       );
     end if;
   end;
 
-  procedure create(object : python_object_t) is
-  begin
-    p_create(object);
-  end;
-
   procedure exec(object : python_object_t; code : string) is
   begin
-    p_create(object);
+    create(object);
     exec(code, get_session(object));
   end;
 
   impure function get_logger(object : python_object_t) return logger_t is
   begin
     return get_logger(get_id(object));
-  end;
-
-  function p_self(method : string) return string is
-  begin
-    return "self." & method;
   end;
 
   -- The name of a method call in error messages

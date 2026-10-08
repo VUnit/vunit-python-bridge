@@ -15,11 +15,11 @@ exec/eval operations.
 """
 
 import builtins
-import importlib
 import linecache
 import math
 import numbers
 import os
+import pydoc
 import struct
 import sys
 import traceback
@@ -112,26 +112,15 @@ def _type_error(kind, value, expected):
 
 def _resolve_class(class_name):
     """
-    The class with a dotted name like "package.module.Class", imported from
-    the longest prefix that is a module, or a class defined in the default
-    session (__main__) when the name has no dot.
+    The class with a dotted name like "package.module.Class", or a class
+    defined in the default session (__main__) when the name has no dot.
     """
-    parts = class_name.split(".")
-    if len(parts) == 1:
+    if "." not in class_name:
         return getattr(__main__, class_name)
-    for split in range(len(parts) - 1, 0, -1):
-        module_name = ".".join(parts[:split])
-        try:
-            target = importlib.import_module(module_name)
-        except ModuleNotFoundError as exc:
-            # Only a missing prefix means trying a shorter one, not an import failing inside it
-            if exc.name is None or not module_name.startswith(exc.name):
-                raise
-            continue
-        for attribute in parts[split:]:
-            target = getattr(target, attribute)
-        return target
-    raise ModuleNotFoundError(f"No module named {parts[0]!r}", name=parts[0])
+    target = pydoc.locate(class_name)
+    if target is None:
+        raise ImportError(f"No class named {class_name!r}")
+    return target
 
 
 class _UncreatedObject:  # pylint: disable=too-few-public-methods
@@ -145,9 +134,6 @@ class _UncreatedObject:  # pylint: disable=too-few-public-methods
 
     def __getattr__(self, name):
         raise RuntimeError(self._message)
-
-    def __repr__(self):
-        return f"<{self._message}>"
 
 
 class BridgeHandle:
@@ -184,8 +170,6 @@ class BridgeHandle:
         fails, self raises the reason on every use instead of being undefined.
         """
         namespace = self._runtime.namespace
-        if "self" in namespace:
-            raise RuntimeError("Two Python objects have the same identity, give each one an id of its own")
         try:
             namespace["self"] = _resolve_class(class_name)(*args, **kwargs)
         except Exception as exc:
@@ -309,13 +293,6 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
     @property
     def namespace(self):
         """
-        The namespace of the current session.
-        """
-        return self._namespace
-
-    @property
-    def _namespace(self):
-        """
         Namespace of the current session.
         """
         return self._sessions[self._session]
@@ -353,7 +330,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         # Make tracebacks show the source lines of inline code
         linecache.cache[file_name] = (len(source), None, source.splitlines(True), file_name)
         code = compile(source, file_name, "exec", dont_inherit=True)
-        exec(code, self._namespace, self._namespace)  # pylint: disable=exec-used
+        exec(code, self.namespace, self.namespace)  # pylint: disable=exec-used
 
     @staticmethod
     def _resolve_file(file_name):
@@ -374,7 +351,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             source = fptr.read()
         code = compile(source, str(path), "exec", dont_inherit=True)
 
-        namespace = self._namespace
+        namespace = self.namespace
         previous_file = namespace.get("__file__", _NO_VALUE)
         directory = str(path.parent)
         namespace["__file__"] = str(path)
@@ -413,7 +390,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             linecache.cache[file_name] = (len(text), None, text.splitlines(True), file_name)
             code = compile(text, file_name, "eval", dont_inherit=True)
             # Running the user's own Python code is the purpose of this module
-            self._result = eval(code, self._namespace, self._namespace)  # pylint: disable=eval-used
+            self._result = eval(code, self.namespace, self.namespace)  # pylint: disable=eval-used
         except BaseException:
             self._array_meta = {}
             self._flush()
