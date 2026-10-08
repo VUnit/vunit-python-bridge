@@ -286,6 +286,7 @@ own, and a testbench can create one and give it to a component.
     count := call(model, "push", arg(byte));   -- calls self.push(byte)
     call(model, "reset");                      -- no return value
     check_true(eval_boolean(model, "self.is_idle()"));
+    exec(model, "self.trace = True");
 
 ``new_python_object(class_name, args, id)`` names the class and its constructor
 arguments, given like the arguments of ``call``, including groups made with
@@ -303,17 +304,17 @@ therefore be a constant or a generic, created during elaboration, and does not
 depend on the order of the processes or on ``test_runner_setup``. ``create``
 creates it explicitly.
 
-``call(object, method, ...)`` calls a method and ``eval(object, expr)``
-evaluates an expression in the session of the object, where the object is
-``self``. They have the same arguments, result types and aliases as ``call``
+``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
+``exec(object, code)`` evaluate an expression and execute code in the session
+of the object, where the object is ``self``. They have the same arguments, result types and aliases as ``call``
 and ``eval``, including the procedure forms taking a ``std_ulogic_vector``,
 ``signed`` or ``unsigned`` result as an ``out`` parameter.
 
 Identity
 ~~~~~~~~
 
-The ``id`` of an object names its session and its logger, which reports the
-errors of its calls. Without an ``id``, objects are enumerated the way VUnit
+The ``id`` of an object names its session and its logger, ``get_logger(object)``,
+which reports the errors of its operations. Without an ``id``, objects are enumerated the way VUnit
 enumerates verification components: ``python_bridge:python:object:1``,
 ``python_bridge:python:object:2`` and so on. Two objects with the same
 identity would share a session, so the second ``new_python_object`` of an
@@ -411,9 +412,14 @@ Errors and limitations
   it, is shared by all objects.
 * String arguments are passed to Python verbatim, see
   :ref:`python_bridge:semantics`, which applies to constructor arguments too.
-* ``integer_array_t`` constructor arguments are transferred when the object is
-  given them, which is during elaboration for an object made there.
-* Objects need sessions, and so the Python bridge: NVC, GHDL or Questa.
+* An ``integer_array_t`` argument is transferred to Python when it is made, so
+  it cannot be a constructor argument of an object made during elaboration,
+  before the simulation starts. Give the values to the object in a call
+  instead: ``call(model, "load", arg(values))``.
+* An object that holds resources, such as files or threads, is closed by a
+  call like any other method: ``call(model, "close")``.
+* Objects need sessions, and so the Python bridge: NVC, GHDL or Questa. On
+  Riviera-PRO/Active-HDL their first use reports that.
 
 exec
 ----
