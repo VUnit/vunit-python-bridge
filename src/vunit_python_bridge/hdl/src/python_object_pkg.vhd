@@ -49,11 +49,16 @@ package python_object_pkg is
   ) return python_object_t;
 
   impure function get_id(object : python_object_t) return id_t;
+  -- The logger of the object, which reports the errors of its operations
+  impure function get_logger(object : python_object_t) return logger_t;
   -- The session of the object, in which it is bound to self
   impure function get_session(object : python_object_t) return python_session_t;
 
   -- Create the object now rather than on first use
   procedure create(object : python_object_t);
+
+  -- Execute code in the session of the object, where it is self, like exec
+  procedure exec(object : python_object_t; code : string);
 
   -- Call a method of the object, like call
   procedure call(
@@ -221,7 +226,9 @@ package body python_object_pkg is
 
   procedure p_create(object : python_object_t) is
   begin
-    if get(object.p_data, created_idx) = 0 then
+    if not p_supports_sessions then
+      failure(get_logger(object), "Python objects require NVC, GHDL or Questa");
+    elsif get(object.p_data, created_idx) = 0 then
       set(object.p_data, created_idx, 1);
       exec(to_string(to_string_ptr(get(object.p_data, code_idx))), get_session(object));
     end if;
@@ -230,6 +237,17 @@ package body python_object_pkg is
   procedure create(object : python_object_t) is
   begin
     p_create(object);
+  end;
+
+  procedure exec(object : python_object_t; code : string) is
+  begin
+    p_create(object);
+    exec(code, get_session(object));
+  end;
+
+  impure function get_logger(object : python_object_t) return logger_t is
+  begin
+    return get_logger(get_id(object));
   end;
 
   function p_self(method : string) return string is

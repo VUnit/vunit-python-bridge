@@ -58,6 +58,12 @@ begin
         check_equal(length(call_integer_array(object, "history")), 7);
         check_true(eval_boolean(object, "self.count == 6"));
 
+      elsif run("Test exec and get_logger of an object") then
+        object := new_python_object("models.counter_model.Counter", id => get_id("exec_test"));
+        exec(object, "self.count = 41");
+        check_equal(integer'(call(object, "add", arg(1))), 42);
+        check(get_logger(object) = get_logger(get_id("exec_test")), "logger of the object");
+
       elsif run("Test an object of a class defined in the default session") then
         exec("class Doubler:" + "    def apply(self, x):" + "        return 2 * x");
         object := new_python_object("Doubler");
