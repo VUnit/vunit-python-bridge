@@ -7,9 +7,11 @@
 -- PROTOTYPE: Python objects owned by VHDL. An object is an instance of a
 -- Python class living in a session of its own, created on first use.
 --
--- This file is a template, generated into hdl/src/python_object_pkg.vhd by
--- generate_python_pkg.py: the call and eval overloads of the objects are
--- those of python_pkg with the object first.
+-- The call and eval overloads of an object are those of python_pkg with the
+-- object first, generated from the same result tables.
+--
+-- This file is generated from tools/python_object_pkg.vhd.in by
+-- src/vunit_python_bridge/hdl/tools/generate_python_pkg.py. Do not edit.
 
 library ieee;
 use ieee.std_logic_1164.all;
