@@ -39,7 +39,7 @@ own, and a testbench can create one and give it to a component.
 .. code-block:: vhdl
 
     constant model : python_object_t := new_python_object(
-      "my_models.uart:UartModel", kwarg("baud", 115200), id => get_id("uart")
+      "my_models.uart.UartModel", kwarg("baud", 115200), id => get_id("uart")
     );
 
     ...
@@ -49,21 +49,21 @@ own, and a testbench can create one and give it to a component.
     check_true(eval_boolean(model, "self.is_idle()"));
     exec(model, "self.trace = True");
 
-``new_python_object(class_name, args, id)`` names the class and its constructor
-arguments, given like the arguments of ``call``, including groups made with
-``&``. The class is
+``new_python_object(class_name, args, id)`` names the class and the arguments
+of its constructor, given like the arguments of ``call``, including groups made
+with ``&``. The class is
 
-* ``"package.module.Class"`` or ``"package.module:Class"``, imported by module
-  name from ``sys.path``: an installed package, the directory of the run
-  script or a directory on ``PYTHONPATH``. No file name is involved, so the
-  class is found the same way wherever the object is created.
-* ``"Class"``, a class defined in the default session, for example by ``exec``
-  or ``exec_file`` in the testbench.
+* a dotted name like ``"package.module.Class"``, imported from the module it
+  names, which is found like any other import: see :ref:`Where Python code is
+  found <python_bridge:finding_code>`. No file name is involved, so the class
+  is found the same way wherever the object is created.
+* the name of a class defined in the default session, like ``"Class"``, for
+  example by ``exec`` or ``exec_file`` in the testbench.
 
-The object is created on first use, not by ``new_python_object``. An object can
-therefore be a constant or a generic, created during elaboration, and does not
-depend on the order of the processes or on ``test_runner_setup``. ``create``
-creates it explicitly.
+The constructor is called when the object is first used, not by
+``new_python_object``. An object can therefore be a constant or a generic,
+made during elaboration, and does not depend on the order of the processes or
+on ``test_runner_setup``. ``create`` calls the constructor right away.
 
 ``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
 ``exec(object, code)`` evaluate an expression and execute code in the session
@@ -71,42 +71,6 @@ of the object, where the object is ``self``. They have the same arguments,
 result types and aliases as ``call``, ``eval`` and ``exec``, including the
 procedure forms taking a ``std_ulogic_vector``, ``signed`` or ``unsigned``
 result as an ``out`` parameter.
-
-Making a class importable
-~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The model of a verification component is best a Python package next to it,
-named after it since module names are global to the simulation:
-
-.. code-block:: text
-
-    my_vc/
-      my_vc.vhd
-      python/
-        my_vc_model/
-          __init__.py
-
-The run script prepends the Python folder to ``PYTHONPATH`` before VUnit
-starts. The simulator runs Python in the environment of VUnit, so the setting
-reaches the interpreter in the simulator and the class is
-``"my_vc_model.Model"`` wherever the component is used:
-
-.. code-block:: python
-
-    import os
-    from pathlib import Path
-    from vunit import VUnit
-
-    my_vc_python = Path(__file__).parent / "my_vc" / "python"
-    os.environ["PYTHONPATH"] = os.pathsep.join(
-        filter(None, [str(my_vc_python), os.environ.get("PYTHONPATH")])
-    )
-
-    vu = VUnit.from_argv()
-    ...
-
-An alternative is to make the model an installable Python package and install
-it in the virtual environment of the project with ``pip install -e``.
 
 Identity
 ~~~~~~~~
@@ -122,12 +86,12 @@ identity is reported as a failure on its logger.
 Backends of verification components
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``get_python_object(object, class_name, args, id)`` returns ``object`` when it
-is given, and a new object otherwise, like ``get_logger`` and ``get_id``. A
-verification component made the way VUnit's own are creates its object in the
-constructor of its handle, with the identity of the component. Every instance
-then gets a backend of its own by default and the object of the testbench when
-given one:
+A verification component usually makes its object in the constructor of its
+handle, the way VUnit's own components make everything they need there.
+``get_python_object(object, class_name, args, id)`` returns ``object`` when one
+is given and makes a new one otherwise, like ``get_logger`` and ``get_id`` do
+for loggers and identities. Every instance then gets a backend of its own,
+unless the testbench gives it one:
 
 .. code-block:: vhdl
 
@@ -143,7 +107,7 @@ given one:
     begin
       return (
         p_std_cfg => std_cfg,
-        p_model => get_python_object(model, "my_vcs.uart:UartModel", kwarg("baud", baud), get_id(std_cfg))
+        p_model => get_python_object(model, "my_vcs.uart.UartModel", kwarg("baud", baud), get_id(std_cfg))
       );
     end;
 
@@ -161,16 +125,18 @@ The component itself only calls the object of its handle:
         call(master.p_model, "transmit", arg(to_integer(data)));
       end process;
 
-The handle is a constant made during elaboration, and so is the object, which
-is not created in Python until its first call. ``create_std_cfg`` gives
-instances without an ``id`` the identities ``my_vcs:uart_master:1``,
-``my_vcs:uart_master:2`` and so on, which become the identities of their
-objects. ``filter_vc_pkg.vhd`` and ``filter_vc.vhd`` of the `embedded_python
-example <https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__
-are a complete component of this kind, with a Python model in
-``filter_model.py``. Its ``Test Python objects as backends of verification
-components`` test case drives three instances: two with objects of their own
-and one given an object of the testbench, which the testbench queries too.
+The handle is a constant made during elaboration, and so is its object, but
+nothing happens in Python until the first call. ``create_std_cfg`` numbers the
+instances made without an ``id``, ``my_vcs:uart_master:1``,
+``my_vcs:uart_master:2`` and so on, and their objects get the same identities.
+
+``filter_vc`` of the `embedded_python example
+<https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__
+is a complete component of this kind: the handle is in ``filter_vc_pkg.vhd``,
+the component in ``filter_vc.vhd`` and the Python model in ``filter_model.py``.
+Its ``Test Python objects as backends of verification components`` test case
+drives three instances, two with objects of their own and one sharing an object
+with the testbench.
 
 A component without a handle can take the path of its instance, ``'path_name``,
 as the identity, in the statement part of a process: GHDL leaves the instance
@@ -190,9 +156,9 @@ during elaboration, which would give all instances the same identity.
       backend := get_python_object(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
       ...
 
-A testbench giving several components, or a component and itself, the same
-object shares its state between them, for example a scoreboard filled by a
-monitor and checked by the test:
+Several components can share an object, and so can a component and the
+testbench: the testbench makes the object and gives it to each of them. A
+scoreboard filled by a monitor and checked by the test is a typical case:
 
 .. code-block:: vhdl
 
@@ -212,8 +178,8 @@ monitor and checked by the test:
 
     check_equal(integer'(call(scoreboard, "num_mismatches")), 0);
 
-The class can be made a choice of the user in the same way, with a ``string``
-generic as its name.
+In the same way, a component can let its user choose the class, by taking its
+name as a ``string`` generic.
 
 Errors and limitations
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -236,7 +202,8 @@ Errors and limitations
 * An object that holds resources, such as files or threads, is closed by a
   call like any other method: ``call(model, "close")``.
 * Objects need sessions, and so the Python bridge: NVC, GHDL or Questa. On
-  Riviera-PRO/Active-HDL their first use reports that.
+  Riviera-PRO/Active-HDL, the first use of an object reports that sessions are
+  only supported there.
 
 exec
 ----

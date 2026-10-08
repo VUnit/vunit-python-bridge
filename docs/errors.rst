@@ -74,3 +74,58 @@ Semantics to be aware of
      escaped, so the Python function receives the text exactly as given.
      Pass plain text, not text already escaped for Python. Bytes >= 128 are
      kept as they are, so UTF-8 text arrives as the same Python characters.
+.. _python_bridge:finding_code:
+
+Where Python code is found
+--------------------------
+
+The interpreter in the simulator imports modules the way Python started on the
+run script does. Without any setup, it finds:
+
+* Modules in the directory of the run script, which is the first entry of
+  ``sys.path``. This is also how ``import_run_script`` imports the run script.
+* The packages of the Python environment VUnit runs in, for example an active
+  virtual environment. That includes packages installed with ``pip install -e``.
+
+Anything else has to be added to ``PYTHONPATH``. The simulator inherits the
+environment of VUnit, so the run script can set it before VUnit starts the
+simulations. A verification component that is used by many testbenches keeps
+its Python code in a folder of its own, for example:
+
+.. code-block:: text
+
+    my_vc/
+      my_vc.vhd
+      python/
+        my_vc_model/
+          __init__.py
+
+and the run script puts that folder on the path, after which the model is
+``my_vc_model`` wherever the component is used:
+
+.. code-block:: python
+
+    import os
+    from pathlib import Path
+    from vunit import VUnit
+
+    my_vc_python = Path(__file__).parent / "my_vc" / "python"
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(my_vc_python), os.environ.get("PYTHONPATH")])
+    )
+
+    vu = VUnit.from_argv()
+    ...
+
+Files given by name are found differently. A relative file name given to
+``exec_file`` or ``import_module_from_file`` is relative to the directory of
+the testbench file, ``tb_path``, and an absolute one is used as given.
+``exec_file`` also puts the directory of the file on ``sys.path`` while it
+executes, so the file can import the modules next to it.
+
+There is one ``sys.path`` and one ``sys.modules`` per simulation, shared by all
+:ref:`sessions <python_bridge:sessions>`. Two modules with the same name are
+therefore the same module, so a package is best named after the component it
+belongs to, and state kept at module level is shared by everything that
+imports the module.
+

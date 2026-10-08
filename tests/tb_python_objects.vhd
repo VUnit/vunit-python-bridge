@@ -22,7 +22,7 @@ end entity;
 
 architecture tb of tb_python_objects is
   -- Created by the bench at elaboration, passed to a VC and inspected by the bench
-  constant shared_model : python_object_t := new_python_object("models.counter_model:Counter", kwarg("start", 100));
+  constant shared_model : python_object_t := new_python_object("models.counter_model.Counter", kwarg("start", 100));
 
   signal tick : natural := 0;
   signal count_a, count_b, count_c, count_d : integer;

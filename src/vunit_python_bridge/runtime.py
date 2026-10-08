@@ -112,16 +112,26 @@ def _type_error(kind, value, expected):
 
 def _resolve_class(class_name):
     """
-    The class named "package.module.Class", "package.module:Class" or "Class"
-    defined in the default session (__main__).
+    The class with a dotted name like "package.module.Class", imported from
+    the longest prefix that is a module, or a class defined in the default
+    session (__main__) when the name has no dot.
     """
-    module_name, separator, attributes = class_name.partition(":")
-    if not separator:
-        module_name, _, attributes = class_name.rpartition(".")
-    target = importlib.import_module(module_name) if module_name else __main__
-    for attribute in attributes.split("."):
-        target = getattr(target, attribute)
-    return target
+    parts = class_name.split(".")
+    if len(parts) == 1:
+        return getattr(__main__, class_name)
+    for split in range(len(parts) - 1, 0, -1):
+        module_name = ".".join(parts[:split])
+        try:
+            target = importlib.import_module(module_name)
+        except ModuleNotFoundError as exc:
+            # Only a missing prefix means trying a shorter one, not an import failing inside it
+            if exc.name is None or not module_name.startswith(exc.name):
+                raise
+            continue
+        for attribute in parts[split:]:
+            target = getattr(target, attribute)
+        return target
+    raise ModuleNotFoundError(f"No module named {parts[0]!r}", name=parts[0])
 
 
 class _UncreatedObject:  # pylint: disable=too-few-public-methods
@@ -167,12 +177,11 @@ class BridgeHandle:
         """
         raise RuntimeError(message)
 
-    def create(self, class_name, *args, **kwargs):
+    def instantiate_as_self(self, class_name, *args, **kwargs):
         """
-        Create the object of a VHDL python_object_t and bind it to self in its
-        session: an instance of "package.module.Class", "package.module:Class"
-        or "Class" defined in the default session. If that fails, self raises
-        the reason on every use instead of being undefined.
+        Construct the object of a VHDL python_object_t, an instance of the class
+        named class_name, and bind it to self in the current session. If that
+        fails, self raises the reason on every use instead of being undefined.
         """
         namespace = self._runtime.namespace
         if "self" in namespace:
