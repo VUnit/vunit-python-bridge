@@ -26,6 +26,7 @@ use vunit_lib.id_pkg.all;
 use vunit_lib.integer_array_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
 use vunit_lib.logger_pkg.all;
+use vunit_lib.string_ptr_pkg.all;
 use work.python_bridge_pkg.all;
 
 package python_ffi_pkg is
@@ -178,6 +179,11 @@ package python_ffi_pkg is
   -- under, -1 on failure. Python source code refers to the value as
   -- __vunit__.staged(<id>).
   impure function p_stage_array(arr : integer_array_t; operation : string) return integer;
+
+  -- Python source code referring to a copy of arr, which is transferred when the
+  -- code is first executed or evaluated. An argument can thereby be made during
+  -- elaboration, before the bridge can be called.
+  impure function p_defer_array(arr : integer_array_t; operation : string) return string;
 end package;
 
 package body python_ffi_pkg is
@@ -293,6 +299,68 @@ package body python_ffi_pkg is
       and p_succeeded(vpy_begin, operation, logger);
   end;
 
+  -- The deferred arrays of p_defer_array, by the id in their Python source code
+  constant deferred_array_idx : natural := 0;
+  constant deferred_staged_id_idx : natural := 1;
+  constant deferred_operation_idx : natural := 2;
+  constant deferred_prefix : string := "__vunit__.deferred(";
+
+  impure function p_defer_array(arr : integer_array_t; operation : string) return string is
+    constant deferred : integer_vector_ptr_t := new_integer_vector_ptr(3);
+  begin
+    set(deferred, deferred_array_idx, to_integer(new_string_ptr(encode(copy(arr)))));
+    set(deferred, deferred_operation_idx, to_integer(new_string_ptr(operation)));
+    return deferred_prefix & integer'image(to_integer(deferred)) & ")";
+  end;
+
+  -- The Python source code of a deferred array, transferring it on first use
+  impure function p_staged_source(deferred : integer_vector_ptr_t) return string is
+    constant operation : string := to_string(to_string_ptr(get(deferred, deferred_operation_idx)));
+    variable arr : integer_array_t;
+    variable staged_id : integer := get(deferred, deferred_staged_id_idx);
+  begin
+    if staged_id < 1 then
+      arr := decode(to_string(to_string_ptr(get(deferred, deferred_array_idx))));
+      staged_id := p_stage_array(arr, operation);
+      if staged_id < 1 then
+        -- p_stage_array reported the error of the transfer
+        return "__vunit__.error(""" & operation & " failed"")";
+      end if;
+      set(deferred, deferred_staged_id_idx, staged_id);
+      deallocate(arr);
+    end if;
+    return "__vunit__.staged(" & integer'image(staged_id) & ")";
+  end;
+
+  -- text with the deferred arrays it refers to transferred
+  impure function p_with_staged_arrays(text : string) return string is
+    alias normalized : string(1 to text'length) is text;
+    -- textio by name, since its width would hide that of integer_array_pkg
+    variable result : std.textio.line := new string'("");
+    variable start, stop : natural := 1;
+  begin
+    while start <= normalized'length loop
+      stop := start;
+      while stop + deferred_prefix'length - 1 <= normalized'length loop
+        exit when normalized(stop to stop + deferred_prefix'length - 1) = deferred_prefix;
+        stop := stop + 1;
+      end loop;
+      if stop + deferred_prefix'length - 1 > normalized'length then
+        std.textio.write(result, normalized(start to normalized'length));
+        exit;
+      end if;
+      std.textio.write(result, normalized(start to stop - 1));
+      start := stop + deferred_prefix'length;
+      stop := start;
+      while normalized(stop) /= ')' loop
+        stop := stop + 1;
+      end loop;
+      std.textio.write(result, p_staged_source(to_integer_vector_ptr(integer'value(normalized(start to stop - 1)))));
+      start := stop + 1;
+    end loop;
+    return result.all;
+  end;
+
   impure function p_exec(
     text      : string;
     is_file   : integer;
@@ -302,7 +370,7 @@ package body python_ffi_pkg is
     constant logger : logger_t := get_logger(get_id(session));
   begin
     return p_begin(session, operation)
-      and p_succeeded(p_send(text), operation, logger)
+      and p_succeeded(p_send(p_with_staged_arrays(text)), operation, logger)
       and p_succeeded(vpy_execute(is_file), operation, logger);
   end;
 
@@ -323,7 +391,7 @@ package body python_ffi_pkg is
     constant logger : logger_t := get_logger(get_id(session));
   begin
     return p_begin(session, operation)
-      and p_succeeded(p_send(expr), operation, logger)
+      and p_succeeded(p_send(p_with_staged_arrays(expr)), operation, logger)
       and p_succeeded(vpy_eval(kind, width), operation, logger);
   end;
 

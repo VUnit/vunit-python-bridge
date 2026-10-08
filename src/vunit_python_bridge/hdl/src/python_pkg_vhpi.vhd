@@ -136,6 +136,7 @@ package python_ffi_pkg is
   -- Transfer an integer_array_t to Python and return the id it is staged
   -- under, -1 on failure.
   impure function p_stage_array(arr : integer_array_t; operation : string) return integer;
+  impure function p_defer_array(arr : integer_array_t; operation : string) return string;
 end package;
 
 package body python_ffi_pkg is
@@ -273,6 +274,13 @@ package body python_ffi_pkg is
   begin
     p_unsupported("p_result_integer_array");
     return null_integer_array;
+  end;
+
+  -- integer_array_t values are not supported: the failure of p_stage_array
+  impure function p_defer_array(arr : integer_array_t; operation : string) return string is
+    constant staged_id : integer := p_stage_array(arr, operation);
+  begin
+    return "__vunit__.error(""" & operation & " failed"")";
   end;
 
   impure function p_stage_array(arr : integer_array_t; operation : string) return integer is

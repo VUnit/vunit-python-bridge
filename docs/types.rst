@@ -37,7 +37,10 @@ integer_array_t and NumPy
 
 An ``integer_array_t`` argument is transferred to Python and referred to by
 the expression as a NumPy array of dtype ``int32``, so it can be reused in
-several calls. It is indexed like VUnit, so that elements correspond
+several calls. The argument holds a copy of the values the array had when it
+was made, which is transferred when the argument is first used. An argument
+can therefore be made during elaboration, for example as a constant, before
+the bridge can be called. It is indexed like VUnit, so that elements correspond
 directly:
 
 ============= ================================ ===========================
