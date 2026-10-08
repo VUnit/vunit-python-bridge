@@ -4,8 +4,7 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- A verification component whose behaviour is a Python object: a Counter of
--- its own unless the bench gives it one.
+-- A verification component whose behaviour is the Python object of its handle.
 
 library vunit_lib;
 context vunit_lib.vunit_context;
@@ -13,14 +12,10 @@ context vunit_lib.vunit_context;
 library python_bridge;
 context python_bridge.python_context;
 
+use work.counter_vc_pkg.all;
+
 entity counter_vc is
-  generic(
-    -- The identity of the VC, the instance path when null_id
-    id : id_t := null_id;
-    -- The object to use instead of a Counter of its own
-    model : python_object_t := null_python_object;
-    step : natural := 1
-  );
+  generic(vc : counter_vc_t);
   port(
     tick : in natural;
     count : out integer
@@ -30,19 +25,8 @@ end entity;
 architecture python of counter_vc is
 begin
   process
-    variable vc_id : id_t := id;
-    variable backend : python_object_t;
   begin
-    -- 'path_name is taken in the process body: during elaboration GHDL leaves
-    -- the instance out of it, which would give every instance the same identity
-    if vc_id = null_id then
-      vc_id := get_id(counter_vc'path_name);
-    end if;
-    backend := get(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
-
-    loop
-      wait on tick;
-      count <= call(backend, "add", arg(1));
-    end loop;
+    wait on tick;
+    count <= call(get_model(vc), "add", arg(1));
   end process;
 end architecture;
