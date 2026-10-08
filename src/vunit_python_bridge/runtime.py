@@ -110,6 +110,36 @@ def _type_error(kind, value, expected):
     )
 
 
+def _resolve_class(class_name):
+    """
+    The class named "package.module.Class", "package.module:Class" or "Class"
+    defined in the default session (__main__).
+    """
+    module_name, separator, attributes = class_name.partition(":")
+    if not separator:
+        module_name, _, attributes = class_name.rpartition(".")
+    target = importlib.import_module(module_name) if module_name else __main__
+    for attribute in attributes.split("."):
+        target = getattr(target, attribute)
+    return target
+
+
+class _UncreatedObject:  # pylint: disable=too-few-public-methods
+    """
+    Bound to self when the object of a python_object_t could not be created, so
+    that its later uses fail with the reason rather than with NameError.
+    """
+
+    def __init__(self, class_name, exc):
+        self._message = f"The {class_name} object could not be created: {type(exc).__name__}: {exc}"
+
+    def __getattr__(self, name):
+        raise RuntimeError(self._message)
+
+    def __repr__(self):
+        return f"<{self._message}>"
+
+
 class BridgeHandle:
     """
     The ``__vunit__`` object that VHDL-generated Python expressions use.
@@ -141,18 +171,17 @@ class BridgeHandle:
         """
         Create the object of a VHDL python_object_t and bind it to self in its
         session: an instance of "package.module.Class", "package.module:Class"
-        or "Class" defined in the default session.
+        or "Class" defined in the default session. If that fails, self raises
+        the reason on every use instead of being undefined.
         """
         namespace = self._runtime.namespace
         if "self" in namespace:
             raise RuntimeError("Two Python objects have the same identity, give each one an id of its own")
-        module_name, separator, attributes = class_name.partition(":")
-        if not separator:
-            module_name, _, attributes = class_name.rpartition(".")
-        target = importlib.import_module(module_name) if module_name else __main__
-        for attribute in attributes.split("."):
-            target = getattr(target, attribute)
-        namespace["self"] = target(*args, **kwargs)
+        try:
+            namespace["self"] = _resolve_class(class_name)(*args, **kwargs)
+        except Exception as exc:
+            namespace["self"] = _UncreatedObject(class_name, exc)
+            raise
 
     def __repr__(self):
         return "<VUnit python bridge>"
