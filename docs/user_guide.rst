@@ -229,7 +229,7 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 
 .. code-block:: vhdl
 
-    import_module_from_file(join(tb_path(runner_cfg), "accumulator.py"), "accumulator", session);
+    import_module_from_file(model_file, "accumulator", session);
     exec("model = accumulator.Accumulator()", session);
 
     y <= call("model.accumulate", arg(x), session => session);
@@ -309,6 +309,42 @@ creates it explicitly.
 of the object, where the object is ``self``. They have the same arguments, result types and aliases as ``call``
 and ``eval``, including the procedure forms taking a ``std_ulogic_vector``,
 ``signed`` or ``unsigned`` result as an ``out`` parameter.
+
+Making a class importable
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The model of a verification component is best a Python package next to it,
+named after it since module names are global to the simulation:
+
+.. code-block:: text
+
+    my_vc/
+      my_vc.vhd
+      python/
+        my_vc_model/
+          __init__.py
+
+The run script prepends the Python folder to ``PYTHONPATH`` before VUnit
+starts. The simulator runs Python in the environment of VUnit, so the setting
+reaches the interpreter in the simulator and the class is
+``"my_vc_model.Model"`` wherever the component is used:
+
+.. code-block:: python
+
+    import os
+    from pathlib import Path
+    from vunit import VUnit
+
+    my_vc_python = Path(__file__).parent / "my_vc" / "python"
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(my_vc_python), os.environ.get("PYTHONPATH")])
+    )
+
+    vu = VUnit.from_argv()
+    ...
+
+An alternative is to make the model an installable Python package and install
+it in the virtual environment of the project with ``pip install -e``.
 
 Identity
 ~~~~~~~~
