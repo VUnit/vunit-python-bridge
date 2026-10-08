@@ -38,7 +38,7 @@ begin
     if vc_id = null_id then
       vc_id := get_id(counter_vc'path_name);
     end if;
-    backend := object_or_new(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+    backend := get(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
 
     loop
       wait on tick;
