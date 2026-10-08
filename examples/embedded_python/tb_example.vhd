@@ -807,29 +807,59 @@ begin
 
   -- A component whose behaviour is a Python function
   python_model_inst : entity work.python_model
-    generic map(model_file => join(tb_path(runner_cfg), "python_model.py"))
-    port map(x => model_x, y => model_y);
+    generic map (
+      model_file => join(tb_path(runner_cfg), "python_model.py")
+    )
+    port map (
+      x => model_x,
+      y => model_y
+    );
 
   -- Two instances of a component with a stateful Python model
   acc_a_inst : entity work.accumulator_model
-    generic map(model_file => "accumulator_model.py")
-    port map(x => acc_a_x, y => acc_a_y);
+    generic map (
+      model_file => "accumulator_model.py"
+    )
+    port map (
+      x => acc_a_x,
+      y => acc_a_y
+    );
 
   acc_b_inst : entity work.accumulator_model
-    generic map(model_file => "accumulator_model.py")
-    port map(x => acc_b_x, y => acc_b_y);
+    generic map (
+      model_file => "accumulator_model.py"
+    )
+    port map (
+      x => acc_b_x,
+      y => acc_b_y
+    );
 
   -- Verification components whose behaviour is a Python object: two of their
   -- own, one named by an id and one enumerated, and the one of the testbench
   filter_a_inst : entity work.filter_vc
-    generic map(filter => new_filter_vc(window => 2, id => get_id("filter_a")))
-    port map(x => filter_x, y => filter_a_y);
+    generic map (
+      filter => new_filter_vc(window => 2, id => get_id("filter_a"))
+    )
+    port map (
+      x => filter_x,
+      y => filter_a_y
+    );
 
   filter_b_inst : entity work.filter_vc
-    generic map(filter => new_filter_vc(window => 4))
-    port map(x => filter_x, y => filter_b_y);
+    generic map (
+      filter => new_filter_vc(window => 4)
+    )
+    port map (
+      x => filter_x,
+      y => filter_b_y
+    );
 
   filter_c_inst : entity work.filter_vc
-    generic map(filter => new_filter_vc(model => shared_average))
-    port map(x => filter_x, y => filter_c_y);
+    generic map (
+      filter => new_filter_vc(model => shared_average)
+    )
+    port map (
+      x => filter_x,
+      y => filter_c_y
+    );
 end;

@@ -439,7 +439,13 @@ monitor and checked by the test:
 
     ...
 
-    monitor : entity work.my_monitor generic map(monitor => new_my_monitor(model => scoreboard)) ...;
+    monitor_inst : entity work.my_monitor
+      generic map (
+        monitor => new_my_monitor(model => scoreboard)
+      )
+      port map (
+        ...
+      );
 
     ...
 
