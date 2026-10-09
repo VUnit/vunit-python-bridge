@@ -351,6 +351,16 @@ begin
         check_equal(call_string("identity", arg(string'("hello"))), string'("hello"));
         check_equal(call_string("identity", arg(string'("café å"))), string'("café å"));
 
+      elsif run("Test string arguments are escaped") then
+        exec("def identity(x):" + "    return x");
+        exec("def kw_identity(*, v):" + "    return v");
+        check_equal(call_string("identity", arg(string'("a""b\c'd"))), string'("a""b\c'd"));
+        check_equal(call_string("identity", arg("l1" & LF & "l2" & HT & "end" & CR)), "l1" & LF & "l2" & HT & "end" & CR);
+        check_equal(call_string("identity", arg("é" & NUL & DEL)), "é" & NUL & DEL);
+        check_equal(call_string("kw_identity", kwarg("v", string'("\n""'"))), string'("\n""'"));
+        check_equal(call_string("repr", arg(string'("a\b"))), string'("'a\\b'"));
+        check_equal(to_call_str("f", arg(string'("""\")), kwarg("k", "x" & LF)), "f(""\""\\"", k=""x\n"")");
+
       elsif run("Test std_ulogic round trip of all 9 states") then
         exec("def identity(x):" + "    return x");
         for idx in std_ulogic_characters'range loop

@@ -413,6 +413,31 @@ package body python_pkg is
     return result;
   end;
 
+  -- The Python source text of a message, escaped for a double quoted Python
+  -- string. Quote, backslash and control characters are escaped; bytes >= 128
+  -- are kept so that Python decodes UTF-8 text.
+  function p_quoted(message : string) return string is
+    variable result : line;
+  begin
+    swrite(result, """");
+    for idx in message'range loop
+      case message(idx) is
+        when '"' | '\' => swrite(result, "\" & message(idx));
+        when LF => swrite(result, "\n");
+        when CR => swrite(result, "\r");
+        when others =>
+          if character'pos(message(idx)) < 32 or message(idx) = DEL then
+            swrite(result, "\x" & to_hstring(to_unsigned(character'pos(message(idx)), 8)));
+          else
+            swrite(result, string'(1 => message(idx)));
+          end if;
+      end case;
+    end loop;
+    swrite(result, """");
+
+    return result.all;
+  end;
+
   function arg(value : integer) return arg_t is
   begin
     return (p_positional_arg, to_string(value));
@@ -425,12 +450,12 @@ package body python_pkg is
 
   function arg(value : string) return arg_t is
   begin
-    return (p_positional_arg, '"' & value & '"');
+    return (p_positional_arg, p_quoted(value));
   end;
 
   function kwarg(kw : string; value : string) return arg_t is
   begin
-    return (kw, '"' & value & '"');
+    return (kw, p_quoted(value));
   end;
 
   function arg(value : integer_vector) return arg_t is
@@ -469,26 +494,6 @@ package body python_pkg is
     else
       return (kw, "False");
     end if;
-  end;
-
-  -- The Python source text of a message, escaped for a double quoted Python
-  -- string. A quote, a backslash and a line break are the characters that
-  -- cannot be written as they are.
-  function p_quoted(message : string) return string is
-    variable result : line;
-  begin
-    swrite(result, """");
-    for idx in message'range loop
-      case message(idx) is
-        when '"' | '\' => swrite(result, "\" & message(idx));
-        when LF => swrite(result, "\n");
-        when CR => swrite(result, "\r");
-        when others => swrite(result, string'(1 => message(idx)));
-      end case;
-    end loop;
-    swrite(result, """");
-
-    return result.all;
   end;
 
   -- Report a value that could not be converted and give it a Python source

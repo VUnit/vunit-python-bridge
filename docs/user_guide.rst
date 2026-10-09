@@ -703,9 +703,11 @@ Semantics to be aware of
      Python ``float`` (also double precision) is in range. A value that is not
      finite, such as ``float("inf")`` or ``float("nan")``, has no VHDL ``real``
      representation and is reported as a failure.
-   * ``string`` arguments are passed to Python double-quoted verbatim: a quote
-     or backslash inside the string is not escaped, so it must be avoided or
-     already be valid inside a Python double-quoted string.
+   * ``string`` arguments are passed to Python as string literals: quotes,
+     backslashes and control characters (such as line feed and tab) are
+     escaped, so the Python function receives the text exactly as given.
+     Pass plain text, not text already escaped for Python. Bytes >= 128 are
+     kept as they are, so UTF-8 text arrives as the same Python characters.
 
 .. _python_bridge:other_simulators:
 
