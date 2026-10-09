@@ -13,6 +13,7 @@ This module only depends on the standard library so that tools/build_python_brid
 can load it without VUnit's dependencies.
 """
 
+import ctypes
 import hashlib
 import os
 import platform
@@ -321,7 +322,7 @@ def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None) 
     directory = _posix_cache_directory(root, python_library, include_dirs)
     library_file = directory / name
     if library_file.is_file():
-        return library_file
+        return _check_loads(library_file, fli)
 
     compiler = _compiler()
     directory.mkdir(parents=True, exist_ok=True)
@@ -336,7 +337,20 @@ def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None) 
         + ([f"-Wl,-install_name,@rpath/{name}"] if sys.platform == "darwin" else [f"-Wl,-soname,{name}"])
         + (["-ldl"] if sys.platform.startswith("linux") else [])
     )
-    return compile_library(cmd, tmp, library_file)
+    return _check_loads(compile_library(cmd, tmp, library_file), fli)
+
+
+def _check_loads(library_file: Path, fli: bool) -> Path:
+    """
+    Load the library as NVC and GHDL will, since they hide the loader error when it fails
+    ("cannot load VHPIDIRECT shared library"). The FLI variant needs symbols of vsim.
+    """
+    if not fli:
+        try:
+            ctypes.CDLL(str(library_file))
+        except OSError as exc:
+            raise PythonBridgeError(f"The Python bridge library {library_file!s} does not load: {exc}") from exc
+    return library_file
 
 
 def compile_library(cmd: List[str], tmp: Path, library_file: Path, env: Optional[Dict[str, str]] = None) -> Path:
@@ -438,7 +452,7 @@ def _build_windows_library(root: Path, simulator_prefix: Optional[Path] = None) 
     directory = root / f"cp{sys.version_info[0]}{sys.version_info[1]}-win_amd64-{'fli' if fli else 'gcc'}-{key}"
     library_file = directory / name
     if library_file.is_file():
-        return library_file
+        return _check_loads(library_file, fli)
 
     directory.mkdir(parents=True, exist_ok=True)
     tmp = directory / f"{name}.{os.getpid()}.tmp"

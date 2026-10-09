@@ -1,9 +1,10 @@
 name: 'python bridge'
 
 # Tests of the vunit-python-bridge package on CPython from python.org: Linux
-# and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs, and
-# a gcc build without them), the Python unit tests, the content of the
-# distribution, and the built wheel installed on every kind of system.
+# and macOS (bridge compiled on first use), RHEL with its own Python, Windows
+# (prebuilt MSVC DLLs, and a gcc build without them), the Python unit tests,
+# the content of the distribution, and the built wheel installed on every
+# kind of system.
 
 on:
   push:
@@ -95,6 +96,123 @@ jobs:
     - name: '🐍 Install the package in a virtual environment'
       run: |
         python -m venv "$RUNNER_TEMP/venv with space"
+        echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
+
+    - name: '🚧 Python unit tests'
+      run: python -m pytest tests/test_python_bridge.py
+
+    - name: '🚧 Feature tests'
+      run: python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
+
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
+
+#
+# RHEL (AlmaLinux) 9 and 10, bridge compiled on first use with the system
+# Python and gcc. Neither has a GHDL or NVC package, so both are built from
+# source and cached: every GHDL backend, with the GNAT of Alire on both,
+# since EPEL's gcc-gnat did not install on 9 and 10 has none.
+#
+
+  rhel:
+    runs-on: ubuntu-24.04
+    container: almalinux:${{ matrix.el }}
+    strategy:
+      fail-fast: false
+      matrix:
+        el: ['9.6', '10']
+        sim: [ghdl]
+        backend: [mcode, llvm, llvm-jit, gcc]
+        include:
+          - { el: '9.6', sim: nvc }
+          - { el: '10', sim: nvc }
+    name: 'AlmaLinux ${{ matrix.el }} · ${{ matrix.sim }} ${{ matrix.backend }}'
+    env:
+      VUNIT_SIMULATOR: ${{ matrix.sim }}
+      GHDL_VERSION: 6.0.0
+      GCC_VERSION: 13.3.0
+      NVC_VERSION: 1.22.1
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    # EL9's python3 is 3.9, older than the package supports
+    - name: '⚙️ Install Python, compilers and build dependencies'
+      run: |
+        dnf install -y -q epel-release dnf-plugins-core
+        dnf config-manager --set-enabled crb
+        dnf install -y -q gcc gcc-c++ clang make diffutils xz zlib-devel llvm-devel
+        case '${{ matrix.el }}' in
+          9*) dnf install -y -q python3.12 python3.12-devel; echo PYTHON=python3.12 >> "$GITHUB_ENV" ;;
+          *)  dnf install -y -q python3 python3-devel; echo PYTHON=python3 >> "$GITHUB_ENV" ;;
+        esac
+        echo "LLVM_CONFIG=$(command -v llvm-config-64 || command -v llvm-config)" >> "$GITHUB_ENV"
+
+    - name: '📥 Cache the simulator'
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: /opt/sim
+        key: sim-el${{ matrix.el }}-${{ matrix.sim }}-${{ matrix.backend }}-${{ env.GHDL_VERSION }}-${{ env.GCC_VERSION }}-${{ env.NVC_VERSION }}
+
+    - name: '⚙️ Build GHDL'
+      if: matrix.sim == 'ghdl' && steps.cache.outputs.cache-hit != 'true'
+      run: |
+        curl -fsSL https://github.com/alire-project/GNAT-FSF-builds/releases/download/gnat-14.2.0-1/gnat-x86_64-linux-14.2.0-1.tar.gz | tar xz -C "$RUNNER_TEMP"
+        export PATH="$RUNNER_TEMP/gnat-x86_64-linux-14.2.0-1/bin:$PATH"
+        cd "$RUNNER_TEMP"
+        curl -fsSL "https://github.com/ghdl/ghdl/archive/refs/tags/v$GHDL_VERSION.tar.gz" | tar xz
+        mkdir build && cd build
+        case '${{ matrix.backend }}' in
+          mcode) args= ;;
+          llvm) args="--with-llvm-config=$LLVM_CONFIG" ;;
+          llvm-jit) args="--with-llvm-config=$LLVM_CONFIG --with-llvm-jit" ;;
+          gcc)
+            dnf install -y -q gmp-devel mpfr-devel libmpc-devel flex
+            mkdir "$RUNNER_TEMP/gcc-srcs"
+            curl -fsSL "https://github.com/gcc-mirror/gcc/archive/refs/tags/releases/gcc-$GCC_VERSION.tar.gz" \
+              | tar xz -C "$RUNNER_TEMP/gcc-srcs" --strip-components=1
+            args="--with-gcc=$RUNNER_TEMP/gcc-srcs" ;;
+        esac
+        "../ghdl-$GHDL_VERSION/configure" --prefix=/opt/sim $args
+        if [ '${{ matrix.backend }}' = gcc ]; then
+          # As in GHDL's own CI
+          make copy-sources
+          mkdir gcc-objs && cd gcc-objs
+          "$RUNNER_TEMP/gcc-srcs/configure" --prefix=/opt/sim --enable-languages=c,vhdl --disable-bootstrap \
+            --disable-lto --disable-multilib --disable-libssp --disable-libgomp --disable-libquadmath \
+            --disable-libatomic --disable-plugin $(gcc -v 2>&1 | grep -o -- --enable-default-pie)
+          make -j"$(nproc)"
+          make install MAKEINFO=true
+          cd ..
+          make -j"$(nproc)"
+          make ghdllib
+        else
+          make -j"$(nproc)"
+        fi
+        make install
+
+    - name: '⚙️ Build NVC'
+      if: matrix.sim == 'nvc' && steps.cache.outputs.cache-hit != 'true'
+      run: |
+        dnf install -y -q flex libffi-devel libzstd-devel elfutils-devel pkgconf-pkg-config
+        cd "$RUNNER_TEMP"
+        curl -fsSL "https://github.com/nickg/nvc/releases/download/r$NVC_VERSION/nvc-$NVC_VERSION.tar.gz" | tar xz
+        mkdir build && cd build
+        "../nvc-$NVC_VERSION/configure" --prefix=/opt/sim --with-llvm="$LLVM_CONFIG"
+        make -j"$(nproc)"
+        make install
+
+    - name: '⚙️ Put the simulator on PATH'
+      run: |
+        echo /opt/sim/bin >> "$GITHUB_PATH"
+        /opt/sim/bin/${{ matrix.sim }} --version
+
+    - name: '🐍 Install the package in a virtual environment'
+      run: |
+        "$PYTHON" -m venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
 
