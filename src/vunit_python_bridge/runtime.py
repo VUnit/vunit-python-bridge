@@ -19,6 +19,7 @@ import linecache
 import math
 import numbers
 import os
+import pydoc
 import struct
 import sys
 import traceback
@@ -109,6 +110,32 @@ def _type_error(kind, value, expected):
     )
 
 
+def _resolve_class(class_name):
+    """
+    The class with a dotted name like "package.module.Class", or a class
+    defined in the default session (__main__) when the name has no dot.
+    """
+    if "." not in class_name:
+        return getattr(__main__, class_name)
+    target = pydoc.locate(class_name)
+    if target is None:
+        raise ImportError(f"No class named {class_name!r}")
+    return target
+
+
+class _UncreatedObject:  # pylint: disable=too-few-public-methods
+    """
+    Bound to self when the object of a python_object_t could not be created, so
+    that its later uses fail with the reason rather than with NameError.
+    """
+
+    def __init__(self, class_name, exc):
+        self._message = f"The {class_name} object could not be created: {type(exc).__name__}: {exc}"
+
+    def __getattr__(self, name):
+        raise RuntimeError(self._message)
+
+
 class BridgeHandle:
     """
     The ``__vunit__`` object that VHDL-generated Python expressions use.
@@ -135,6 +162,19 @@ class BridgeHandle:
         instead of silently being made without the argument.
         """
         raise RuntimeError(message)
+
+    def instantiate_as_self(self, class_name, *args, **kwargs):
+        """
+        Construct the object of a VHDL python_object_t, an instance of the class
+        named class_name, and bind it to self in the current session. If that
+        fails, self raises the reason on every use instead of being undefined.
+        """
+        namespace = self._runtime.namespace
+        try:
+            namespace["self"] = _resolve_class(class_name)(*args, **kwargs)
+        except Exception as exc:
+            namespace["self"] = _UncreatedObject(class_name, exc)
+            raise
 
     def __repr__(self):
         return "<VUnit python bridge>"
@@ -251,7 +291,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self._array_meta = {}
 
     @property
-    def _namespace(self):
+    def namespace(self):
         """
         Namespace of the current session.
         """
@@ -290,7 +330,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         # Make tracebacks show the source lines of inline code
         linecache.cache[file_name] = (len(source), None, source.splitlines(True), file_name)
         code = compile(source, file_name, "exec", dont_inherit=True)
-        exec(code, self._namespace, self._namespace)  # pylint: disable=exec-used
+        exec(code, self.namespace, self.namespace)  # pylint: disable=exec-used
 
     @staticmethod
     def _resolve_file(file_name):
@@ -311,7 +351,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             source = fptr.read()
         code = compile(source, str(path), "exec", dont_inherit=True)
 
-        namespace = self._namespace
+        namespace = self.namespace
         previous_file = namespace.get("__file__", _NO_VALUE)
         directory = str(path.parent)
         namespace["__file__"] = str(path)
@@ -350,7 +390,7 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             linecache.cache[file_name] = (len(text), None, text.splitlines(True), file_name)
             code = compile(text, file_name, "eval", dont_inherit=True)
             # Running the user's own Python code is the purpose of this module
-            self._result = eval(code, self._namespace, self._namespace)  # pylint: disable=eval-used
+            self._result = eval(code, self.namespace, self.namespace)  # pylint: disable=eval-used
         except BaseException:
             self._array_meta = {}
             self._flush()

@@ -99,6 +99,79 @@ depend on ``python_cleanup``.
     python_cleanup;  -- Optional, releases the staged values early
     test_runner_cleanup(runner);
 
+.. _python_bridge:finding_code:
+
+Where Python code is found
+--------------------------
+
+The interpreter in the simulator imports modules the way Python started on the
+run script does.
+
+Found without setup
+~~~~~~~~~~~~~~~~~~~
+
+* Modules in the directory of the run script, which is the first entry of
+  ``sys.path``. This is also how ``import_run_script`` imports the run script.
+* The packages of the Python environment VUnit runs in, for example an active
+  virtual environment. That includes packages installed with ``pip install -e``.
+
+Adding a folder
+~~~~~~~~~~~~~~~
+
+Python code anywhere else is not found until its folder is on ``PYTHONPATH``. A
+typical case is a verification component that is used by many testbenches and
+keeps its Python model in a folder of its own:
+
+.. code-block:: text
+
+    my_vc/
+      my_vc.vhd
+      python/
+        my_vc_model/
+          __init__.py
+
+``my_vc/python`` is neither the directory of the run script nor part of the
+Python environment, so ``my_vc_model`` cannot be imported as it is. The run
+script adds the folder to ``PYTHONPATH`` before VUnit starts the simulations,
+which inherit the environment of VUnit:
+
+.. code-block:: python
+
+    import os
+    from pathlib import Path
+    from vunit import VUnit
+
+    my_vc_python = Path(__file__).parent / "my_vc" / "python"
+    os.environ["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(my_vc_python), os.environ.get("PYTHONPATH")])
+    )
+
+    vu = VUnit.from_argv()
+    ...
+
+After that, ``my_vc_model`` is importable in every simulation, wherever the
+component is used, for example as the class ``"my_vc_model.Model"`` of a
+:ref:`Python object <python_bridge:objects>`. Installing the model as a Python
+package, for example with ``pip install -e``, has the same effect without
+changing the run script.
+
+Files given by name
+~~~~~~~~~~~~~~~~~~~
+
+A relative file name given to ``exec_file`` or ``import_module_from_file`` is
+relative to the directory of the testbench file, ``tb_path``, and an absolute
+one is used as given. ``exec_file`` also puts the directory of the file on
+``sys.path`` while it executes, so the file can import the modules next to it.
+
+Module names
+~~~~~~~~~~~~
+
+There is one ``sys.path`` and one ``sys.modules`` per simulation, shared by all
+:ref:`sessions <python_bridge:sessions>`. Two modules with the same name are
+therefore the same module, so a package is best named after the component it
+belongs to, and state kept at module level is shared by everything that
+imports the module.
+
 .. _python_bridge:sessions:
 
 Sessions
@@ -229,7 +302,7 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 
 .. code-block:: vhdl
 
-    import_module_from_file(join(tb_path(runner_cfg), "accumulator.py"), "accumulator", session);
+    import_module_from_file(model_file, "accumulator", session);
     exec("model = accumulator.Accumulator()", session);
 
     y <= call("model.accumulate", arg(x), session => session);
@@ -237,6 +310,9 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 The module, and so the class, is shared by all sessions (see the caveats
 below), while every session has a ``model`` object of its own. Like all
 non-default sessions, this needs the Python bridge: NVC, GHDL or Questa.
+:ref:`Python objects <python_bridge:objects>` package this pattern: an object
+is an instance of a class in a session of its own, with no module loading or
+session handling left to the component.
 
 Caveats
 ~~~~~~~
@@ -259,6 +335,187 @@ functions, classes and variables, are separate. Everything else is shared:
   which matters for example when pickling their instances.
 * All sessions end with the simulation. Test cases run in the same simulation
   (``run_all_in_same_sim``) share the sessions.
+
+.. _python_bridge:objects:
+
+Python objects
+--------------
+
+A ``python_object_t`` is an instance of a Python class owned by VHDL. Every
+object lives in a :ref:`session <python_bridge:sessions>` of its own, where it
+is bound to ``self``, so several objects, of the same class or not, never
+share names or state. This makes an object the natural backend of a
+verification component: every instance of the component gets an object of its
+own, and a testbench can create one and give it to a component.
+
+.. code-block:: vhdl
+
+    constant model : python_object_t := new_python_object(
+      "my_models.uart.UartModel", kwarg("baud", 115200), id => get_id("uart")
+    );
+
+    ...
+
+    count := call(model, "push", arg(byte));   -- calls self.push(byte)
+    call(model, "reset");                      -- no return value
+    check_true(eval_boolean(model, "self.is_idle()"));
+    exec(model, "self.trace = True");
+
+``new_python_object(class_name, args, id)`` names the class and the arguments
+of its constructor, given like the arguments of ``call``, including groups made
+with ``&``. The class is
+
+* a dotted name like ``"package.module.Class"``, imported from the module it
+  names, which is found like any other import: see :ref:`Where Python code is
+  found <python_bridge:finding_code>`. No file name is involved, so the class
+  is found the same way wherever the object is created.
+* the name of a class defined in the default session, like ``"Class"``, for
+  example by ``exec`` or ``exec_file`` in the testbench.
+
+The constructor is called when the object is first used, not by
+``new_python_object``. An object can therefore be a constant or a generic,
+made during elaboration, and does not depend on the order of the processes or
+on ``test_runner_setup``. ``create`` calls the constructor right away.
+
+``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
+``exec(object, code)`` evaluate an expression and execute code in the session
+of the object, where the object is ``self``. They have the same arguments,
+result types and aliases as ``call``, ``eval`` and ``exec``, including the
+procedure forms taking a ``std_ulogic_vector``, ``signed`` or ``unsigned``
+result as an ``out`` parameter.
+
+Identity
+~~~~~~~~
+
+The ``id`` of an object names its session and its logger,
+``get_logger(object)``, which reports the errors of its operations. Without an
+``id``, objects are enumerated the way VUnit enumerates verification
+components: ``python_bridge:python:object:1``,
+``python_bridge:python:object:2`` and so on. Two objects with the same
+identity would share a session, so the second ``new_python_object`` of an
+identity is reported as a failure on its logger.
+
+Backends of verification components
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A verification component usually makes its object in the constructor of its
+handle, the way VUnit's own components make everything they need there.
+``get_python_object(object, class_name, args, id)`` returns ``object`` when one
+is given and makes a new one otherwise, like ``get_logger`` and ``get_id`` do
+for loggers and identities. Every instance then gets a backend of its own,
+unless the testbench gives it one:
+
+.. code-block:: vhdl
+
+    type uart_master_t is record
+      p_std_cfg : std_cfg_t;
+      p_model : python_object_t;
+    end record;
+
+    impure function new_uart_master(
+      baud : positive; model : python_object_t := null_python_object; id : id_t := null_id
+    ) return uart_master_t is
+      constant std_cfg : std_cfg_t := create_std_cfg(id, "my_vcs", "uart_master");
+    begin
+      return (
+        p_std_cfg => std_cfg,
+        p_model => get_python_object(model, "my_vcs.uart.UartModel", kwarg("baud", baud), get_id(std_cfg))
+      );
+    end;
+
+The component itself only calls the object of its handle:
+
+.. code-block:: vhdl
+
+    entity uart_master is
+      generic(master : uart_master_t);
+      ...
+
+      process
+      begin
+        wait until rising_edge(clk) and start = '1';
+        call(master.p_model, "transmit", arg(to_integer(data)));
+      end process;
+
+The handle is a constant made during elaboration, and so is its object, but
+nothing happens in Python until the first call. ``create_std_cfg`` numbers the
+instances made without an ``id``, ``my_vcs:uart_master:1``,
+``my_vcs:uart_master:2`` and so on, and their objects get the same identities.
+
+``filter_vc`` of the `embedded_python example
+<https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__
+is a complete component of this kind: the handle is in ``filter_vc_pkg.vhd``,
+the component in ``filter_vc.vhd`` and the Python model in ``filter_model.py``.
+Its ``Test Python objects as backends of verification components`` test case
+drives three instances, two with objects of their own and one sharing an object
+with the testbench.
+
+A component without a handle can take the path of its instance, ``'path_name``,
+as the identity, in the statement part of a process: GHDL leaves the instance
+labels out of ``'path_name`` and ``'instance_name`` when they are evaluated
+during elaboration, which would give all instances the same identity.
+``tests/path_counter_vc.vhd`` shows this:
+
+.. code-block:: vhdl
+
+    process
+      variable vc_id : id_t := id;
+      variable backend : python_object_t;
+    begin
+      if vc_id = null_id then
+        vc_id := get_id(path_counter_vc'path_name);
+      end if;
+      backend := get_python_object(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+      ...
+
+Several components can share an object, and so can a component and the
+testbench: the testbench makes the object and gives it to each of them. A
+scoreboard filled by a monitor and checked by the test is a typical case:
+
+.. code-block:: vhdl
+
+    constant scoreboard : python_object_t := new_python_object("my_models.Scoreboard");
+
+    ...
+
+    monitor_inst : entity work.my_monitor
+      generic map (
+        monitor => new_my_monitor(model => scoreboard)
+      )
+      port map (
+        ...
+      );
+
+    ...
+
+    check_equal(integer'(call(scoreboard, "num_mismatches")), 0);
+
+In the same way, a component can let its user choose the class, by taking its
+name as a ``string`` generic.
+
+Errors and limitations
+~~~~~~~~~~~~~~~~~~~~~~
+
+* Errors are reported on the logger of the object, named after what failed,
+  for example ``call("push") failed:`` followed by the Python traceback.
+* An object that cannot be created, for example since its module is not
+  found, reports the error of the import or the constructor once, as
+  ``new_python_object("<class>") failed:``. Its later calls fail with
+  ``The <class> object could not be created: <error>``.
+* The caveats of sessions apply: the module of a class, and any state kept in
+  it, is shared by all objects.
+* String arguments are passed to Python verbatim, see
+  :ref:`python_bridge:semantics`, which applies to constructor arguments too.
+* An ``integer_array_t`` argument is transferred to Python when it is made, so
+  it cannot be a constructor argument of an object made during elaboration,
+  before the simulation starts. Give the values to the object in a call
+  instead: ``call(model, "load", arg(values))``. See `#17
+  <https://github.com/VUnit/vunit-python-bridge/issues/17>`__.
+* An object that holds resources, such as files or threads, is closed by a
+  call like any other method: ``call(model, "close")``.
+* Objects need sessions, and so the Python bridge: NVC, GHDL or Questa. On
+  Riviera-PRO/Active-HDL, the first use of an object reports that sessions are
+  only supported there.
 
 exec
 ----
@@ -744,8 +1001,9 @@ arguments, a 20 register status dump, wide
 ``call``, Python files executed with ``exec_file`` or imported with
 ``import_module_from_file``, two models loaded into a session each, and a
 Python model failing with the logger of the default session mocked. Its last
-test case drives ``python_model``, a verification component whose behaviour is
-the Python function in ``python_model.py`` rather than VHDL.
+test cases drive ``python_model``, a verification component whose behaviour is
+the Python function in ``python_model.py`` rather than VHDL, and ``filter_vc``,
+whose instances have Python objects as backends.
 
 .. _python_bridge:native:
 

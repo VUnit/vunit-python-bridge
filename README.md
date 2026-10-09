@@ -12,7 +12,9 @@ the selected simulator by a foreign language interface the package builds itself
 called through VHPIDIRECT (NVC, GHDL) or the FLI (Questa/ModelSim), or a VHPI application built with
 the simulator's own compiler driver (Riviera-PRO/Active-HDL). Values cross the interface with their
 VHDL types: `integer`, `real`, `string`, `boolean`, `std_ulogic`, `unsigned`/`signed`, the vector
-types, and `integer_array_t` as a NumPy array.
+types, and `integer_array_t` as a NumPy array. A `python_object_t` is an instance of a Python class
+owned by VHDL, for example the backend of a verification component, with a namespace of its own for
+every instance.
 
 ## Installation
 
@@ -87,8 +89,8 @@ environment and its installed packages.
 
 ## Documentation
 
-The user guide is in [docs/user_guide.rst](docs/user_guide.rst): sessions, `exec`, `eval`, `call`
-and its argument forms, `exec_file`, `import_run_script`, the type mapping, `integer_array_t` and
+The user guide is in [docs/user_guide.rst](docs/user_guide.rst): sessions, Python objects as the
+backends of verification components, `exec`, `eval`, `call` and its argument forms, `exec_file`, `import_run_script`, the type mapping, `integer_array_t` and
 NumPy, error reporting, and how the bridge works. A complete example covering all three simulator
 families is in [examples/embedded_python](examples/embedded_python).
 
