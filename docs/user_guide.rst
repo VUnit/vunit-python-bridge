@@ -595,6 +595,28 @@ the failure.
         ~~^~~
     ZeroDivisionError: division by zero
 
+The default ``verbose`` format of the VUnit display handler indents the lines
+of the traceback to the column where the message starts, after the time, the
+logger name and the log level. With the long logger name of a session made from
+an instance name and the absolute file paths of a traceback, the lines can be
+wider than the terminal, which wraps them back to the first column and breaks
+the alignment. The ``level`` format leaves out the time and the logger name and
+indents the traceback by the width of the log level only:
+
+.. code-block:: vhdl
+
+    test_runner_setup(runner, runner_cfg);
+    set_format(display_handler, level);
+
+.. code-block:: text
+
+    FAILURE - eval("1 / 0") failed:
+              Traceback (most recent call last):
+                File "<eval #3>", line 1, in <module>
+                  1 / 0
+                  ~~^~~
+              ZeroDivisionError: division by zero
+
 Output of ``print`` is written to the simulator output and flushed after
 every operation.
 
