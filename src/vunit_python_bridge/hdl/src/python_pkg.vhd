@@ -287,7 +287,8 @@ package python_pkg is
   -- An absolute file name is returned as it is given. Without a directory set
   -- in the run script a relative file name is reported as a failure on
   -- python_logger and "" is returned, which exec_file and
-  -- import_module_from_file ignore.
+  -- import_module_from_file report as an empty file name without executing
+  -- anything.
   impure function base_path(file_name : string) return string;
 end package;
 
@@ -925,7 +926,8 @@ package body python_pkg is
     constant tb_dir : string := tb_path(get_cfg(runner_state));
   begin
     if file_name = "" then
-      -- The result of a base_path that failed, nothing to execute
+      -- Also the result of a base_path that failed
+      failure(get_logger(get_id(session)), operation & " failed:" & LF & "Empty file name.");
       return "";
     elsif p_is_absolute(file_name) then
       return file_name;

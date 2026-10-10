@@ -244,25 +244,41 @@ begin
         check_equal(integer'(eval("get_call_count()", session => new_session("vc"))), 1);
 
       elsif run("Test base_path without a base directory") then
-        -- The run script of these tests sets no base directory
+        -- The run script of these tests sets no base directory. The failed
+        -- base_path returns "", which is then reported as an empty file name.
         mock(python_logger, failure);
+        mock(default_logger, failure);
         exec_file(base_path("models/counter.py"));
-        check_only_log(
+        check_log(
           python_logger,
           "base_path(""models/counter.py"") failed: no base directory is set. " &
           "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package.",
           failure
         );
+        check_only_log(default_logger, "exec_file("""") failed:" & LF & "Empty file name.", failure);
         import_module_from_file(base_path("models/filters.py"), "filters_model");
-        check_only_log(
+        check_log(
           python_logger,
           "base_path(""models/filters.py"") failed: no base directory is set. " &
           "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package.",
           failure
         );
+        check_only_log(
+          default_logger, "import_module_from_file("""", ""filters_model"") failed:" & LF & "Empty file name.", failure
+        );
+        unmock(default_logger);
         unmock(python_logger);
         -- Nothing was executed or imported
         check_false(eval_boolean("'get_call_count' in globals() or 'filters_model' in globals()"));
+
+      elsif run("Test an empty file name") then
+        mock(default_logger, failure);
+        exec_file("");
+        check_only_log(default_logger, "exec_file("""") failed:" & LF & "Empty file name.", failure);
+        import_module_from_file("", "x");
+        check_only_log(default_logger, "import_module_from_file("""", ""x"") failed:" & LF & "Empty file name.", failure);
+        unmock(default_logger);
+        check_false(eval_boolean("'x' in globals()"));
 
       elsif run("Test base_path of an absolute file name") then
         check_equal(

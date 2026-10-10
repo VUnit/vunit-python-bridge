@@ -620,7 +620,8 @@ working directory of the run script when it is called, and the call must come
 before ``add_package``. ``base_path`` returns an absolute file name as it is
 given. Without a directory set in the run script it reports a relative one as a
 failure on ``python_logger`` and returns ``""``, which ``exec_file`` and
-``import_module_from_file`` ignore. ``base_path`` serves any file name passed
+``import_module_from_file`` report as an empty file name without executing
+anything. ``base_path`` serves any file name passed
 to a Python model as well, for example in an argument of ``call``. The
 relative file names of ``exec_file`` and ``import_module_from_file`` themselves
 are still taken from the directory of the testbench.
