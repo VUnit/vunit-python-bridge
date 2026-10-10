@@ -622,14 +622,15 @@ How a file name is resolved
    * - The same before ``test_runner_setup`` has completed, or without a
        test runner
      - Nothing: it is reported as a failure, which suggests calling it after
-       ``test_runner_setup``, giving an absolute name or using ``base_path``.
-   * - Absolute name given to ``exec_file``, ``import_module_from_file`` or
-       ``base_path``
+       ``test_runner_setup``, giving an absolute name or joining it to
+       ``base_path``.
+   * - Absolute name given to ``exec_file`` or ``import_module_from_file``
      - Used as it is given.
-   * - ``base_path("x")``, at any time, time 0 included
+   * - ``join(base_path, "x")``, at any time, time 0 included
      - The base directory set by ``set_relative_file_base`` in the run script
-       or by the environment variable ``VUNIT_PYTHON_BRIDGE_FILE_BASE``.
-       Without a base directory it is reported as a failure.
+       or by the environment variable ``VUNIT_PYTHON_BRIDGE_FILE_BASE``, which
+       ``base_path`` returns. Without a base directory ``base_path`` is
+       reported as a failure.
    * - Relative name opened by Python code: ``open``, ``numpy.load``,
        ``pathlib.Path`` and so on
      - The current working directory of Python, which is the working
@@ -692,8 +693,8 @@ names independent of the directory the run script is started from:
 
 .. code-block:: vhdl
 
-    exec_file(base_path("vc/models/uart_model.py"), session);  -- project/vc/models/uart_model.py
-    import_module_from_file(base_path("vc/models/helpers.py"), "helpers", session);  -- project/vc/models/helpers.py
+    exec_file(join(base_path, "vc/models/uart_model.py"), session);  -- project/vc/models/uart_model.py
+    import_module_from_file(join(base_path, "vc/models/helpers.py"), "helpers", session);  -- project/vc/models/helpers.py
 
 Alternatively, import the model by module name from a directory on
 ``sys.path``: the directory of the run script, or one added to ``PYTHONPATH``
@@ -739,7 +740,7 @@ or pass an absolute name from VHDL:
 .. code-block:: vhdl
 
     -- project/vc/data/coefficients.npy, an absolute name for Python
-    call("model.load_coefficients", arg(base_path("vc/data/coefficients.npy")));
+    call("model.load_coefficients", arg(join(base_path, "vc/data/coefficients.npy")));
 
 **A run script shared through a git submodule.** When the run script cannot be
 changed, set the base directory with the environment variable, for example from
@@ -763,29 +764,28 @@ a Makefile at the root of the repository:
     sim:
     	VUNIT_PYTHON_BRIDGE_FILE_BASE=$(CURDIR) python sub/run.py
 
-The file names given to ``base_path`` are then relative to the repository
+The file names joined to ``base_path`` are then relative to the repository
 root:
 
 .. code-block:: vhdl
 
-    exec_file(base_path("sub/vc/models/vc_model.py"));  -- repo/sub/vc/models/vc_model.py
+    exec_file(join(base_path, "sub/vc/models/vc_model.py"));  -- repo/sub/vc/models/vc_model.py
 
 base_path and the base directory
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``base_path(file_name)`` returns a relative file name joined to the base
-directory, and an absolute file name as it is given. It is a pure VHDL
-function: the base directory is a constant of a package generated when the
-package is set up, so it can be used at any time, before
-``test_runner_setup`` too, and on every simulator. On Riviera-PRO/Active-HDL,
-where ``exec_file`` is not supported, use it with ``import_module_from_file``
-or for file names passed to a model. Without a base directory a relative file
-name is reported as a failure on ``python_logger``, naming both ways of setting
-it, and ``""`` is returned, which ``exec_file`` and ``import_module_from_file``
-report as an empty file name without executing anything. An empty file name is
-reported the same way, whether a base directory is set or not. ``base_path`` serves any file name passed to a Python model, not
-only those of ``exec_file`` and ``import_module_from_file``, whose own
-relative file names are still taken from the directory of the testbench.
+``base_path`` returns the base directory, absolute, for VHDL to join file
+names to with ``join`` of VUnit's ``path`` package, which ``vunit_context``
+includes, the same way as ``tb_path(runner_cfg)``. It is a function without
+arguments: the base directory is a constant of a package generated when the
+package is set up, so it can be used at any time, before ``test_runner_setup``
+too, and on every simulator. On Riviera-PRO/Active-HDL, where ``exec_file`` is
+not supported, use it with ``import_module_from_file`` or for file names passed
+to a model. Without a base directory ``base_path`` is reported as a failure on
+``python_logger``, naming both ways of setting it, and returns ``""``.
+``base_path`` serves any file name passed to a Python model, not only those of
+``exec_file`` and ``import_module_from_file``, whose own relative file names
+are still taken from the directory of the testbench.
 
 ``vunit_python_bridge.set_relative_file_base(directory)`` sets the base
 directory in the run script. It must be called before
@@ -880,7 +880,7 @@ arguments, a 20 register status dump, wide
 Python model failing with the logger of the default session mocked. Its last
 test case drives ``python_model``, a verification component whose behaviour is
 the Python function in ``python_model.py`` rather than VHDL. The component finds
-that file with ``base_path``, relative to the directory of the run script, which
+that file by joining its name to ``base_path``, the directory of the run script, which
 ``run.py`` sets as the base directory, while the testbench gives the files it
 loads itself relative to its own directory. See :ref:`python_bridge:file_paths`.
 

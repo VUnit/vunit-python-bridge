@@ -108,7 +108,7 @@ def main():
 
     vu = VUnit.from_argv()
     vu.add_vhdl_builtins()
-    # The base directory of base_path, which python_model uses to find its Python model at any
+    # The base directory that base_path returns, which python_model uses to find its Python model at any
     # time and from any testbench. It is the directory of this script rather than Path.cwd(), so
     # the example runs from any working directory. A shared run script that cannot be changed can
     # leave this out and have it set by the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE.

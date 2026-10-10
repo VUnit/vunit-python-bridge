@@ -27,7 +27,7 @@ Modules:
 * runtime: runs inside the simulator's embedded interpreter.
 
 ``set_relative_file_base(directory)``, called in the run script before ``add_package``, sets the
-directory that ``base_path`` of ``python_pkg`` resolves relative file names against. The
+directory that ``base_path`` of ``python_pkg`` returns, for VHDL to join file names to. The
 environment variable ``VUNIT_PYTHON_BRIDGE_FILE_BASE`` sets it too, and takes precedence.
 """
 
@@ -69,7 +69,7 @@ _setup_done = False
 
 def set_relative_file_base(directory):
     """
-    Set the directory that ``base_path`` of ``python_pkg`` resolves relative file names against.
+    Set the directory that ``base_path`` of ``python_pkg`` returns, for VHDL to join file names to.
 
     Call it in the run script before ``vu.add_package("vunit-python-bridge", ...)``. A relative
     directory is taken from the current working directory at the time of the call.
@@ -122,7 +122,7 @@ def _file_base_package_text(directory):
 --
 -- The directory set by the environment variable {FILE_BASE_VARIABLE} or by
 -- vunit_python_bridge.set_relative_file_base() in the run script, empty when neither is set.
--- base_path of python_pkg resolves relative file names against it.
+-- base_path of python_pkg returns it.
 package {FILE_BASE_PACKAGE} is
   constant p_relative_file_base : string := {_vhdl_string_literal(value)};
 end package;

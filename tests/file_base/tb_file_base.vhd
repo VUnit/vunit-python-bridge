@@ -26,8 +26,8 @@ begin
   begin
     -- Before test_runner_setup, when the testbench path is not yet set
     if find(runner_cfg, "Test base_path before test_runner_setup") > 0 then
-      exec_file(base_path("models/reference_model.py"));
-      import_module_from_file(base_path("models/filters.py"), "filters_model");
+      exec_file(join(base_path, "models/reference_model.py"));
+      import_module_from_file(join(base_path, "models/filters.py"), "filters_model");
     end if;
     test_runner_setup(runner, runner_cfg);
 
@@ -43,9 +43,10 @@ begin
         check_equal(integer'(eval("filters_model.fir(4)")), 5);
 
       elsif run("Test base_path after test_runner_setup") then
-        exec_file(base_path("models/reference_model.py"));
+        check_equal(base_path, base_dir);
+        exec_file(join(base_path, "models/reference_model.py"));
         check_equal(call_string("get_model_dir"), join(base_dir, "models"));
-        import_module_from_file(base_path("models/filters.py"), "filters_model");
+        import_module_from_file(join(base_path, "models/filters.py"), "filters_model");
         check_equal(integer'(eval("filters_model.fir(2)")), 3);
 
       elsif run("Test a relative file name of exec_file is relative to the testbench") then
@@ -63,8 +64,8 @@ begin
     constant session : python_session_t := new_session("vc");
   begin
     if find(runner_cfg, "Test base_path from a verification component at time 0") > 0 then
-      exec_file(base_path("models/reference_model.py"), session);
-      import_module_from_file(base_path("models/filters.py"), "filters_model", session);
+      exec_file(join(base_path, "models/reference_model.py"), session);
+      import_module_from_file(join(base_path, "models/filters.py"), "filters_model", session);
     end if;
     wait;
   end process;
