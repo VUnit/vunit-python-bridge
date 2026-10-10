@@ -875,7 +875,10 @@ arguments, a 20 register status dump, wide
 ``import_module_from_file``, two models loaded into a session each, and a
 Python model failing with the logger of the default session mocked. Its last
 test case drives ``python_model``, a verification component whose behaviour is
-the Python function in ``python_model.py`` rather than VHDL.
+the Python function in ``python_model.py`` rather than VHDL. The component finds
+that file with ``base_path``, relative to the directory of the run script, which
+``run.py`` sets as the base directory, while the testbench gives the files it
+loads itself relative to its own directory. See :ref:`python_bridge:file_paths`.
 
 .. _python_bridge:native:
 
