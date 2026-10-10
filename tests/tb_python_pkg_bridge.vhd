@@ -159,7 +159,8 @@ begin
         default_logger,
         "exec_file(""models/counter.py"") failed:" & LF &
         "A relative file name needs the testbench path set by test_runner_setup. " &
-        "Call it after test_runner_setup or give an absolute path.",
+        "Call it after test_runner_setup, give an absolute path, " &
+        "or use base_path() with a base directory set in the run script.",
         failure
       );
       import_filters;
@@ -167,7 +168,8 @@ begin
         default_logger,
         "import_module_from_file(""models/filters.py"", ""filters_model"") failed:" & LF &
         "A relative file name needs the testbench path set by test_runner_setup. " &
-        "Call it after test_runner_setup or give an absolute path.",
+        "Call it after test_runner_setup, give an absolute path, " &
+        "or use base_path() with a base directory set in the run script.",
         failure
       );
       unmock(default_logger);
@@ -240,6 +242,36 @@ begin
       elsif run("Test a relative file name from a process waiting for test_runner_setup to complete") then
         wait for 1 ns;
         check_equal(integer'(eval("get_call_count()", session => new_session("vc"))), 1);
+
+      elsif run("Test base_path without a base directory") then
+        -- The run script of these tests sets no base directory
+        mock(python_logger, failure);
+        exec_file(base_path("models/counter.py"));
+        check_only_log(
+          python_logger,
+          "base_path(""models/counter.py"") failed: no base directory is set. " &
+          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package.",
+          failure
+        );
+        import_module_from_file(base_path("models/filters.py"), "filters_model");
+        check_only_log(
+          python_logger,
+          "base_path(""models/filters.py"") failed: no base directory is set. " &
+          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package.",
+          failure
+        );
+        unmock(python_logger);
+        -- Nothing was executed or imported
+        check_false(eval_boolean("'get_call_count' in globals() or 'filters_model' in globals()"));
+
+      elsif run("Test base_path of an absolute file name") then
+        check_equal(
+          base_path(join(tb_path(runner_cfg), "models/reference_model.py")),
+          join(tb_path(runner_cfg), "models/reference_model.py")
+        );
+        check_equal(base_path("C:/models/model.py"), "C:/models/model.py");
+        exec_file(base_path(join(tb_path(runner_cfg), "models/reference_model.py")));
+        check_equal(call_string("get_model_dir"), join(tb_path(runner_cfg), "models"));
 
       elsif run("Test executing a file with an absolute file name") then
         exec_file(join(tb_path(runner_cfg), "models/reference_model.py"));

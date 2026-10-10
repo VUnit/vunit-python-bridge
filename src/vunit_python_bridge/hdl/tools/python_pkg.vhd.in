@@ -768,7 +768,10 @@ $arg_functions
   impure function p_file_path(file_name, operation : string; session : python_session_t) return string is
     constant tb_dir : string := tb_path(get_cfg(runner_state));
   begin
-    if p_is_absolute(file_name) then
+    if file_name = "" then
+      -- The result of a base_path that failed, nothing to execute
+      return "";
+    elsif p_is_absolute(file_name) then
       return file_name;
     elsif tb_dir = "" then
       -- Without a testbench path the file would silently be taken from the working directory
