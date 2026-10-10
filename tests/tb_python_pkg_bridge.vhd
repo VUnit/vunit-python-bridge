@@ -252,7 +252,8 @@ begin
         check_log(
           python_logger,
           "base_path(""models/counter.py"") failed: no base directory is set. " &
-          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package.",
+          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package, " &
+          "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE.",
           failure
         );
         check_only_log(default_logger, "exec_file("""") failed:" & LF & "Empty file name.", failure);
@@ -260,7 +261,8 @@ begin
         check_log(
           python_logger,
           "base_path(""models/filters.py"") failed: no base directory is set. " &
-          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package.",
+          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package, " &
+          "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE.",
           failure
         );
         check_only_log(

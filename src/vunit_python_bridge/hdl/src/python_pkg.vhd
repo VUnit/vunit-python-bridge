@@ -277,15 +277,15 @@ package python_pkg is
   procedure exec_file(file_name : string; session : python_session_t := default_session);
 
   -- A file name relative to the directory set by
-  -- vunit_python_bridge.set_relative_file_base() in the run script, for file
-  -- names that must not depend on the testbench, for example those of a
-  -- verification component, which can use it at any time, before
-  -- test_runner_setup too:
+  -- vunit_python_bridge.set_relative_file_base() in the run script, or by the
+  -- environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE, for file names that
+  -- must not depend on the testbench, for example those of a verification
+  -- component, which can use it at any time, before test_runner_setup too:
   --
   --   exec_file(base_path("vc/models/uart_model.py"));
   --
   -- An absolute file name is returned as it is given. Without a directory set
-  -- in the run script a relative file name is reported as a failure on
+  -- a relative file name is reported as a failure on
   -- python_logger and "" is returned, which exec_file and
   -- import_module_from_file report as an empty file name without executing
   -- anything.
@@ -953,7 +953,8 @@ package body python_pkg is
       failure(
         python_logger,
         "base_path(""" & file_name & """) failed: no base directory is set. " &
-        "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package."
+        "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package, " &
+        "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE."
       );
       return "";
     end if;
