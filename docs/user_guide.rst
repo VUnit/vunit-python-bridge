@@ -636,7 +636,7 @@ How a file name is resolved
        directory of the simulator. See the warning below.
    * - Python module imported by name, ``import model``
      - ``sys.path``, which holds the directory of the run script first, like
-       ``python run.py`` does, the directories of ``PYTHONPATH`` (the
+       ``python run.py`` does (not on Riviera-PRO/Active-HDL), the directories of ``PYTHONPATH`` (the
        simulator inherits the environment of VUnit, so a ``PYTHONPATH`` set
        in the run script before ``vu.main()`` is seen), and, while
        ``exec_file`` executes a file, the directory of that file.
@@ -777,11 +777,13 @@ base_path and the base directory
 directory, and an absolute file name as it is given. It is a pure VHDL
 function: the base directory is a constant of a package generated when the
 package is set up, so it can be used at any time, before
-``test_runner_setup`` too, and on every simulator. Without a base directory a
-relative file name is reported as a failure on ``python_logger``, naming both
-ways of setting it, and ``""`` is returned, which ``exec_file`` and
-``import_module_from_file`` report as an empty file name without executing
-anything. ``base_path`` serves any file name passed to a Python model, not
+``test_runner_setup`` too, and on every simulator. On Riviera-PRO/Active-HDL,
+where ``exec_file`` is not supported, use it with ``import_module_from_file``
+or for file names passed to a model. Without a base directory a relative file
+name is reported as a failure on ``python_logger``, naming both ways of setting
+it, and ``""`` is returned, which ``exec_file`` and ``import_module_from_file``
+report as an empty file name without executing anything. An empty file name is
+reported the same way, whether a base directory is set or not. ``base_path`` serves any file name passed to a Python model, not
 only those of ``exec_file`` and ``import_module_from_file``, whose own
 relative file names are still taken from the directory of the testbench.
 
