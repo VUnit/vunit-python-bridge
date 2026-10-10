@@ -243,7 +243,7 @@ class TestPackageSetup(unittest.TestCase):
         setup_mock.assert_not_called()
         vhpi_mock.assert_called_once_with(context.output_path, name, context.simulator_prefix)
 
-        self.assertEqual(self._added_names(context), {"python_pkg_vhpi.vhd"})
+        self.assertEqual(self._added_names(context), {"python_pkg_vhpi.vhd", "python_file_base_pkg.vhd"})
         self.assertEqual({library for library, _ in context.added_files}, {"python_bridge"})
         # The VHPI application needs no simulator hooks
         self.assertEqual(context.hooks, {})
