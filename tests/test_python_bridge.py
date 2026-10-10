@@ -357,6 +357,11 @@ class TestRelativeFileBase(unittest.TestCase):
         self.run_script = _write_run_script(self.tempdir / "run.py")
         self._reset()
         self.addCleanup(self._reset)
+        # The environment variable of the shell running the tests must not leak in
+        environ = mock.patch.dict(os.environ)
+        environ.start()
+        self.addCleanup(environ.stop)
+        os.environ.pop(vunit_python_bridge.FILE_BASE_VARIABLE, None)
 
     @staticmethod
     def _reset():
@@ -449,6 +454,76 @@ class TestRelativeFileBase(unittest.TestCase):
         # A string expression, not a lone character
         self.assertEqual(encode("é"), "\"\" & character'val(195) & character'val(169)")
         self.assertEqual(encode("a\tb"), '"a" & character\'val(9) & "b"')
+
+    def _set_variable(self, value):
+        os.environ[vunit_python_bridge.FILE_BASE_VARIABLE] = str(value)
+
+    def _literal(self, directory):
+        return f'"{directory.as_posix()}"'
+
+    def test_variable_only(self):
+        self._set_variable(self.tempdir)
+        _, package = self._setup()
+        self.assertEqual(self._constant(package), self._literal(self.tempdir))
+
+    def test_variable_and_function_with_the_same_directory(self):
+        vunit_python_bridge.set_relative_file_base(self.tempdir)
+        # The same directory by another name, compared resolved
+        self._set_variable(self.tempdir / "." / "sub" / "..")
+        (self.tempdir / "sub").mkdir()
+        with self.assertNoLogs(vunit_python_bridge.LOGGER):
+            _, package = self._setup()
+        self.assertEqual(self._constant(package), self._literal(self.tempdir))
+
+    def test_variable_takes_precedence_over_the_function(self):
+        (self.tempdir / "function").mkdir()
+        (self.tempdir / "variable").mkdir()
+        vunit_python_bridge.set_relative_file_base(self.tempdir / "function")
+        self._set_variable(self.tempdir / "variable")
+        with self.assertLogs(vunit_python_bridge.LOGGER, "WARNING") as logs:
+            _, package = self._setup()
+        self.assertEqual(self._constant(package), self._literal(self.tempdir / "variable"))
+        self.assertEqual(len(logs.output), 1)
+        self.assertIn(vunit_python_bridge.FILE_BASE_VARIABLE, logs.output[0])
+        self.assertIn(str(self.tempdir / "variable"), logs.output[0])
+        self.assertIn(str(self.tempdir / "function"), logs.output[0])
+        self.assertIn("takes precedence", logs.output[0])
+
+    def test_empty_variable_is_unset(self):
+        self._set_variable("")
+        _, package = self._setup()
+        self.assertEqual(self._constant(package), '""')
+
+        self._reset()
+        vunit_python_bridge.set_relative_file_base(self.tempdir)
+        with self.assertNoLogs(vunit_python_bridge.LOGGER):
+            _, package = self._setup()
+        self.assertEqual(self._constant(package), self._literal(self.tempdir))
+
+    def test_relative_variable_is_taken_from_the_working_directory_at_setup(self):
+        (self.tempdir / "base").mkdir()
+        self._set_variable("base")
+        cwd = os.getcwd()
+        os.chdir(self.tempdir)
+        self.addCleanup(os.chdir, cwd)
+        _, package = self._setup()
+        self.assertEqual(self._constant(package), self._literal(self.tempdir / "base"))
+
+    def test_variable_not_a_directory_is_rejected_at_setup(self):
+        missing = self.tempdir / "missing"
+        self._set_variable(missing)
+        with self.assertRaises(ValueError) as ctx:
+            self._setup()
+        self.assertIn(vunit_python_bridge.FILE_BASE_VARIABLE, str(ctx.exception))
+        self.assertIn(str(missing), str(ctx.exception))
+        self.assertIn("is not an existing directory", str(ctx.exception))
+
+    def test_variable_is_not_read_at_import(self):
+        self._set_variable(self.tempdir / "missing")
+        import importlib
+
+        importlib.reload(vunit_python_bridge)
+        self.assertIsNone(vunit_python_bridge._relative_file_base)  # pylint: disable=protected-access
 
     def test_bridge_and_vhpi_add_the_package(self):
         for name in ("nvc", "ghdl", "modelsim", "rivierapro", "activehdl"):

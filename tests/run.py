@@ -11,6 +11,7 @@ It is imported by tb_python_pkg through import_run_script, which is why
 everything but remote_test is guarded by a __main__ check.
 """
 
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -39,6 +40,9 @@ EXPECTED_FAILURES_VHPI = [
 
 # Simulators where python_pkg is implemented by the VUnit Python bridge
 BRIDGE_SIMULATORS = ["nvc", "ghdl", "modelsim"]
+
+# The environment variable setting the base directory of base_path
+FILE_BASE_VARIABLE = "VUNIT_PYTHON_BRIDGE_FILE_BASE"
 
 
 def remote_test():
@@ -72,25 +76,33 @@ def verify(results, expected_failures):
 def run_file_base_tests(args):
     """
     Run the tests of base_path with a base directory, which is fixed for a run and
-    therefore a run of its own, with the same simulator and output path.
+    therefore a run of its own, with the same simulator and an output path of its own.
+    It runs twice: with the base directory set by set_relative_file_base() in the run
+    script, and with it set by the environment variable instead.
     """
-    command = [
-        sys.executable,
-        str(ROOT / "file_base" / "run.py"),
-        "-o",
-        str(Path(args.output_path) / "file_base"),
-        "-p",
-        str(args.num_threads),
-    ]
-    sys.stdout.flush()
-    if subprocess.run(command, check=False).returncode != 0:
-        raise RuntimeError("The tests of tests/file_base/run.py failed")
+    for name, env in [
+        ("function", dict(os.environ)),
+        ("variable", dict(os.environ, **{FILE_BASE_VARIABLE: str(ROOT.resolve())})),
+    ]:
+        command = [
+            sys.executable,
+            str(ROOT / "file_base" / "run.py"),
+            "-o",
+            str(Path(args.output_path) / "file_base" / name),
+            "-p",
+            str(args.num_threads),
+        ]
+        sys.stdout.flush()
+        if subprocess.run(command, env=env, check=False).returncode != 0:
+            raise RuntimeError(f"The tests of tests/file_base/run.py with the base directory set by the {name} failed")
 
 
 def main():
     args = VUnitCLI().parse_args()
     # The expected failures must not make the run script fail
     args.exit_0 = True
+    # The tests of base_path without a base directory need the variable unset
+    os.environ.pop(FILE_BASE_VARIABLE, None)
     vu = VUnit.from_args(args)
     vu.add_vhdl_builtins()
     vu.add_package("vunit-python-bridge", allow_setup=True)
