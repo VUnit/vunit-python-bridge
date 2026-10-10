@@ -617,14 +617,41 @@ component can load its model at time 0:
 
 A relative directory given to ``set_relative_file_base`` is taken from the
 working directory of the run script when it is called, and the call must come
-before ``add_package``. ``base_path`` returns an absolute file name as it is
-given. Without a directory set in the run script it reports a relative one as a
-failure on ``python_logger`` and returns ``""``, which ``exec_file`` and
-``import_module_from_file`` report as an empty file name without executing
-anything. ``base_path`` serves any file name passed
-to a Python model as well, for example in an argument of ``call``. The
-relative file names of ``exec_file`` and ``import_module_from_file`` themselves
-are still taken from the directory of the testbench.
+before ``add_package``.
+
+A run script that cannot be changed, for example one shared through a git
+submodule, gets its base directory from the environment variable
+``VUNIT_PYTHON_BRIDGE_FILE_BASE`` instead, for example set by a Makefile at the
+root of the repository:
+
+.. code-block:: make
+
+    sim:
+    	VUNIT_PYTHON_BRIDGE_FILE_BASE=$(CURDIR) python sub/run.py
+
+The variable is read when the package is set up, a relative value is taken from
+the working directory at that time, and an empty value counts as unset. A value
+that is not an existing directory is an error. The variable takes precedence,
+so that whoever runs a shared run script can override the directory it sets:
+
+==========================  ====================  ==========================
+``set_relative_file_base``  Environment variable  Base directory
+==========================  ====================  ==========================
+not called                  unset or empty        none, ``base_path`` fails
+called                      unset or empty        that of the call
+not called                  set                   that of the variable
+called                      set                   that of the variable, with
+                                                  a warning when the two
+                                                  directories differ
+==========================  ====================  ==========================
+
+``base_path`` returns an absolute file name as it is given. Without a base
+directory it reports a relative one as a failure on ``python_logger`` and
+returns ``""``, which ``exec_file`` and ``import_module_from_file`` report as
+an empty file name without executing anything. ``base_path`` serves any file
+name passed to a Python model as well, for example in an argument of ``call``.
+The relative file names of ``exec_file`` and ``import_module_from_file``
+themselves are still taken from the directory of the testbench.
 
 Without a base directory, a verification component that loads its model at the
 start of the simulation runs concurrently with the testbench process and must
