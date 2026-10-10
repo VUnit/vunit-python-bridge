@@ -946,8 +946,12 @@ package body python_pkg is
   end;
 
   impure function base_path(file_name : string) return string is
+    constant base : string(1 to p_relative_file_base'length) := p_relative_file_base;
   begin
-    if p_is_absolute(file_name) then
+    if file_name = "" then
+      failure(python_logger, "base_path("""") failed: empty file name.");
+      return "";
+    elsif p_is_absolute(file_name) then
       return file_name;
     elsif p_relative_file_base = "" then
       failure(
@@ -957,8 +961,11 @@ package body python_pkg is
         "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE."
       );
       return "";
+    elsif base(base'right) = '/' or base(base'right) = '\' then
+      -- A root directory such as / or C:\, which join would drop
+      return base & file_name;
     end if;
-    return join(p_relative_file_base, file_name);
+    return base & "/" & file_name;
   end;
 
   procedure exec_file(file_name : string; session : python_session_t := default_session) is

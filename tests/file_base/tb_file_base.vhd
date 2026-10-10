@@ -4,8 +4,9 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- Tests of base_path with a base directory set in the run script, the tests
--- directory, which is not the directory of this testbench.
+-- Tests of base_path with a base directory set in the run script: the tests
+-- directory, which is not the directory of this testbench, or the root of the
+-- file system when it is set by the environment variable.
 
 library vunit_lib;
 context vunit_lib.vunit_context;
@@ -15,7 +16,9 @@ context python_bridge.python_context;
 entity tb_file_base is
   generic (
     runner_cfg : string;
-    base_dir : string
+    -- The models directory, absolute and relative to the base directory
+    models_dir : string;
+    models_name : string
   );
 end entity;
 
@@ -26,8 +29,8 @@ begin
   begin
     -- Before test_runner_setup, when the testbench path is not yet set
     if find(runner_cfg, "Test base_path before test_runner_setup") > 0 then
-      exec_file(base_path("models/reference_model.py"));
-      import_module_from_file(base_path("models/filters.py"), "filters_model");
+      exec_file(base_path(models_name & "/reference_model.py"));
+      import_module_from_file(base_path(models_name & "/filters.py"), "filters_model");
     end if;
     test_runner_setup(runner, runner_cfg);
 
@@ -35,18 +38,24 @@ begin
       if run("Test base_path from a verification component at time 0") then
         -- The verification component loaded its model at time 0
         wait for 1 ns;
-        check_equal(call_string("get_model_dir", session => vc_session), join(base_dir, "models"));
+        check_equal(call_string("get_model_dir", session => vc_session), models_dir);
         check_equal(integer'(eval("filters_model.fir(1)", session => vc_session)), 2);
 
       elsif run("Test base_path before test_runner_setup") then
-        check_equal(call_string("get_model_dir"), join(base_dir, "models"));
+        check_equal(call_string("get_model_dir"), models_dir);
         check_equal(integer'(eval("filters_model.fir(4)")), 5);
 
       elsif run("Test base_path after test_runner_setup") then
-        exec_file(base_path("models/reference_model.py"));
-        check_equal(call_string("get_model_dir"), join(base_dir, "models"));
-        import_module_from_file(base_path("models/filters.py"), "filters_model");
+        exec_file(base_path(models_name & "/reference_model.py"));
+        check_equal(call_string("get_model_dir"), models_dir);
+        import_module_from_file(base_path(models_name & "/filters.py"), "filters_model");
         check_equal(integer'(eval("filters_model.fir(2)")), 3);
+
+      elsif run("Test base_path of an empty file name") then
+        mock(python_logger, failure);
+        check_equal(base_path(""), "");
+        check_only_log(python_logger, "base_path("""") failed: empty file name.", failure);
+        unmock(python_logger);
 
       elsif run("Test a relative file name of exec_file is relative to the testbench") then
         exec_file("local_model.py");
@@ -63,8 +72,8 @@ begin
     constant session : python_session_t := new_session("vc");
   begin
     if find(runner_cfg, "Test base_path from a verification component at time 0") > 0 then
-      exec_file(base_path("models/reference_model.py"), session);
-      import_module_from_file(base_path("models/filters.py"), "filters_model", session);
+      exec_file(base_path(models_name & "/reference_model.py"), session);
+      import_module_from_file(base_path(models_name & "/filters.py"), "filters_model", session);
     end if;
     wait;
   end process;
