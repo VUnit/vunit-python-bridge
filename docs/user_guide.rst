@@ -703,7 +703,9 @@ in the run script before ``vu.main()``:
 
     # project/vc/models on sys.path of the simulator
     models = Path(__file__).parent / "vc" / "models"
-    os.environ["PYTHONPATH"] = os.pathsep.join([str(models), os.environ.get("PYTHONPATH", "")])
+    # Drop empty entries: Python reads an empty PYTHONPATH entry as the working directory
+    paths = [str(models)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
+    os.environ["PYTHONPATH"] = os.pathsep.join(paths)
 
 .. code-block:: vhdl
 
