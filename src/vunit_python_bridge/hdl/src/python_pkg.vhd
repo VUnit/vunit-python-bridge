@@ -7,6 +7,7 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 
 use work.python_ffi_pkg.all;
+use work.python_file_base_pkg.all;
 library vunit_lib;
 use vunit_lib.path.all;
 use vunit_lib.run_pkg.all;
@@ -274,6 +275,20 @@ package python_pkg is
   -- is given. The file is executed with __file__ set and its own directory on
   -- sys.path so that it can import its siblings.
   procedure exec_file(file_name : string; session : python_session_t := default_session);
+
+  -- A file name relative to the directory set by
+  -- vunit_python_bridge.set_relative_file_base() in the run script, for file
+  -- names that must not depend on the testbench, for example those of a
+  -- verification component, which can use it at any time, before
+  -- test_runner_setup too:
+  --
+  --   exec_file(base_path("vc/models/uart_model.py"));
+  --
+  -- An absolute file name is returned as it is given. Without a directory set
+  -- in the run script a relative file name is reported as a failure on
+  -- python_logger and "" is returned, which exec_file and
+  -- import_module_from_file ignore.
+  impure function base_path(file_name : string) return string;
 end package;
 
 package body python_pkg is
@@ -917,11 +932,27 @@ package body python_pkg is
         get_logger(get_id(session)),
         operation & " failed:" & LF &
         "A relative file name needs the testbench path set by test_runner_setup. " &
-        "Call it after test_runner_setup or give an absolute path."
+        "Call it after test_runner_setup, give an absolute path, " &
+        "or use base_path() with a base directory set in the run script."
       );
       return "";
     end if;
     return join(tb_dir, file_name);
+  end;
+
+  impure function base_path(file_name : string) return string is
+  begin
+    if p_is_absolute(file_name) then
+      return file_name;
+    elsif p_relative_file_base = "" then
+      failure(
+        python_logger,
+        "base_path(""" & file_name & """) failed: no base directory is set. " &
+        "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package."
+      );
+      return "";
+    end if;
+    return join(p_relative_file_base, file_name);
   end;
 
   procedure exec_file(file_name : string; session : python_session_t := default_session) is
