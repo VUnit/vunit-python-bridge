@@ -59,6 +59,7 @@ begin
 
     variable arr, arr_b, result : integer_array_t;
     variable ptr : integer_vector_ptr_t;
+    variable checked_before_setup : boolean := false;
     variable slv4 : std_ulogic_vector(3 downto 0);
     variable slv9_desc : std_ulogic_vector(8 downto 0) := "UX01ZWLH-";
     variable slv9_asc : std_ulogic_vector(0 to 8) := "UX01ZWLH-";
@@ -149,7 +150,36 @@ begin
       import_module_from_file("models/filters.py", "filters_model");
     end;
 
+    -- Relative file names before test_runner_setup, as from a VC at time 0
+    procedure check_relative_file_names_before_setup is
+    begin
+      mock(default_logger, failure);
+      exec_file("models/counter.py");
+      check_only_log(
+        default_logger,
+        "exec_file(""models/counter.py"") failed:" & LF &
+        "A relative file name needs the testbench path set by test_runner_setup. " &
+        "Call it after test_runner_setup, give an absolute path, " &
+        "or join it to base_path with a base directory set in the run script.",
+        failure
+      );
+      import_filters;
+      check_only_log(
+        default_logger,
+        "import_module_from_file(""models/filters.py"", ""filters_model"") failed:" & LF &
+        "A relative file name needs the testbench path set by test_runner_setup. " &
+        "Call it after test_runner_setup, give an absolute path, " &
+        "or join it to base_path with a base directory set in the run script.",
+        failure
+      );
+      unmock(default_logger);
+      checked_before_setup := true;
+    end;
+
   begin
+    if find(runner_cfg, "Test relative file names before test_runner_setup") > 0 then
+      check_relative_file_names_before_setup;
+    end if;
     test_runner_setup(runner, runner_cfg);
 
     while test_suite loop
@@ -203,6 +233,37 @@ begin
         -- A relative file name is relative to the directory of the testbench
         exec_file("models/reference_model.py");
         check_equal(call_string("get_model_dir"), join(tb_path(runner_cfg), "models"));
+
+      elsif run("Test relative file names before test_runner_setup") then
+        check_true(checked_before_setup);
+        -- Nothing was executed or imported
+        check_false(eval_boolean("'get_call_count' in globals() or 'filters_model' in globals()"));
+
+      elsif run("Test a relative file name from a process waiting for test_runner_setup to complete") then
+        wait for 1 ns;
+        check_equal(integer'(eval("get_call_count()", session => new_session("vc"))), 1);
+
+      elsif run("Test base_path without a base directory") then
+        -- The run script of these tests sets no base directory
+        mock(python_logger, failure);
+        check_equal(base_path, "");
+        check_only_log(
+          python_logger,
+          "base_path failed: no base directory is set. " &
+          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package, " &
+          "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE.",
+          failure
+        );
+        unmock(python_logger);
+
+      elsif run("Test an empty file name") then
+        mock(default_logger, failure);
+        exec_file("");
+        check_only_log(default_logger, "exec_file("""") failed:" & LF & "Empty file name.", failure);
+        import_module_from_file("", "x");
+        check_only_log(default_logger, "import_module_from_file("""", ""x"") failed:" & LF & "Empty file name.", failure);
+        unmock(default_logger);
+        check_false(eval_boolean("'x' in globals()"));
 
       elsif run("Test executing a file with an absolute file name") then
         exec_file(join(tb_path(runner_cfg), "models/reference_model.py"));
@@ -1080,5 +1141,17 @@ begin
     end loop;
 
     test_runner_cleanup(runner);
+  end process;
+
+  -- A verification component waiting for test_runner_setup to complete before it loads its model
+  vc : process
+  begin
+    if find(runner_cfg, "Test a relative file name from a process waiting for test_runner_setup to complete") > 0 then
+      if get_phase <= test_runner_setup then
+        wait on runner until get_phase > test_runner_setup;
+      end if;
+      exec_file("models/counter.py", new_session("vc"));
+    end if;
+    wait;
   end process;
 end architecture;

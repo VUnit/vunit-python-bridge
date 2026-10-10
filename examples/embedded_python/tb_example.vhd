@@ -158,10 +158,13 @@ begin
     end;
 
     -- The model of the device used in some of the examples below is the Python
-    -- module device_model.py, next to this testbench
+    -- module device_model.py, next to this testbench. Like every relative file
+    -- name the testbench gives exec_file and import_module_from_file, it is
+    -- relative to the directory of this testbench file, which needs
+    -- test_runner_setup to have completed.
     procedure import_device_model is
     begin
-      import_module_from_file(join(tb_path(runner_cfg), "device_model.py"), "device_model");
+      import_module_from_file("device_model.py", "device_model");  -- <testbench directory>/device_model.py
     end;
 
   begin
@@ -317,7 +320,7 @@ begin
         -- exec_file executes the file in the namespace we have been using all along,
         -- which puts counter and bump there. A relative file name is relative to the
         -- directory of this testbench file, where bump.py is.
-        exec_file("bump.py");
+        exec_file("bump.py");  -- <testbench directory>/bump.py
         check_equal(integer'(call("bump")), 1);
         check_equal(integer'(call("bump")), 2);
 
@@ -326,7 +329,7 @@ begin
         check_equal(integer'(call("bump")), 1, result("for the counter after re-executing the file"));
 
         -- import_module_from_file gives us the module object, which keeps its state
-        import_module_from_file(join(tb_path(runner_cfg), "bump.py"), "bumper");
+        import_module_from_file("bump.py", "bumper");  -- <testbench directory>/bump.py
         check_equal(integer'(call("bumper.bump")), 1);
         check_equal(integer'(call("bumper.bump")), 2);
 
@@ -339,8 +342,8 @@ begin
         -- operation also takes a session that selects a namespace of its own, which is
         -- what makes it possible to have two models of the same integrator, both
         -- defining model and config, loaded side by side.
-        exec_file("golden_model.py", golden);
-        exec_file("fixed_point_model.py", fixed_point);
+        exec_file("golden_model.py", golden);  -- <testbench directory>/golden_model.py
+        exec_file("fixed_point_model.py", fixed_point);  -- <testbench directory>/fixed_point_model.py
 
         check_equal(eval_string("config['name']", golden), "golden");
         check_equal(eval_string("config['name']", fixed_point), "fixed_point");
@@ -517,7 +520,8 @@ begin
 
       elsif run("Test globbing for files") then
         -- glob finds all files matching a pattern, in this case all Python files in the directory tree
-        -- rooted in the testbench directory
+        -- rooted in the testbench directory. The pattern is absolute, built from tb_path, since Python
+        -- resolves a relative one against its working directory, which differs between simulators.
         exec("from glob import glob");
         exec("python_files = glob('" & join(tb_path(runner_cfg), "**", "*.py") & "', recursive=True)");
 
@@ -597,7 +601,7 @@ begin
         -- integer_array_t is the VUnit type for data sets such as images and it is passed
         -- to Python as a NumPy array of the same shape. An array returned by Python
         -- becomes a new integer_array_t. The indexing matches: get(a, x, y) is a[y, x].
-        import_module_from_file(join(tb_path(runner_cfg), "image_model.py"), "image_model");
+        import_module_from_file("image_model.py", "image_model");  -- <testbench directory>/image_model.py
 
         -- A 4 x 3 image with the column in the ones and the row in the tens
         image := new_2d(width => 4, height => 3, bit_width => 8, is_signed => false);
@@ -783,9 +787,10 @@ begin
     wait;
   end process;
 
-  -- A component whose behaviour is a Python function
+  -- A component whose behaviour is a Python function. Its model file is relative
+  -- to the base directory, the directory of run.py, set in run.py.
   python_model_inst : entity work.python_model
-    generic map(model_file => join(tb_path(runner_cfg), "python_model.py"))
+    generic map(model_file => "python_model.py")  -- <base directory>/python_model.py
     port map(x => model_x, y => model_y);
 
   -- Two instances of a component with a stateful Python model

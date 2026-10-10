@@ -121,7 +121,7 @@ constant used when the parameter is omitted runs in ``__main__``.
     ...
 
     exec("x = 1", session => golden);
-    exec_file("fixed_point.py", session => fixed_point);
+    exec_file("fixed_point.py", session => fixed_point);  -- <testbench directory>/fixed_point.py
 
     expected := eval("model(x)", session => golden);
     got := call("model", arg(x), session => fixed_point);
@@ -253,7 +253,8 @@ functions, classes and variables, are separate. Everything else is shared:
   modules imported by a Python file executed in several sessions. State kept
   in the globals of an imported module is therefore not isolated by sessions.
 * ``sys.path``, ``sys.modules``, environment variables, the current directory
-  and open files are process wide.
+  and open files are process wide. The current directory is the working
+  directory of the simulator, see :ref:`python_bridge:file_paths`.
 * Only the default session runs in ``__main__``. Classes defined in other
   sessions report ``__main__`` as their module but cannot be found there,
   which matters for example when pickling their instances.
@@ -516,7 +517,9 @@ file:
     exec("my_run_script.hello_world()");
 
 Without an explicit name, the module is named after the run script's file
-name (without extension), so the run script is normally named ``run.py``.
+name (without extension), so the run script is normally named ``run.py``. The
+run script is found by its absolute path, and its directory is on ``sys.path``
+so that it can import its siblings, see :ref:`python_bridge:file_paths`.
 Because the run script is imported as a module, it must be import-safe: code
 that is only meant to run when the script is invoked directly (typically the
 call to ``vu.main()``) must be behind
@@ -531,13 +534,14 @@ import_module_from_file and to_py_list_str
 taking an optional :ref:`session <python_bridge:sessions>` parameter), and is
 what ``import_run_script`` uses internally. Like the file name of
 ``exec_file``, a relative path is relative to the directory of the testbench
-file, ``tb_path``, so ``test_runner_setup`` must have been called; this works
-from verification components without ``runner_cfg``. An absolute path is used
-as it is given:
+file, ``tb_path``, and needs ``test_runner_setup`` to have completed; an
+absolute path is used as it is given. See :ref:`python_bridge:file_paths` for
+importing a file at any other time, for example from a verification
+component:
 
 .. code-block:: vhdl
 
-    import_module_from_file("reference_model.py", "reference_model");
+    import_module_from_file("reference_model.py", "reference_model");  -- <testbench directory>/reference_model.py
     exec("reference_model.configure(gain=4)");
 
 ``to_py_list_str`` converts an ``integer_vector``, ``integer_vector_ptr_t`` or
@@ -678,10 +682,232 @@ while it executes so that it can import sibling modules without setting
 ``PYTHONPATH``. Imports are therefore expected at the top level of the file.
 Executing the same file twice executes it twice.
 
-A relative file name is relative to the directory of the testbench file
-(``tb_path``); an absolute path is used as given. Like the other operations,
-it takes an optional trailing :ref:`session <python_bridge:sessions>`
-parameter.
+A relative file name is relative to the directory of the testbench file,
+``tb_path``, and needs ``test_runner_setup`` to have completed; an absolute
+file name is used as given. See :ref:`python_bridge:file_paths` for loading a
+file at any other time, for example from a verification component. Like the
+other operations, it takes an optional trailing :ref:`session
+<python_bridge:sessions>` parameter.
+
+.. _python_bridge:file_paths:
+
+File paths
+----------
+
+A file name can be resolved against several directories, depending on who
+resolves it: ``python_pkg`` in VHDL, or Python code in the model. This section
+lists them all, gives recipes for the common cases and describes ``base_path``,
+which gives verification components a directory of their own.
+
+How a file name is resolved
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. list-table::
+   :header-rows: 1
+   :widths: 40 60
+
+   * - File name
+     - Resolved against
+   * - Relative name given to ``exec_file`` or ``import_module_from_file``
+       after ``test_runner_setup`` has completed
+     - The directory of the testbench file, ``tb_path``.
+   * - The same before ``test_runner_setup`` has completed, or without a
+       test runner
+     - Nothing: it is reported as a failure, which suggests calling it after
+       ``test_runner_setup``, giving an absolute name or joining it to
+       ``base_path``.
+   * - Absolute name given to ``exec_file`` or ``import_module_from_file``
+     - Used as it is given.
+   * - ``join(base_path, "x")``, at any time, time 0 included
+     - The base directory set by ``set_relative_file_base`` in the run script
+       or by the environment variable ``VUNIT_PYTHON_BRIDGE_FILE_BASE``, which
+       ``base_path`` returns. Without a base directory ``base_path`` is
+       reported as a failure.
+   * - Relative name opened by Python code: ``open``, ``numpy.load``,
+       ``pathlib.Path`` and so on
+     - The current working directory of Python, which is the working
+       directory of the simulator. See the warning below.
+   * - Python module imported by name, ``import model``
+     - ``sys.path``, which holds the directory of the run script first, like
+       ``python run.py`` does (not on Riviera-PRO/Active-HDL), the directories of ``PYTHONPATH`` (the
+       simulator inherits the environment of VUnit, so a ``PYTHONPATH`` set
+       in the run script before ``vu.main()`` is seen), and, while
+       ``exec_file`` executes a file, the directory of that file.
+
+.. warning::
+
+   The working directory of the simulator differs between simulators. On NVC
+   and GHDL it is the directory the run script was started from. On
+   Questa/ModelSim it is the ``modelsim`` directory of the VUnit output path,
+   for example ``vunit_out/modelsim``. Other simulators may use yet another
+   directory. Never rely on a relative file name in Python code: build it from
+   ``Path(__file__).parent`` in the model, or pass an absolute name from VHDL,
+   built with ``base_path`` or ``tb_path``.
+
+Recipes
+~~~~~~~
+
+**A Python file next to the testbench.** Give its name relative to the
+testbench file, after ``test_runner_setup``:
+
+.. code-block:: vhdl
+
+    test_runner_setup(runner, runner_cfg);
+    exec_file("model.py");  -- <testbench directory>/model.py
+
+**The model of a verification component.** A verification component is not
+tied to a testbench and often loads its model at time 0, before
+``test_runner_setup``. Give its name relative to a base directory set in the
+run script. With this layout:
+
+.. code-block:: text
+
+    project/
+      run.py
+      vc/
+        uart_vc.vhd
+        models/
+          uart_model.py
+          helpers.py
+      tb/
+        tb_uart.vhd
+
+the run script sets its own directory as the base directory, which makes the
+names independent of the directory the run script is started from:
+
+.. code-block:: python
+
+    import vunit_python_bridge
+
+    # project/, whatever the working directory
+    vunit_python_bridge.set_relative_file_base(Path(__file__).parent)
+    vu.add_package("vunit-python-bridge", allow_setup=True)
+
+.. code-block:: vhdl
+
+    exec_file(join(base_path, "vc/models/uart_model.py"), session);  -- project/vc/models/uart_model.py
+    import_module_from_file(join(base_path, "vc/models/helpers.py"), "helpers", session);  -- project/vc/models/helpers.py
+
+Alternatively, import the model by module name from a directory on
+``sys.path``: the directory of the run script, or one added to ``PYTHONPATH``
+in the run script before ``vu.main()``:
+
+.. code-block:: python
+
+    # project/vc/models on sys.path of the simulator
+    models = Path(__file__).parent / "vc" / "models"
+    # Drop empty entries: Python reads an empty PYTHONPATH entry as the working directory
+    paths = [str(models)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
+    os.environ["PYTHONPATH"] = os.pathsep.join(paths)
+
+.. code-block:: vhdl
+
+    exec("import uart_model", session);  -- found on sys.path: project/vc/models/uart_model.py
+
+Or wait for ``test_runner_setup`` to complete and give the name relative to the
+testbench file:
+
+.. code-block:: vhdl
+
+    if get_phase <= test_runner_setup then
+      wait on runner until get_phase > test_runner_setup;
+    end if;
+    exec_file("uart_model.py", session);  -- <testbench directory>/uart_model.py
+
+``wait_until(runner, test_runner_setup)`` is not enough, since the phase is
+entered before the testbench path is set.
+
+**Data files used by a model.** Find them relative to the model file in
+Python:
+
+.. code-block:: python
+
+    from pathlib import Path
+
+    # Next to this file, whatever the working directory of the simulator
+    COEFFICIENTS = np.load(Path(__file__).parent / "coefficients.npy")
+
+or pass an absolute name from VHDL:
+
+.. code-block:: vhdl
+
+    -- project/vc/data/coefficients.npy, an absolute name for Python
+    call("model.load_coefficients", arg(join(base_path, "vc/data/coefficients.npy")));
+
+**A run script shared through a git submodule.** When the run script cannot be
+changed, set the base directory with the environment variable, for example from
+a Makefile at the root of the repository:
+
+.. code-block:: text
+
+    repo/
+      Makefile
+      sub/            (git submodule)
+        run.py
+        vc/
+          models/
+            vc_model.py
+      tb/
+        tb_vc.vhd
+
+.. code-block:: make
+
+    # repo/ is the base directory
+    sim:
+    	VUNIT_PYTHON_BRIDGE_FILE_BASE=$(CURDIR) python sub/run.py
+
+The file names joined to ``base_path`` are then relative to the repository
+root:
+
+.. code-block:: vhdl
+
+    exec_file(join(base_path, "sub/vc/models/vc_model.py"));  -- repo/sub/vc/models/vc_model.py
+
+base_path and the base directory
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``base_path`` returns the base directory, absolute, for VHDL to join file
+names to with ``join`` of VUnit's ``path`` package, which ``vunit_context``
+includes, the same way as ``tb_path(runner_cfg)``. It is a function without
+arguments: the base directory is a constant of a package generated when the
+package is set up, so it can be used at any time, before ``test_runner_setup``
+too, and on every simulator. On Riviera-PRO/Active-HDL, where ``exec_file`` is
+not supported, use it with ``import_module_from_file`` or for file names passed
+to a model. Without a base directory ``base_path`` is reported as a failure on
+``python_logger``, naming both ways of setting it, and returns ``""``.
+``base_path`` serves any file name passed to a Python model, not only those of
+``exec_file`` and ``import_module_from_file``, whose own relative file names
+are still taken from the directory of the testbench.
+
+``vunit_python_bridge.set_relative_file_base(directory)`` sets the base
+directory in the run script. It must be called before
+``vu.add_package("vunit-python-bridge", ...)``; a call after it raises a
+``RuntimeError``. The directory, a ``str`` or a ``Path``, is resolved when the
+function is called, a relative one against the current working directory, and
+a directory that does not exist raises a ``ValueError``.
+
+The environment variable ``VUNIT_PYTHON_BRIDGE_FILE_BASE`` sets the base
+directory without changing the run script. It is read when the package is set
+up, during ``add_package``. A relative value is resolved against the current
+working directory at that time, an empty value counts as unset, and a value
+that is not an existing directory makes the setup fail with an error naming
+the variable and the value.
+
+The variable takes precedence, so that whoever runs a shared run script can
+override the directory it sets:
+
+==========================  ====================  ==========================
+``set_relative_file_base``  Environment variable  Base directory
+==========================  ====================  ==========================
+not called                  unset or empty        none, ``base_path`` fails
+called                      unset or empty        that of the call
+not called                  set                   that of the variable
+called                      set                   that of the variable
+==========================  ====================  ==========================
+
+When both are set to different directories, compared after resolving them,
+the setup logs a warning naming both and saying that the environment variable
+takes precedence.
 
 .. _python_bridge:semantics:
 
@@ -745,7 +971,10 @@ arguments, a 20 register status dump, wide
 ``import_module_from_file``, two models loaded into a session each, and a
 Python model failing with the logger of the default session mocked. Its last
 test case drives ``python_model``, a verification component whose behaviour is
-the Python function in ``python_model.py`` rather than VHDL.
+the Python function in ``python_model.py`` rather than VHDL. The component finds
+that file by joining its name to ``base_path``, the directory of the run script, which
+``run.py`` sets as the base directory, while the testbench gives the files it
+loads itself relative to its own directory. See :ref:`python_bridge:file_paths`.
 
 .. _python_bridge:native:
 

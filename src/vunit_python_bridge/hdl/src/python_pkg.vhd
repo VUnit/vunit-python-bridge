@@ -7,6 +7,7 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 
 use work.python_ffi_pkg.all;
+use work.python_file_base_pkg.all;
 library vunit_lib;
 use vunit_lib.path.all;
 use vunit_lib.run_pkg.all;
@@ -274,26 +275,43 @@ package python_pkg is
   -- is given. The file is executed with __file__ set and its own directory on
   -- sys.path so that it can import its siblings.
   procedure exec_file(file_name : string; session : python_session_t := default_session);
+
+  -- The absolute directory set by vunit_python_bridge.set_relative_file_base()
+  -- in the run script, or by the environment variable
+  -- VUNIT_PYTHON_BRIDGE_FILE_BASE, for file names that must not depend on the
+  -- testbench, for example those of a verification component, which can use it
+  -- at any time, before test_runner_setup too:
+  --
+  --   exec_file(join(base_path, "vc/models/uart_model.py"));
+  --
+  -- Without a directory set it is reported as a failure on python_logger and
+  -- "" is returned.
+  impure function base_path return string;
 end package;
 
 package body python_pkg is
-  impure function p_file_path(file_name : string) return string;
+  impure function p_file_path(file_name, operation : string; session : python_session_t) return string;
 
   -- @formatter:off
   procedure import_module_from_file(
     module_path, as_module_name : string; session : python_session_t := default_session
   ) is
     constant spec_name : string := "__" & as_module_name & "_spec";
+    constant path : string := p_file_path(
+      module_path, "import_module_from_file(""" & module_path & """, """ & as_module_name & """)", session
+    );
     constant code : string :=
     "from importlib.util import spec_from_file_location, module_from_spec" & LF &
     "from pathlib import Path" & LF &
     "import sys" & LF &
-    spec_name & " = spec_from_file_location('" & as_module_name & "', str(Path('" & p_file_path(module_path) & "')))" & LF &
+    spec_name & " = spec_from_file_location('" & as_module_name & "', str(Path('" & path & "')))" & LF &
     as_module_name & " = module_from_spec(" & spec_name & ")" & LF &
     "sys.modules['" & as_module_name & "'] = " & as_module_name & LF &
      spec_name & ".loader.exec_module(" & as_module_name & ")";
   begin
-    exec(code, session);
+    if path /= "" then
+      exec(code, session);
+    end if;
   end;
   -- @formatter:on
 
@@ -901,18 +919,48 @@ package body python_pkg is
   -- The file name of exec_file and import_module_from_file, a relative one taken
   -- from the directory of the testbench file like the file names of the other
   -- VUnit subprograms
-  impure function p_file_path(file_name : string) return string is
+  impure function p_file_path(file_name, operation : string; session : python_session_t) return string is
+    constant tb_dir : string := tb_path(get_cfg(runner_state));
   begin
-    if p_is_absolute(file_name) then
+    if file_name = "" then
+      failure(get_logger(get_id(session)), operation & " failed:" & LF & "Empty file name.");
+      return "";
+    elsif p_is_absolute(file_name) then
       return file_name;
+    elsif tb_dir = "" then
+      -- Without a testbench path the file would silently be taken from the working directory
+      failure(
+        get_logger(get_id(session)),
+        operation & " failed:" & LF &
+        "A relative file name needs the testbench path set by test_runner_setup. " &
+        "Call it after test_runner_setup, give an absolute path, " &
+        "or join it to base_path with a base directory set in the run script."
+      );
+      return "";
     end if;
-    return join(tb_path(get_cfg(runner_state)), file_name);
+    return join(tb_dir, file_name);
+  end;
+
+  impure function base_path return string is
+  begin
+    if p_relative_file_base = "" then
+      failure(
+        python_logger,
+        "base_path failed: no base directory is set. " &
+        "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package, " &
+        "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE."
+      );
+    end if;
+    return p_relative_file_base;
   end;
 
   procedure exec_file(file_name : string; session : python_session_t := default_session) is
+    constant path : string := p_file_path(file_name, p_exec_file_operation(file_name, session), session);
     variable ok : boolean;
   begin
-    ok := p_exec_file(p_file_path(file_name), session);
+    if path /= "" then
+      ok := p_exec_file(path, session);
+    end if;
   end;
 
   -----------------------------------------------------------------------------
