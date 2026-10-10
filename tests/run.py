@@ -11,6 +11,8 @@ It is imported by tb_python_pkg through import_run_script, which is why
 everything but remote_test is guarded by a __main__ check.
 """
 
+import subprocess
+import sys
 from pathlib import Path
 from vunit import VUnit, VUnitCLI
 
@@ -67,6 +69,24 @@ def verify(results, expected_failures):
         print(f"Verified {len(expected)} expected failures: {', '.join(name.split('.')[-1] for name in expected)}")
 
 
+def run_file_base_tests(args):
+    """
+    Run the tests of base_path with a base directory, which is fixed for a run and
+    therefore a run of its own, with the same simulator and output path.
+    """
+    command = [
+        sys.executable,
+        str(ROOT / "file_base" / "run.py"),
+        "-o",
+        str(Path(args.output_path) / "file_base"),
+        "-p",
+        str(args.num_threads),
+    ]
+    sys.stdout.flush()
+    if subprocess.run(command, check=False).returncode != 0:
+        raise RuntimeError("The tests of tests/file_base/run.py failed")
+
+
 def main():
     args = VUnitCLI().parse_args()
     # The expected failures must not make the run script fail
@@ -87,7 +107,11 @@ def main():
     vu.set_compile_option("rivierapro.vcom_flags", ["-dbg"])
     vu.set_sim_option("rivierapro.vsim_flags", ["-interceptcoutput"])
 
-    vu.main(post_run=lambda results: verify(results, expected_failures))
+    def post_run(results):
+        verify(results, expected_failures)
+        run_file_base_tests(args)
+
+    vu.main(post_run=post_run)
 
 
 if __name__ == "__main__":
