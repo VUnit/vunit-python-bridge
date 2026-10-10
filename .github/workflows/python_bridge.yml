@@ -182,14 +182,17 @@ jobs:
           assert pe_machine(r'C:\Windows\SysWOW64\cmd.exe') == 0x14C"
 
     # dll: no MSVC on PATH, the prebuilt DLLs must be used. gcc: the library must be built with gcc.
+    # The library directory is overridden here, the example uses the default.
     - name: '🚧 Feature tests'
       run: |
         ! command -v cl
         if [ '${{ matrix.bridge }}' = gcc ]; then command -v gcc; fi
+        export VUNIT_PYTHON_BRIDGE_LIBRARY_DIR="$RUNNER_TEMP/bridge dir"
         python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
         if [ '${{ matrix.bridge }}' = gcc ]; then
-          find "$RUNNER_TEMP/out dir" -path '*-win_amd64-gcc-*' -name vunit_python_bridge.dll | grep .
+          find "$RUNNER_TEMP/bridge dir" -path '*-win_amd64-gcc-*' -name vunit_python_bridge.dll | grep .
         fi
+        if find "$RUNNER_TEMP/out dir" -name '*.dll' | grep .; then echo "a library is in the output path"; exit 1; fi
 
     - name: '🚧 Example'
       run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure

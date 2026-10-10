@@ -765,8 +765,8 @@ handlers of its own.
 
 Linux
   The bridge is compiled from source against the Python running VUnit the
-  first time the package is added, and cached in
-  ``<output path>/python_bridge``. It is rebuilt automatically when the
+  first time the package is added, and cached in the library directory, see
+  below. It is rebuilt automatically when the
   source, the Python version or the Python installation changes. For Questa
   the FLI front end is compiled in too, against the ``mti.h`` of the
   simulator, and the simulator installation is part of the cache key. The
@@ -775,7 +775,7 @@ Linux
 Windows
   For NVC and GHDL, the package ships DLLs built with MSVC for each supported
   Python minor version (``src/vunit_python_bridge/bin``). The matching DLL is
-  copied to the output path and nothing is compiled. A development checkout of
+  copied to the library directory, see below, and nothing is compiled. A development checkout of
   the package does not contain the DLLs; they can be built with
   ``tools/build_python_bridge.py`` from an MSVC developer prompt, and without
   them the library is built with gcc like for Questa. For Questa the library
@@ -787,6 +787,19 @@ Windows
   on Windows bundle none. A gcc build imports the Python DLL directly, so the
   package adds its directory to ``PATH`` for the simulator processes. These
   builds are untested.
+
+Library directory
+  The libraries are built or copied to a directory of their own rather than to the
+  VUnit output path, which may not allow executing files: the cache directory
+  of the user (``~/.cache/vunit-python-bridge``, or under ``XDG_CACHE_HOME``,
+  on Linux, ``~/Library/Caches/vunit-python-bridge`` on macOS and
+  ``%LOCALAPPDATA%\vunit-python-bridge`` on Windows). The environment
+  variable ``VUNIT_PYTHON_BRIDGE_LIBRARY_DIR`` selects another directory on
+  every platform. The directory can be
+  shared by projects since every build has a directory named after what it was
+  built from. The configuration of a project stays in
+  ``<output path>/python_bridge`` and the simulator hooks pass its path to the
+  library in ``VUNIT_PYTHON_BRIDGE_CONFIG``.
 
 The bridge uses the full (version specific) CPython ABI rather than the
 Stable ABI since embedding the interpreter in the environment VUnit runs in

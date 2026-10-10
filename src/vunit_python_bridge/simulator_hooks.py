@@ -28,18 +28,36 @@ from .bridge import GHDL_LINKING_BACKENDS, PythonBridge
 NO_AUTO_LD_LIBRARY_PATH = "-noautoldlibpath"
 VSIM_HELP_ARGUMENTS = ("-help", "all")
 
+# Read by native/config.c, keep in sync
+CONFIG_FILE_VARIABLE = "VUNIT_PYTHON_BRIDGE_CONFIG"
+
 
 def register(context, bridge: PythonBridge) -> None:
     """
     Register the hooks of every simulator the bridge serves with the package context.
     """
-    context.register_simulator_hooks("nvc", run_flags=_nvc_run_flags(bridge))
+    context.register_simulator_hooks("nvc", run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge))
     context.register_simulator_hooks(
         "ghdl",
         elab_flags=_ghdl_elab_flags(bridge),
         run_env=_ghdl_run_env(bridge),
     )
-    context.register_simulator_hooks("modelsim", process_flags=_modelsim_process_flags())
+    context.register_simulator_hooks(
+        "modelsim", process_flags=_modelsim_process_flags(), run_env=_config_run_env(bridge)
+    )
+
+
+def _config_run_env(bridge: PythonBridge):
+    """
+    Tell the bridge library where the configuration of the project is.
+    """
+
+    def hook(simulator_interface, env: Dict[str, str]) -> Dict[str, str]:  # pylint: disable=unused-argument
+        env = dict(env)
+        env[CONFIG_FILE_VARIABLE] = str(bridge.config_file)
+        return env
+
+    return hook
 
 
 def _nvc_run_flags(bridge: PythonBridge):
@@ -72,9 +90,11 @@ def _ghdl_run_env(bridge: PythonBridge):
     Add the bridge directory to the dynamic library search path of a GHDL simulation.
     """
 
-    def hook(simulator_interface, env: Dict[str, str]) -> Dict[str, str]:  # pylint: disable=unused-argument
+    config_env = _config_run_env(bridge)
+
+    def hook(simulator_interface, env: Dict[str, str]) -> Dict[str, str]:
         variable = {"win32": "PATH", "darwin": "DYLD_LIBRARY_PATH"}.get(sys.platform, "LD_LIBRARY_PATH")
-        env = dict(env)
+        env = config_env(simulator_interface, env)
         env[variable] = os.pathsep.join(
             item for item in (str(bridge.library_file.parent), env.get(variable, "")) if item
         )

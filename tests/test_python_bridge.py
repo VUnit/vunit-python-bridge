@@ -35,6 +35,17 @@ PACKAGE_ROOT = Path(vunit_python_bridge.__file__).parent.resolve()
 MANIFEST = PACKAGE_ROOT / "vunit_pkg.toml"
 
 
+def setUpModule():  # pylint: disable=invalid-name
+    """
+    Build the bridge libraries in a temporary directory, not in the cache of the user.
+    """
+    library_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+    unittest.addModuleCleanup(library_dir.cleanup)
+    environment = mock.patch.dict(os.environ, {native_library.LIBRARY_DIR_VARIABLE: library_dir.name})
+    environment.start()
+    unittest.addModuleCleanup(environment.stop)
+
+
 @contextmanager
 def create_tempdir():
     """
@@ -260,6 +271,7 @@ class TestPackageSetup(unittest.TestCase):
     def _fake_bridge(self):
         return bridge_setup.PythonBridge(
             library_file=Path("/fake/cache/libvunit_python_bridge.so"),
+            config_file=Path("/fake/out/python_bridge/vunit_python_bridge.cfg"),
             vhdl_files=[
                 Path("/fake/out/python_bridge/vhdl/python_bridge_pkg.vhd"),
                 bridge_setup.VHDL_SOURCE_PATH / "python_ffi_pkg_bridge.vhd",
@@ -315,8 +327,9 @@ class TestPackageSetup(unittest.TestCase):
         self.assertIsNotNone(context.hooks["ghdl"]["elab_flags"])
         self.assertIsNotNone(context.hooks["ghdl"]["run_env"])
         self.assertIsNotNone(context.hooks["modelsim"]["process_flags"])
-        # Questa finds the library by the absolute path in its FLI attributes
-        self.assertIsNone(context.hooks["modelsim"]["run_env"])
+        # Every simulator is told where the configuration of the project is
+        for simulator in ("nvc", "ghdl", "modelsim"):
+            self.assertIsNotNone(context.hooks[simulator]["run_env"], simulator)
 
     def test_bridge_setup_failure_is_reported(self):
         context = self._context(self._simulator("nvc"))
@@ -465,6 +478,9 @@ class TestPosixBuildAndCache(unittest.TestCase):
         self.tempdir = self.tempdir_cm.__enter__()
         self.addCleanup(self.tempdir_cm.__exit__, None, None, None)
         self.run_script = _write_run_script(self.tempdir / "run.py")
+        environment = mock.patch.dict(os.environ, {native_library.LIBRARY_DIR_VARIABLE: str(self.tempdir / "cache")})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def _setup(self, output_path=None):
         return bridge_setup.setup(output_path or self.tempdir / "out", self.run_script)
@@ -700,8 +716,9 @@ class TestConfigFile(unittest.TestCase):
             run_script = _write_run_script(tempdir / "run.py")
             fake_library_file = tempdir / "cache" / "libvunit_python_bridge.so"
             with mock.patch("vunit_python_bridge.bridge.prepare_library", return_value=fake_library_file):
-                bridge_setup.setup(tempdir / "out", run_script)
-            config = (fake_library_file.parent / bridge_setup.CONFIG_FILE_NAME).read_text(encoding="utf-8")
+                bridge = bridge_setup.setup(tempdir / "out", run_script)
+            self.assertEqual(bridge.config_file, tempdir / "out" / "python_bridge" / bridge_setup.CONFIG_FILE_NAME)
+            config = bridge.config_file.read_text(encoding="utf-8")
             keys = _config_keys(config)
             self.assertEqual(keys["run_script_dir"], str(tempdir.resolve()))
 
@@ -720,6 +737,32 @@ class TestConfigFile(unittest.TestCase):
         with mock.patch("sys.executable", "/usr/bin/py\nthon"):
             with self.assertRaisesRegex(RuntimeError, "line breaks"):
                 bridge_setup._config_text("/run/script/dir")  # pylint: disable=protected-access
+
+
+class TestLibraryDirectory(unittest.TestCase):
+    """
+    Where the bridge libraries are built or copied.
+    """
+
+    def _directory(self, platform, environment):
+        with (
+            mock.patch.dict(os.environ, environment, clear=True),
+            mock.patch("sys.platform", platform),
+            mock.patch("pathlib.Path.home", return_value=Path("/home/user")),
+        ):
+            return native_library.library_directory()
+
+    def test_variable_overrides_the_default(self):
+        self.assertEqual(
+            self._directory("linux", {native_library.LIBRARY_DIR_VARIABLE: "/exec/ok"}), Path("/exec/ok").absolute()
+        )
+
+    def test_default_is_the_cache_of_the_user(self):
+        self.assertEqual(self._directory("linux", {}), Path("/home/user/.cache/vunit-python-bridge"))
+        self.assertEqual(self._directory("linux", {"XDG_CACHE_HOME": "/xdg"}), Path("/xdg/vunit-python-bridge"))
+        self.assertEqual(self._directory("darwin", {}), Path("/home/user/Library/Caches/vunit-python-bridge"))
+        self.assertEqual(self._directory("win32", {"LOCALAPPDATA": "/local"}), Path("/local/vunit-python-bridge"))
+        self.assertEqual(self._directory("win32", {}), Path("/home/user/AppData/Local/vunit-python-bridge"))
 
 
 class TestWindowsDllSelection(unittest.TestCase):
@@ -955,8 +998,19 @@ class TestSimulatorHooks(unittest.TestCase):
     are given for a simulation of the project.
     """
 
+    config_file = Path("/out/python_bridge/vunit_python_bridge.cfg")
+
+    def test_every_simulator_is_told_where_the_configuration_is(self):
+        hooks = self._hooks(Path("/some/dir/libvunit_python_bridge.so"))
+        for simulator in ("nvc", "ghdl", "modelsim"):
+            env = {"KEPT": "1"}
+            result = hooks[simulator]["run_env"](self._ghdl("mcode"), env)
+            self.assertEqual(result[simulator_hooks.CONFIG_FILE_VARIABLE], str(self.config_file), simulator)
+            self.assertEqual(result["KEPT"], "1")
+            self.assertEqual(env, {"KEPT": "1"})
+
     def _hooks(self, library_file):
-        bridge = bridge_setup.PythonBridge(library_file=library_file, vhdl_files=[])
+        bridge = bridge_setup.PythonBridge(library_file=library_file, config_file=self.config_file, vhdl_files=[])
         context = _FakeContext(None, Path("/out"), Path("/run.py"))
         simulator_hooks.register(context, bridge)
         return context.hooks
