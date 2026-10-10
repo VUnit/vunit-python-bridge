@@ -24,6 +24,11 @@ begin
   main : process
     constant vc_session : python_session_t := new_session("vc");
   begin
+    -- Before test_runner_setup, when the testbench path is not yet set
+    if find(runner_cfg, "Test base_path before test_runner_setup") > 0 then
+      exec_file(base_path("models/reference_model.py"));
+      import_module_from_file(base_path("models/filters.py"), "filters_model");
+    end if;
     test_runner_setup(runner, runner_cfg);
 
     while test_suite loop
@@ -32,6 +37,10 @@ begin
         wait for 1 ns;
         check_equal(call_string("get_model_dir", session => vc_session), join(base_dir, "models"));
         check_equal(integer'(eval("filters_model.fir(1)", session => vc_session)), 2);
+
+      elsif run("Test base_path before test_runner_setup") then
+        check_equal(call_string("get_model_dir"), join(base_dir, "models"));
+        check_equal(integer'(eval("filters_model.fir(4)")), 5);
 
       elsif run("Test base_path after test_runner_setup") then
         exec_file(base_path("models/reference_model.py"));
