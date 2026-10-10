@@ -71,7 +71,7 @@ def set_relative_file_base(directory):
 
     if _setup_done:
         raise RuntimeError(
-            "set_relative_file_base() must be called before vu.add_package(\"vunit-python-bridge\", ...), "
+            'set_relative_file_base() must be called before vu.add_package("vunit-python-bridge", ...), '
             "the package has already been set up"
         )
     path = Path(directory).resolve()
