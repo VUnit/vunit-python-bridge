@@ -594,10 +594,41 @@ parameter.
 The testbench path is set by ``test_runner_setup``, so a relative file name
 used before it has completed, or without a test runner, is reported as a
 failure rather than taken from the working directory of the simulator. This
-applies to ``import_module_from_file`` too. A verification component that
-loads its model at the start of the simulation runs concurrently with the
-testbench process and must therefore wait for ``test_runner_setup`` to complete
-first, or be given an absolute path, for example through a generic:
+applies to ``import_module_from_file`` too.
+
+A verification component is not tied to a testbench, so its model is better
+found relative to a directory of its own. The run script sets that directory
+before it adds the package, and ``base_path`` gives the file names relative to
+it. The directory is known from the start of the simulation, so a verification
+component can load its model at time 0:
+
+.. code-block:: python
+
+    import vunit_python_bridge
+
+    # The directory of the run script, the repository root or any other
+    vunit_python_bridge.set_relative_file_base(Path.cwd())
+    vu.add_package("vunit-python-bridge", allow_setup=True)
+
+.. code-block:: vhdl
+
+    exec_file(base_path("vc/models/uart_model.py"), session);
+    import_module_from_file(base_path("vc/models/helpers.py"), "helpers", session);
+
+A relative directory given to ``set_relative_file_base`` is taken from the
+working directory of the run script when it is called, and the call must come
+before ``add_package``. ``base_path`` returns an absolute file name as it is
+given. Without a directory set in the run script it reports a relative one as a
+failure on ``python_logger`` and returns ``""``, which ``exec_file`` and
+``import_module_from_file`` ignore. ``base_path`` serves any file name passed
+to a Python model as well, for example in an argument of ``call``. The
+relative file names of ``exec_file`` and ``import_module_from_file`` themselves
+are still taken from the directory of the testbench.
+
+Without a base directory, a verification component that loads its model at the
+start of the simulation runs concurrently with the testbench process and must
+therefore wait for ``test_runner_setup`` to complete first, or be given an
+absolute path, for example through a generic:
 
 .. code-block:: vhdl
 
