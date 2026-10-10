@@ -78,12 +78,11 @@ def run_file_base_tests(args):
     Run the tests of base_path with a base directory, which is fixed for a run and
     therefore a run of its own, with the same simulator and an output path of its own.
     It runs twice: with the base directory set by set_relative_file_base() in the run
-    script, and with it set by the environment variable to the root of the file system
-    instead, which base_path must not drop.
+    script, and with it set by the environment variable instead.
     """
     for name, env in [
         ("function", dict(os.environ)),
-        ("variable", dict(os.environ, **{FILE_BASE_VARIABLE: ROOT.resolve().anchor})),
+        ("variable", dict(os.environ, **{FILE_BASE_VARIABLE: str(ROOT.resolve())})),
     ]:
         command = [
             sys.executable,

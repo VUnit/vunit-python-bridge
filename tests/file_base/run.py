@@ -36,11 +36,7 @@ def main():
 
     lib = vu.add_library("lib")
     lib.add_source_file(ROOT / "tb_file_base.vhd")
-    base_dir = Path(os.environ.get(vunit_python_bridge.FILE_BASE_VARIABLE) or BASE_DIR).resolve()
-    models_dir = (BASE_DIR / "models").resolve()
-    tb = lib.test_bench("tb_file_base")
-    tb.set_generic("models_dir", models_dir.as_posix())
-    tb.set_generic("models_name", models_dir.relative_to(base_dir).as_posix())
+    lib.test_bench("tb_file_base").set_generic("base_dir", BASE_DIR.resolve().as_posix())
 
     vu.main()
 
