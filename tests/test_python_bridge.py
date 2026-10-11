@@ -752,6 +752,31 @@ class TestPosixBuildAndCache(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "free-threaded"):
                 self._setup()
 
+    def _unwritable_directory(self):
+        """
+        A directory that cannot be created, also when running as root: its parent is a file.
+        """
+        blocker = self.tempdir / "blocker"
+        blocker.write_text("", encoding="utf-8")
+        return blocker / "cache"
+
+    def test_unwritable_default_directory_fails_pointing_to_the_variable(self):
+        os.environ.pop(native_library.LIBRARY_DIR_VARIABLE)
+        with mock.patch("vunit_python_bridge.bridge.library_directory", return_value=self._unwritable_directory()):
+            with self.assertRaisesRegex(
+                native_library.PythonBridgeError, r"blocker.*\(the default\).*Set VUNIT_PYTHON_BRIDGE_LIBRARY_DIR"
+            ):
+                self._setup()
+
+    def test_unwritable_directory_set_by_the_user_fails(self):
+        os.environ[native_library.LIBRARY_DIR_VARIABLE] = str(self._unwritable_directory())
+        with mock.patch("subprocess.run") as run_mock:
+            with self.assertRaisesRegex(
+                native_library.PythonBridgeError, r"blocker.*\(set by VUNIT_PYTHON_BRIDGE_LIBRARY_DIR\)"
+            ):
+                self._setup()
+        run_mock.assert_not_called()
+
     @unittest.skipUnless(hasattr(os, "ST_NOEXEC"), "no noexec mount flag on this platform")
     def test_noexec_output_path_raises_before_compiling(self):
         real_statvfs = os.statvfs

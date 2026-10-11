@@ -1019,7 +1019,9 @@ Library directory
   on Linux, ``~/Library/Caches/vunit-python-bridge`` on macOS and
   ``%LOCALAPPDATA%\vunit-python-bridge`` on Windows). The environment
   variable ``VUNIT_PYTHON_BRIDGE_LIBRARY_DIR`` selects another directory on
-  every platform. The directory can be
+  every platform. When the directory cannot be written, e.g. a read-only home
+  directory in a container, the setup fails and asks for the variable to be
+  set to a writable directory. The directory can be
   shared by projects since every build has a directory named after what it was
   built from. The configuration of a project stays in
   ``<output path>/python_bridge`` and the simulator hooks pass its path to the
