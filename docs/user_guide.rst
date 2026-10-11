@@ -1032,9 +1032,20 @@ limited API.
 
 The package registers simulator hooks that make the simulator find the
 library automatically. NVC is given a ``--load`` option. GHDL gets the library
-directory in its dynamic library search path, plus a linker search path for
-the ahead-of-time compiled llvm and gcc backends, which the hook recognizes
-from the ``backend`` of the GHDL interface it is called with. The FLI
+directory in its dynamic library search path, plus a linker search path and an
+rpath for the ahead-of-time compiled llvm and gcc backends, which the hook recognizes
+from the ``backend`` of the GHDL interface it is called with.
+
+GHDL mcode and llvm-jit find the library only through that search path
+(``LD_LIBRARY_PATH``), since GHDL limits the library name in a VHPIDIRECT
+attribute to 32 characters, too short for an absolute path. A ``ghdl`` wrapper
+script that resets the environment, or a simulation re-run by hand outside
+VUnit, then fails with ``cannot load VHPIDIRECT shared library
+'libvunit_python_bridge.so'``. Such a wrapper must keep ``LD_LIBRARY_PATH``
+and ``VUNIT_PYTHON_BRIDGE_CONFIG``. The llvm and gcc backends find the library
+through the rpath, but they also need ``VUNIT_PYTHON_BRIDGE_CONFIG``.
+
+The FLI
 attributes generated for Questa name the library by absolute path, and the
 ``vsim`` process VUnit starts is given ``-noautoldlibpath`` on Linux so that
 the C++ runtime Questa bundles, which is often older than the one the Python

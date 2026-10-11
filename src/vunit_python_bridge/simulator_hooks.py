@@ -74,13 +74,15 @@ def _nvc_run_flags(bridge: PythonBridge):
 def _ghdl_elab_flags(bridge: PythonBridge):
     """
     GHDL elaboration flags. Only the backends linking the design ahead of time need them,
-    the others load the bridge at run time and are served by the run environment.
+    the others load the bridge at run time and are served by the run environment. The rpath
+    lets the linked simulation find the bridge without the run environment, e.g. when re-run by hand.
     """
 
     def hook(simulator_interface) -> List[str]:
         if simulator_interface.backend not in GHDL_LINKING_BACKENDS:
             return []
-        return [f"-Wl,-L{bridge.library_file.parent!s}"]
+        directory = bridge.library_file.parent
+        return [f"-Wl,-L{directory!s}", f"-Wl,-Wl,-rpath,{directory!s}"]
 
     return hook
 

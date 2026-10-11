@@ -1259,7 +1259,11 @@ class TestSimulatorHooks(unittest.TestCase):
         bridge_dir = Path("/some/dir")
         hooks = self._hooks(bridge_dir / "libvunit_python_bridge.so")
         for backend in ("llvm", "gcc"):
-            self.assertEqual(hooks["ghdl"]["elab_flags"](self._ghdl(backend)), [f"-Wl,-L{bridge_dir!s}"], backend)
+            self.assertEqual(
+                hooks["ghdl"]["elab_flags"](self._ghdl(backend)),
+                [f"-Wl,-L{bridge_dir!s}", f"-Wl,-Wl,-rpath,{bridge_dir!s}"],
+                backend,
+            )
 
     def test_ghdl_run_env_prepends_ld_library_path_without_mutating_input(self):
         bridge_dir = Path("/some/dir")
