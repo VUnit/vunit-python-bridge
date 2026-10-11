@@ -752,6 +752,19 @@ class TestPosixBuildAndCache(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "free-threaded"):
                 self._setup()
 
+    @unittest.skipUnless(hasattr(os, "ST_NOEXEC"), "no noexec mount flag on this platform")
+    def test_noexec_output_path_raises_before_compiling(self):
+        real_statvfs = os.statvfs
+
+        def fake_statvfs(path):
+            result = real_statvfs(path)
+            return mock.Mock(f_flag=result.f_flag | os.ST_NOEXEC)
+
+        with mock.patch("os.statvfs", side_effect=fake_statvfs), mock.patch("subprocess.run") as run_mock:
+            with self.assertRaisesRegex(native_library.PythonBridgeError, "noexec.*VUNIT_PYTHON_BRIDGE_LIBRARY_DIR"):
+                self._setup()
+        run_mock.assert_not_called()
+
     def test_library_exports_exactly_the_contract(self):
         nm = shutil.which("nm")
         if nm is None:

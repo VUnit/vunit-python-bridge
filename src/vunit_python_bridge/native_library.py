@@ -323,6 +323,19 @@ def _posix_cache_directory(root: Path, python_library: Path, include_dirs: List[
     return root / f"{tag}-{key}"
 
 
+def check_exec_mount(directory: Path) -> None:
+    """
+    Reject a directory on a noexec mount, e.g. a tmpfs in a container: the simulator cannot load
+    a library from there and only reports that it failed to, without the reason.
+    """
+    if os.statvfs(directory).f_flag & getattr(os, "ST_NOEXEC", 0):
+        raise PythonBridgeError(
+            f"The Python bridge library is built in {directory!s}, which is on a file system mounted "
+            f"noexec, so the simulator cannot load it. Set {LIBRARY_DIR_VARIABLE} to a directory on a "
+            "file system without noexec."
+        )
+
+
 def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path:
     """
     Compile the bridge for the running Python, reusing a cached build when possible.
@@ -340,11 +353,12 @@ def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None) 
     name = "libvunit_python_bridge_fli.so" if fli else "libvunit_python_bridge.so"
     directory = _posix_cache_directory(root, python_library, include_dirs)
     library_file = directory / name
+    directory.mkdir(parents=True, exist_ok=True)
+    check_exec_mount(directory)
     if library_file.is_file():
         return library_file
 
     compiler = _compiler()
-    directory.mkdir(parents=True, exist_ok=True)
     tmp = directory / f"{name}.{os.getpid()}.tmp"
     cmd = (
         compiler
