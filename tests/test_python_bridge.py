@@ -996,6 +996,45 @@ class TestLibraryDirectory(unittest.TestCase):
         self.assertEqual(self._directory("win32", {}), Path("/home/user/AppData/Local/vunit-python-bridge"))
 
 
+class TestWindowsLoadCheck(unittest.TestCase):
+    """
+    The Windows counterpart of the noexec check: loading the library, with ctypes mocked.
+    """
+
+    @staticmethod
+    def _failing_load(winerror):
+        exc = OSError(f"[WinError {winerror}] blocked")
+        exc.winerror = winerror  # only set by Windows itself
+        return mock.patch("ctypes.CDLL", side_effect=exc)
+
+    def test_library_blocked_by_an_execution_policy_points_to_the_variable(self):
+        for winerror in (1260, 577, 4551):
+            with self._failing_load(winerror):
+                with self.assertRaisesRegex(
+                    native_library.PythonBridgeError,
+                    f"execution policy.*WinError {winerror}.*VUNIT_PYTHON_BRIDGE_LIBRARY_DIR",
+                ):
+                    native_library.check_windows_load(Path("C:/lib/dir/vunit_python_bridge.dll"))
+
+    def test_other_load_failure_is_reported_with_the_reason(self):
+        with self._failing_load(126):
+            with self.assertRaisesRegex(native_library.PythonBridgeError, "vunit_python_bridge.dll does not load.*126"):
+                native_library.check_windows_load(Path("C:/lib/dir/vunit_python_bridge.dll"))
+
+    def test_loaded_library_is_unloaded_again(self):
+        kernel32 = mock.Mock()
+        with (
+            mock.patch("ctypes.CDLL") as cdll_mock,
+            mock.patch("ctypes.windll", mock.Mock(kernel32=kernel32), create=True),
+        ):
+            # A 64-bit handle, which FreeLibrary must get as a pointer rather than a C int
+            cdll_mock.return_value._handle = 0x7FF812340000
+            path = Path("C:/lib/dir/vunit_python_bridge.dll")
+            self.assertEqual(native_library.check_windows_load(path), path)
+        cdll_mock.assert_called_once_with(str(path), winmode=0)
+        self.assertEqual(kernel32.FreeLibrary.call_args.args[0].value, 0x7FF812340000)
+
+
 class TestWindowsDllSelection(unittest.TestCase):
     """
     Windows prebuilt-DLL selection logic. Testable on any platform since it

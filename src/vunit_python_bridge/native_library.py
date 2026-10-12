@@ -85,8 +85,40 @@ def prepare_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path
         add_python_dll_to_path()
         if simulator_prefix is not None:
             return _build_windows_library(root, simulator_prefix)
-        return _prepare_windows_library(root)
+        return check_windows_load(_prepare_windows_library(root))
     return _prepare_posix_library(root, simulator_prefix)
+
+
+# Windows errors of a library that an execution policy (AppLocker, Windows Defender Application
+# Control, Smart App Control) keeps from loading: ERROR_ACCESS_DISABLED_BY_POLICY,
+# ERROR_INVALID_IMAGE_HASH and ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION
+_WINDOWS_POLICY_ERRORS = (1260, 577, 4551)
+
+
+def check_windows_load(library_file: Path) -> Path:
+    """
+    Load the library on Windows, the counterpart of check_exec_mount: there is no noexec mount
+    there, but an execution policy can block libraries in a directory, and the simulator then
+    only reports that it failed to load it. The FLI variant cannot be checked this way, it needs
+    the libraries of vsim.
+    """
+    import ctypes  # pylint: disable=import-outside-toplevel
+
+    try:
+        # winmode=0: the search order of LoadLibrary, which the simulators use, rather than the
+        # stricter default of ctypes, which leaves out dependencies found through PATH
+        library = ctypes.CDLL(str(library_file), winmode=0)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) in _WINDOWS_POLICY_ERRORS:
+            raise PythonBridgeError(
+                f"The Python bridge library is in {library_file.parent!s}, where an execution policy "
+                f"of Windows blocks loading it ({exc}), so the simulator cannot load it. "
+                f"Set {LIBRARY_DIR_VARIABLE} to a directory the policy allows libraries in."
+            ) from exc
+        raise PythonBridgeError(f"The Python bridge library {library_file!s} does not load: {exc}") from exc
+    # Unloaded again, so the file is not kept open while VUnit runs
+    ctypes.windll.kernel32.FreeLibrary(ctypes.c_void_p(library._handle))  # type: ignore[attr-defined]
+    return library_file
 
 
 def windows_dll_name() -> str:

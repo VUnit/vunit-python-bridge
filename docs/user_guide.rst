@@ -1021,7 +1021,11 @@ Library directory
   variable ``VUNIT_PYTHON_BRIDGE_LIBRARY_DIR`` selects another directory on
   every platform. When the directory cannot be written, e.g. a read-only home
   directory in a container, the setup fails and asks for the variable to be
-  set to a writable directory. The directory can be
+  set to a writable directory.
+  The setup also fails, asking for the variable to be set, when the simulator
+  could not load the library from the directory: on Linux and macOS when it is
+  on a file system mounted ``noexec``, and on Windows when an execution policy
+  (AppLocker, Windows Defender Application Control) blocks the library there. The directory can be
   shared by projects since every build has a directory named after what it was
   built from. The configuration of a project stays in
   ``<output path>/python_bridge`` and the simulator hooks pass its path to the
