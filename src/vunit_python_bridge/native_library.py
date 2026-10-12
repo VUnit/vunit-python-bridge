@@ -86,7 +86,9 @@ def prepare_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path
         if simulator_prefix is not None:
             return _build_windows_library(root, simulator_prefix)
         return check_windows_load(_prepare_windows_library(root))
-    return _prepare_posix_library(root, simulator_prefix)
+    if simulator_prefix is not None:
+        return _prepare_posix_library(root, simulator_prefix)
+    return check_posix_load(_prepare_posix_library(root))
 
 
 # Windows errors of a library that an execution policy (AppLocker, Windows Defender Application
@@ -353,6 +355,23 @@ def _posix_cache_directory(root: Path, python_library: Path, include_dirs: List[
     key = hashlib.sha256("\n".join(key_items).encode("utf-8")).hexdigest()[:16]
     tag = sysconfig.get_config_var("SOABI") or f"cp{sys.version_info[0]}{sys.version_info[1]}"
     return root / f"{tag}-{key}"
+
+
+def check_posix_load(library_file: Path) -> Path:
+    """
+    Load the library on Linux and macOS, the counterpart of check_windows_load: NVC and GHDL
+    only report that they could not load it ("cannot load VHPIDIRECT shared library"), without
+    the reason the loader gives, for example a missing libpython. check_exec_mount reports the
+    noexec case more clearly before the library is built. The FLI variant cannot be checked
+    this way, it needs the symbols of vsim.
+    """
+    import ctypes  # pylint: disable=import-outside-toplevel
+
+    try:
+        ctypes.CDLL(str(library_file))
+    except OSError as exc:
+        raise PythonBridgeError(f"The Python bridge library {library_file!s} does not load: {exc}") from exc
+    return library_file
 
 
 def check_exec_mount(directory: Path) -> None:

@@ -790,6 +790,20 @@ class TestPosixBuildAndCache(unittest.TestCase):
                 self._setup()
         run_mock.assert_not_called()
 
+    def test_library_that_does_not_load_raises_with_the_loader_error(self):
+        # The simulators hide why they could not load it. A fresh library directory holds the
+        # broken library, since a library loaded before is not loaded again.
+        built = self._setup().library_file
+        broken_dir = self.tempdir / "broken"
+        broken = broken_dir / built.relative_to(self.tempdir / "cache")
+        broken.parent.mkdir(parents=True)
+        broken.write_bytes(b"not a shared library")
+        with mock.patch.dict(os.environ, {native_library.LIBRARY_DIR_VARIABLE: str(broken_dir)}):
+            with self.assertRaisesRegex(
+                native_library.PythonBridgeError, f"{re.escape(str(broken))} does not load: .+"
+            ):
+                self._setup()
+
     def test_library_exports_exactly_the_contract(self):
         nm = shutil.which("nm")
         if nm is None:
@@ -849,7 +863,8 @@ class TestPosixBuildAndCache(unittest.TestCase):
 
     def test_vhpidirect_variant_omits_the_front_end(self):
         calls = []
-        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)):
+        # The stub compiler writes no real library
+        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)), mock.patch("ctypes.CDLL"):
             library_file = native_library.prepare_library(self.tempdir / "out")
         self.assertEqual(library_file.name, "libvunit_python_bridge.so")
         self.assertNotIn(str(native_library.NATIVE_PATH / "fli.c"), calls[0])
@@ -857,7 +872,8 @@ class TestPosixBuildAndCache(unittest.TestCase):
     def test_fli_and_vhpidirect_variants_are_cached_separately(self):
         prefix = self._fake_simulator_prefix()
         calls = []
-        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)):
+        # The stub compiler writes no real library
+        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)), mock.patch("ctypes.CDLL"):
             vhpidirect = native_library.prepare_library(self.tempdir / "out")
             fli = native_library.prepare_library(self.tempdir / "out", prefix)
         self.assertEqual(len(calls), 2)

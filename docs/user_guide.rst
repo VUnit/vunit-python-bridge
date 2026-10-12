@@ -1025,11 +1025,13 @@ Library directory
   The setup also fails, asking for the variable to be set, when the simulator
   could not load the library from the directory: on Linux and macOS when it is
   on a file system mounted ``noexec``, and on Windows when an execution policy
-  (AppLocker, Windows Defender Application Control) blocks the library there. The directory can be
-  shared by projects since every build has a directory named after what it was
-  built from. The configuration of a project stays in
-  ``<output path>/python_bridge`` and the simulator hooks pass its path to the
-  library in ``VUNIT_PYTHON_BRIDGE_CONFIG``.
+  (AppLocker, Windows Defender Application Control) blocks the library there.
+  Any other reason the library does not load, for example a missing
+  ``libpython``, fails the setup with the reason the system gives, which the
+  simulators leave out. The directory can be shared by projects since every
+  build has a directory named after what it was built from. The configuration
+  of a project stays in ``<output path>/python_bridge`` and the simulator hooks
+  pass its path to the library in ``VUNIT_PYTHON_BRIDGE_CONFIG``.
 
 The bridge uses the full (version specific) CPython ABI rather than the
 Stable ABI since embedding the interpreter in the environment VUnit runs in
