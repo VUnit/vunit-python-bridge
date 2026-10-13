@@ -1,0 +1,21 @@
+name: 'lint'
+
+# Lints the Python code with ruff, configured in pyproject.toml.
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+
+  ruff:
+    runs-on: ubuntu-24.04
+    name: '🧹 ruff'
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '🧹 ruff check'
+      run: pipx run ruff==0.17.0 check --output-format=github
