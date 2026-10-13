@@ -1004,12 +1004,9 @@ class TestLibraryDirectory(unittest.TestCase):
             self._directory("linux", {native_library.LIBRARY_DIR_VARIABLE: "/exec/ok"}), Path("/exec/ok").absolute()
         )
 
-    def test_default_is_the_cache_of_the_user(self):
-        self.assertEqual(self._directory("linux", {}), Path("/home/user/.cache/vunit-python-bridge"))
-        self.assertEqual(self._directory("linux", {"XDG_CACHE_HOME": "/xdg"}), Path("/xdg/vunit-python-bridge"))
-        self.assertEqual(self._directory("darwin", {}), Path("/home/user/Library/Caches/vunit-python-bridge"))
-        self.assertEqual(self._directory("win32", {"LOCALAPPDATA": "/local"}), Path("/local/vunit-python-bridge"))
-        self.assertEqual(self._directory("win32", {}), Path("/home/user/AppData/Local/vunit-python-bridge"))
+    def test_default_is_a_directory_in_the_home_directory(self):
+        for platform in ("linux", "darwin", "win32"):
+            self.assertEqual(self._directory(platform, {}), Path("/home/user/.vunit-python-bridge"), platform)
 
 
 class TestWindowsLoadCheck(unittest.TestCase):

@@ -57,19 +57,13 @@ def check_python_build() -> None:
 
 def library_directory() -> Path:
     """
-    Where the bridge libraries are built or copied: VUNIT_PYTHON_BRIDGE_LIBRARY_DIR, else the
-    cache directory of the user, since the VUnit output path may not allow executing them.
+    Where the bridge libraries are built or copied: VUNIT_PYTHON_BRIDGE_LIBRARY_DIR, else
+    ~/.vunit-python-bridge, since the VUnit output path may not allow executing them.
     """
     configured = os.environ.get(LIBRARY_DIR_VARIABLE)
     if configured:
         return Path(configured).absolute()
-    if sys.platform == "win32":
-        cache = os.environ.get("LOCALAPPDATA") or str(Path.home() / "AppData" / "Local")
-    elif sys.platform == "darwin":
-        cache = str(Path.home() / "Library" / "Caches")
-    else:
-        cache = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    return Path(cache) / "vunit-python-bridge"
+    return Path.home() / ".vunit-python-bridge"
 
 
 def prepare_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path:

@@ -1014,10 +1014,9 @@ Windows
 
 Library directory
   The libraries are built or copied to a directory of their own rather than to the
-  VUnit output path, which may not allow executing files: the cache directory
-  of the user (``~/.cache/vunit-python-bridge``, or under ``XDG_CACHE_HOME``,
-  on Linux, ``~/Library/Caches/vunit-python-bridge`` on macOS and
-  ``%LOCALAPPDATA%\vunit-python-bridge`` on Windows). The environment
+  VUnit output path, which may not allow executing files:
+  ``~/.vunit-python-bridge`` in the home directory of the user, on every
+  platform (``%USERPROFILE%\.vunit-python-bridge`` on Windows). The environment
   variable ``VUNIT_PYTHON_BRIDGE_LIBRARY_DIR`` selects another directory on
   every platform. When the directory cannot be written, e.g. a read-only home
   directory in a container, the setup fails and asks for the variable to be
