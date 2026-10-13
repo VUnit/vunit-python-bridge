@@ -276,16 +276,9 @@ package python_pkg is
   -- sys.path so that it can import its siblings.
   procedure exec_file(file_name : string; session : python_session_t := default_session);
 
-  -- The absolute directory set by vunit_python_bridge.set_relative_file_base()
-  -- in the run script, or by the environment variable
-  -- VUNIT_PYTHON_BRIDGE_FILE_BASE, for file names that must not depend on the
-  -- testbench, for example those of a verification component, which can use it
-  -- at any time, before test_runner_setup too:
-  --
-  --   exec_file(join(base_path, "vc/models/uart_model.py"));
-  --
-  -- Without a directory set it is reported as a failure on python_logger and
-  -- "" is returned.
+  -- The absolute base directory, set by vunit_python_bridge.set_relative_file_base()
+  -- or VUNIT_PYTHON_BRIDGE_FILE_BASE. Without one, a failure is reported on
+  -- python_logger and "" is returned.
   impure function base_path return string;
 end package;
 

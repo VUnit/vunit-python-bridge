@@ -772,9 +772,8 @@ begin
     wait;
   end process;
 
-  -- A component whose behaviour is a Python function. Its model file is relative
-  -- to the base directory, the directory of run.py, set in run.py.
+  -- A component whose behaviour is a Python function
   python_model_inst : entity work.python_model
-    generic map(model_file => "python_model.py")  -- <base directory>/python_model.py
+    generic map(model_file => "python_model.py")
     port map(x => model_x, y => model_y);
 end;

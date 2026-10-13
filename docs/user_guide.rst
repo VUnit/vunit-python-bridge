@@ -637,7 +637,7 @@ How a file name is resolved
        directory of the simulator. See the warning below.
    * - Python module imported by name, ``import model``
      - ``sys.path``, which holds the directory of the run script first, like
-       ``python run.py`` does (not on Riviera-PRO/Active-HDL), the directories of ``PYTHONPATH`` (the
+       ``python run.py`` does, the directories of ``PYTHONPATH`` (the
        simulator inherits the environment of VUnit, so a ``PYTHONPATH`` set
        in the run script before ``vu.main()`` is seen), and, while
        ``exec_file`` executes a file, the directory of that file.
@@ -703,10 +703,7 @@ in the run script before ``vu.main()``:
 .. code-block:: python
 
     # project/vc/models on sys.path of the simulator
-    models = Path(__file__).parent / "vc" / "models"
-    # Drop empty entries: Python reads an empty PYTHONPATH entry as the working directory
-    paths = [str(models)] + [p for p in os.environ.get("PYTHONPATH", "").split(os.pathsep) if p]
-    os.environ["PYTHONPATH"] = os.pathsep.join(paths)
+    os.environ["PYTHONPATH"] = str(Path(__file__).parent / "vc" / "models")
 
 .. code-block:: vhdl
 
@@ -779,9 +776,7 @@ names to with ``join`` of VUnit's ``path`` package, which ``vunit_context``
 includes, the same way as ``tb_path(runner_cfg)``. It is a function without
 arguments: the base directory is a constant of a package generated when the
 package is set up, so it can be used at any time, before ``test_runner_setup``
-too, and on every simulator. On Riviera-PRO/Active-HDL, where ``exec_file`` is
-not supported, use it with ``import_module_from_file`` or for file names passed
-to a model. Without a base directory ``base_path`` is reported as a failure on
+too. Without a base directory ``base_path`` is reported as a failure on
 ``python_logger``, naming both ways of setting it, and returns ``""``.
 ``base_path`` serves any file name passed to a Python model, not only those of
 ``exec_file`` and ``import_module_from_file``, whose own relative file names
