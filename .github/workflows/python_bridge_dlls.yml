@@ -12,7 +12,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        py: ['3.10', '3.11', '3.12', '3.13', '3.14']
+        py: ['3.10', '3.11', '3.12', '3.13', '3.14', '3.15']
     name: '🟦 MSVC · bridge DLL · Python ${{ matrix.py }}'
     steps:
 
@@ -54,7 +54,7 @@ jobs:
         path: dlls
 
     - name: '🔍 Check DLLs'
-      run: test "$(ls dlls/*.dll | wc -l)" = 5
+      run: test "$(ls dlls/*.dll | wc -l)" = 6
 
     - name: '📤 Upload DLLs'
       uses: actions/upload-artifact@v4

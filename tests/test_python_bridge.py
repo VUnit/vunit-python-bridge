@@ -919,7 +919,7 @@ class TestWindowsDllSelection(unittest.TestCase):
     """
 
     def test_windows_dll_name_for_supported_versions(self):
-        for minor in range(10, 15):
+        for minor in range(10, 16):
             with mock.patch("sys.version_info", (3, minor)):
                 self.assertEqual(native_library.windows_dll_name(), f"vunit_python_bridge-cp3{minor}-win_amd64.dll")
 
