@@ -1,6 +1,7 @@
 name: 'lint'
 
-# Lints the Python code with ruff, configured in pyproject.toml.
+# Lints the Python code with ruff, configured in pyproject.toml, and checks the license
+# headers of the source files.
 
 on:
   push:
@@ -9,9 +10,9 @@ on:
 
 jobs:
 
-  ruff:
+  lint:
     runs-on: ubuntu-24.04
-    name: '🧹 ruff'
+    name: '🧹 ruff · license headers'
     steps:
 
     - name: '🧰 Checkout'
@@ -19,3 +20,8 @@ jobs:
 
     - name: '🧹 ruff check'
       run: pipx run ruff==0.17.0 check --output-format=github
+
+    # Also when ruff fails, so that one run reports both
+    - name: '📜 License headers'
+      if: ${{ !cancelled() }}
+      run: python3 tools/check_license_headers.py
