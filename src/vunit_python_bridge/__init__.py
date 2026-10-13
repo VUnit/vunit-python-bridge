@@ -34,8 +34,11 @@ environment variable ``VUNIT_PYTHON_BRIDGE_FILE_BASE`` sets it too, and takes pr
 
 from pathlib import Path
 
-# set_relative_file_base and FILE_BASE_VARIABLE are public: run scripts use them
-from .file_base import FILE_BASE_VARIABLE, add_file_base_package, set_relative_file_base
+from .file_base import add_file_base_package
+
+# Public: run scripts use them
+from .file_base import FILE_BASE_VARIABLE as FILE_BASE_VARIABLE
+from .file_base import set_relative_file_base as set_relative_file_base
 
 VHDL_PATH = Path(__file__).parent.resolve() / "hdl" / "src"
 
