@@ -32,6 +32,9 @@ BINARY_PATH = PACKAGE_PATH / "bin"
 # Front end only compiled into the FLI variant of the library
 FLI_SOURCE_NAME = "fli.c"
 
+# Directory of the bridge libraries, overriding the default of library_directory()
+LIBRARY_DIR_VARIABLE = "VUNIT_PYTHON_BRIDGE_LIBRARY_DIR"
+
 
 class PythonBridgeError(RuntimeError):
     """
@@ -52,6 +55,17 @@ def check_python_build() -> None:
         raise PythonBridgeError(f"VHDL Python support requires CPython, not {sys.implementation.name}")
 
 
+def library_directory() -> Path:
+    """
+    Where the bridge libraries are built or copied: VUNIT_PYTHON_BRIDGE_LIBRARY_DIR, else
+    ~/.vunit-python-bridge, since the VUnit output path may not allow executing them.
+    """
+    configured = os.environ.get(LIBRARY_DIR_VARIABLE)
+    if configured:
+        return Path(configured).absolute()
+    return Path.home() / ".vunit-python-bridge"
+
+
 def prepare_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path:
     """
     Path of the bridge library for the running Python, built or selected under root.
@@ -65,8 +79,42 @@ def prepare_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path
         add_python_dll_to_path()
         if simulator_prefix is not None:
             return _build_windows_library(root, simulator_prefix)
-        return _prepare_windows_library(root)
-    return _prepare_posix_library(root, simulator_prefix)
+        return check_windows_load(_prepare_windows_library(root))
+    if simulator_prefix is not None:
+        return _prepare_posix_library(root, simulator_prefix)
+    return check_posix_load(_prepare_posix_library(root))
+
+
+# Windows errors of a library that an execution policy (AppLocker, Windows Defender Application
+# Control, Smart App Control) keeps from loading: ERROR_ACCESS_DISABLED_BY_POLICY,
+# ERROR_INVALID_IMAGE_HASH and ERROR_SYSTEM_INTEGRITY_POLICY_VIOLATION
+_WINDOWS_POLICY_ERRORS = (1260, 577, 4551)
+
+
+def check_windows_load(library_file: Path) -> Path:
+    """
+    Load the library on Windows, the counterpart of check_exec_mount: there is no noexec mount
+    there, but an execution policy can block libraries in a directory, and the simulator then
+    only reports that it failed to load it. The FLI variant cannot be checked this way, it needs
+    the libraries of vsim.
+    """
+    import ctypes  # pylint: disable=import-outside-toplevel
+
+    try:
+        # winmode=0: the search order of LoadLibrary, which the simulators use, rather than the
+        # stricter default of ctypes, which leaves out dependencies found through PATH
+        library = ctypes.CDLL(str(library_file), winmode=0)
+    except OSError as exc:
+        if getattr(exc, "winerror", None) in _WINDOWS_POLICY_ERRORS:
+            raise PythonBridgeError(
+                f"The Python bridge library is in {library_file.parent!s}, where an execution policy "
+                f"of Windows blocks loading it ({exc}), so the simulator cannot load it. "
+                f"Set {LIBRARY_DIR_VARIABLE} to a directory the policy allows libraries in."
+            ) from exc
+        raise PythonBridgeError(f"The Python bridge library {library_file!s} does not load: {exc}") from exc
+    # Unloaded again, so the file is not kept open while VUnit runs
+    ctypes.windll.kernel32.FreeLibrary(ctypes.c_void_p(library._handle))  # type: ignore[attr-defined]
+    return library_file
 
 
 def windows_dll_name() -> str:
@@ -303,6 +351,36 @@ def _posix_cache_directory(root: Path, python_library: Path, include_dirs: List[
     return root / f"{tag}-{key}"
 
 
+def check_posix_load(library_file: Path) -> Path:
+    """
+    Load the library on Linux and macOS, the counterpart of check_windows_load: NVC and GHDL
+    only report that they could not load it ("cannot load VHPIDIRECT shared library"), without
+    the reason the loader gives, for example a missing libpython. check_exec_mount reports the
+    noexec case more clearly before the library is built. The FLI variant cannot be checked
+    this way, it needs the symbols of vsim.
+    """
+    import ctypes  # pylint: disable=import-outside-toplevel
+
+    try:
+        ctypes.CDLL(str(library_file))
+    except OSError as exc:
+        raise PythonBridgeError(f"The Python bridge library {library_file!s} does not load: {exc}") from exc
+    return library_file
+
+
+def check_exec_mount(directory: Path) -> None:
+    """
+    Reject a directory on a noexec mount, e.g. a tmpfs in a container: the simulator cannot load
+    a library from there and only reports that it failed to, without the reason.
+    """
+    if os.statvfs(directory).f_flag & getattr(os, "ST_NOEXEC", 0):
+        raise PythonBridgeError(
+            f"The Python bridge library is built in {directory!s}, which is on a file system mounted "
+            f"noexec, so the simulator cannot load it. Set {LIBRARY_DIR_VARIABLE} to a directory on a "
+            "file system without noexec."
+        )
+
+
 def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None) -> Path:
     """
     Compile the bridge for the running Python, reusing a cached build when possible.
@@ -320,11 +398,12 @@ def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None) 
     name = "libvunit_python_bridge_fli.so" if fli else "libvunit_python_bridge.so"
     directory = _posix_cache_directory(root, python_library, include_dirs)
     library_file = directory / name
+    directory.mkdir(parents=True, exist_ok=True)
+    check_exec_mount(directory)
     if library_file.is_file():
         return library_file
 
     compiler = _compiler()
-    directory.mkdir(parents=True, exist_ok=True)
     tmp = directory / f"{name}.{os.getpid()}.tmp"
     cmd = (
         compiler

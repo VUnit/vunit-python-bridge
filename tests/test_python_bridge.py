@@ -35,6 +35,17 @@ PACKAGE_ROOT = Path(vunit_python_bridge.__file__).parent.resolve()
 MANIFEST = PACKAGE_ROOT / "vunit_pkg.toml"
 
 
+def setUpModule():  # pylint: disable=invalid-name
+    """
+    Build the bridge libraries in a temporary directory, not in the cache of the user.
+    """
+    library_dir = tempfile.TemporaryDirectory()  # pylint: disable=consider-using-with
+    unittest.addModuleCleanup(library_dir.cleanup)
+    environment = mock.patch.dict(os.environ, {native_library.LIBRARY_DIR_VARIABLE: library_dir.name})
+    environment.start()
+    unittest.addModuleCleanup(environment.stop)
+
+
 @contextmanager
 def create_tempdir():
     """
@@ -260,6 +271,7 @@ class TestPackageSetup(unittest.TestCase):
     def _fake_bridge(self):
         return bridge_setup.PythonBridge(
             library_file=Path("/fake/cache/libvunit_python_bridge.so"),
+            config_file=Path("/fake/out/python_bridge/vunit_python_bridge.cfg"),
             vhdl_files=[
                 Path("/fake/out/python_bridge/vhdl/python_bridge_pkg.vhd"),
                 bridge_setup.VHDL_SOURCE_PATH / "python_ffi_pkg_bridge.vhd",
@@ -315,8 +327,9 @@ class TestPackageSetup(unittest.TestCase):
         self.assertIsNotNone(context.hooks["ghdl"]["elab_flags"])
         self.assertIsNotNone(context.hooks["ghdl"]["run_env"])
         self.assertIsNotNone(context.hooks["modelsim"]["process_flags"])
-        # Questa finds the library by the absolute path in its FLI attributes
-        self.assertIsNone(context.hooks["modelsim"]["run_env"])
+        # Every simulator is told where the configuration of the project is
+        for simulator in ("nvc", "ghdl", "modelsim"):
+            self.assertIsNotNone(context.hooks[simulator]["run_env"], simulator)
 
     def test_bridge_setup_failure_is_reported(self):
         context = self._context(self._simulator("nvc"))
@@ -376,7 +389,11 @@ class TestRelativeFileBase(unittest.TestCase):
         simulator = mock.Mock()
         simulator.name = name
         context = _FakeContext(simulator, self.tempdir / "out", self.run_script, "/sim/bin")
-        fake_bridge = bridge_setup.PythonBridge(library_file=Path("/fake/libvunit_python_bridge.so"), vhdl_files=[])
+        fake_bridge = bridge_setup.PythonBridge(
+            library_file=Path("/fake/libvunit_python_bridge.so"),
+            config_file=Path("/fake/vunit_python_bridge.cfg"),
+            vhdl_files=[],
+        )
         with (
             mock.patch("vunit_python_bridge.bridge.setup", return_value=fake_bridge),
             mock.patch("vunit_python_bridge.foreign_application.setup_vhpi_application"),
@@ -654,6 +671,9 @@ class TestPosixBuildAndCache(unittest.TestCase):
         self.tempdir = self.tempdir_cm.__enter__()
         self.addCleanup(self.tempdir_cm.__exit__, None, None, None)
         self.run_script = _write_run_script(self.tempdir / "run.py")
+        environment = mock.patch.dict(os.environ, {native_library.LIBRARY_DIR_VARIABLE: str(self.tempdir / "cache")})
+        environment.start()
+        self.addCleanup(environment.stop)
 
     def _setup(self, output_path=None):
         return bridge_setup.setup(output_path or self.tempdir / "out", self.run_script)
@@ -732,6 +752,58 @@ class TestPosixBuildAndCache(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "free-threaded"):
                 self._setup()
 
+    def _unwritable_directory(self):
+        """
+        A directory that cannot be created, also when running as root: its parent is a file.
+        """
+        blocker = self.tempdir / "blocker"
+        blocker.write_text("", encoding="utf-8")
+        return blocker / "cache"
+
+    def test_unwritable_default_directory_fails_pointing_to_the_variable(self):
+        os.environ.pop(native_library.LIBRARY_DIR_VARIABLE)
+        with mock.patch("vunit_python_bridge.bridge.library_directory", return_value=self._unwritable_directory()):
+            with self.assertRaisesRegex(
+                native_library.PythonBridgeError, r"blocker.*\(the default\).*Set VUNIT_PYTHON_BRIDGE_LIBRARY_DIR"
+            ):
+                self._setup()
+
+    def test_unwritable_directory_set_by_the_user_fails(self):
+        os.environ[native_library.LIBRARY_DIR_VARIABLE] = str(self._unwritable_directory())
+        with mock.patch("subprocess.run") as run_mock:
+            with self.assertRaisesRegex(
+                native_library.PythonBridgeError, r"blocker.*\(set by VUNIT_PYTHON_BRIDGE_LIBRARY_DIR\)"
+            ):
+                self._setup()
+        run_mock.assert_not_called()
+
+    @unittest.skipUnless(hasattr(os, "ST_NOEXEC"), "no noexec mount flag on this platform")
+    def test_noexec_output_path_raises_before_compiling(self):
+        real_statvfs = os.statvfs
+
+        def fake_statvfs(path):
+            result = real_statvfs(path)
+            return mock.Mock(f_flag=result.f_flag | os.ST_NOEXEC)
+
+        with mock.patch("os.statvfs", side_effect=fake_statvfs), mock.patch("subprocess.run") as run_mock:
+            with self.assertRaisesRegex(native_library.PythonBridgeError, "noexec.*VUNIT_PYTHON_BRIDGE_LIBRARY_DIR"):
+                self._setup()
+        run_mock.assert_not_called()
+
+    def test_library_that_does_not_load_raises_with_the_loader_error(self):
+        # The simulators hide why they could not load it. A fresh library directory holds the
+        # broken library, since a library loaded before is not loaded again.
+        built = self._setup().library_file
+        broken_dir = self.tempdir / "broken"
+        broken = broken_dir / built.relative_to(self.tempdir / "cache")
+        broken.parent.mkdir(parents=True)
+        broken.write_bytes(b"not a shared library")
+        with mock.patch.dict(os.environ, {native_library.LIBRARY_DIR_VARIABLE: str(broken_dir)}):
+            with self.assertRaisesRegex(
+                native_library.PythonBridgeError, f"{re.escape(str(broken))} does not load: .+"
+            ):
+                self._setup()
+
     def test_library_exports_exactly_the_contract(self):
         nm = shutil.which("nm")
         if nm is None:
@@ -791,7 +863,8 @@ class TestPosixBuildAndCache(unittest.TestCase):
 
     def test_vhpidirect_variant_omits_the_front_end(self):
         calls = []
-        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)):
+        # The stub compiler writes no real library
+        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)), mock.patch("ctypes.CDLL"):
             library_file = native_library.prepare_library(self.tempdir / "out")
         self.assertEqual(library_file.name, "libvunit_python_bridge.so")
         self.assertNotIn(str(native_library.NATIVE_PATH / "fli.c"), calls[0])
@@ -799,7 +872,8 @@ class TestPosixBuildAndCache(unittest.TestCase):
     def test_fli_and_vhpidirect_variants_are_cached_separately(self):
         prefix = self._fake_simulator_prefix()
         calls = []
-        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)):
+        # The stub compiler writes no real library
+        with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)), mock.patch("ctypes.CDLL"):
             vhpidirect = native_library.prepare_library(self.tempdir / "out")
             fli = native_library.prepare_library(self.tempdir / "out", prefix)
         self.assertEqual(len(calls), 2)
@@ -889,8 +963,9 @@ class TestConfigFile(unittest.TestCase):
             run_script = _write_run_script(tempdir / "run.py")
             fake_library_file = tempdir / "cache" / "libvunit_python_bridge.so"
             with mock.patch("vunit_python_bridge.bridge.prepare_library", return_value=fake_library_file):
-                bridge_setup.setup(tempdir / "out", run_script)
-            config = (fake_library_file.parent / bridge_setup.CONFIG_FILE_NAME).read_text(encoding="utf-8")
+                bridge = bridge_setup.setup(tempdir / "out", run_script)
+            self.assertEqual(bridge.config_file, tempdir / "out" / "python_bridge" / bridge_setup.CONFIG_FILE_NAME)
+            config = bridge.config_file.read_text(encoding="utf-8")
             keys = _config_keys(config)
             self.assertEqual(keys["run_script_dir"], str(tempdir.resolve()))
 
@@ -909,6 +984,71 @@ class TestConfigFile(unittest.TestCase):
         with mock.patch("sys.executable", "/usr/bin/py\nthon"):
             with self.assertRaisesRegex(RuntimeError, "line breaks"):
                 bridge_setup._config_text("/run/script/dir")  # pylint: disable=protected-access
+
+
+class TestLibraryDirectory(unittest.TestCase):
+    """
+    Where the bridge libraries are built or copied.
+    """
+
+    def _directory(self, platform, environment):
+        with (
+            mock.patch.dict(os.environ, environment, clear=True),
+            mock.patch("sys.platform", platform),
+            mock.patch("pathlib.Path.home", return_value=Path("/home/user")),
+        ):
+            return native_library.library_directory()
+
+    def test_variable_overrides_the_default(self):
+        self.assertEqual(
+            self._directory("linux", {native_library.LIBRARY_DIR_VARIABLE: "/exec/ok"}), Path("/exec/ok").absolute()
+        )
+
+    def test_default_is_a_directory_in_the_home_directory(self):
+        for platform in ("linux", "darwin", "win32"):
+            self.assertEqual(self._directory(platform, {}), Path("/home/user/.vunit-python-bridge"), platform)
+
+
+class TestWindowsLoadCheck(unittest.TestCase):
+    """
+    The Windows check that the library loads from its directory, with ctypes mocked. On Linux and
+    macOS, TestPosixBuildAndCache tests the noexec check (test_noexec_output_path_raises_before_compiling)
+    and the load check (test_library_that_does_not_load_raises_with_the_loader_error).
+    """
+
+    @staticmethod
+    def _failing_load(winerror):
+        exc = OSError(f"[WinError {winerror}] blocked")
+        exc.winerror = winerror  # only set by Windows itself
+        return mock.patch("ctypes.CDLL", side_effect=exc)
+
+    def test_library_blocked_by_an_execution_policy_points_to_the_variable(self):
+        for winerror in (1260, 577, 4551):
+            with self._failing_load(winerror):
+                with self.assertRaisesRegex(
+                    native_library.PythonBridgeError,
+                    f"execution policy.*WinError {winerror}.*VUNIT_PYTHON_BRIDGE_LIBRARY_DIR",
+                ):
+                    native_library.check_windows_load(Path("C:/lib/dir/vunit_python_bridge.dll"))
+
+    def test_other_load_failure_is_reported_with_the_reason(self):
+        with self._failing_load(126):
+            with self.assertRaisesRegex(native_library.PythonBridgeError, "vunit_python_bridge.dll does not load.*126"):
+                native_library.check_windows_load(Path("C:/lib/dir/vunit_python_bridge.dll"))
+
+    def test_loaded_library_is_unloaded_again(self):
+        kernel32 = mock.Mock()
+        with (
+            mock.patch("ctypes.CDLL") as cdll_mock,
+            mock.patch("ctypes.windll", mock.Mock(kernel32=kernel32), create=True),
+        ):
+            # A handle above the range of a C int, as 64-bit DLL handles are: FreeLibrary must get
+            # it as a pointer, a C int would truncate it
+            cdll_mock.return_value._handle = 2**32 + 0x1000
+            path = Path("C:/lib/dir/vunit_python_bridge.dll")
+            self.assertEqual(native_library.check_windows_load(path), path)
+        cdll_mock.assert_called_once_with(str(path), winmode=0)
+        self.assertEqual(kernel32.FreeLibrary.call_args.args[0].value, 2**32 + 0x1000)
 
 
 class TestWindowsDllSelection(unittest.TestCase):
@@ -1144,8 +1284,19 @@ class TestSimulatorHooks(unittest.TestCase):
     are given for a simulation of the project.
     """
 
+    config_file = Path("/out/python_bridge/vunit_python_bridge.cfg")
+
+    def test_every_simulator_is_told_where_the_configuration_is(self):
+        hooks = self._hooks(Path("/some/dir/libvunit_python_bridge.so"))
+        for simulator in ("nvc", "ghdl", "modelsim"):
+            env = {"KEPT": "1"}
+            result = hooks[simulator]["run_env"](self._ghdl("mcode"), env)
+            self.assertEqual(result[simulator_hooks.CONFIG_FILE_VARIABLE], str(self.config_file), simulator)
+            self.assertEqual(result["KEPT"], "1")
+            self.assertEqual(env, {"KEPT": "1"})
+
     def _hooks(self, library_file):
-        bridge = bridge_setup.PythonBridge(library_file=library_file, vhdl_files=[])
+        bridge = bridge_setup.PythonBridge(library_file=library_file, config_file=self.config_file, vhdl_files=[])
         context = _FakeContext(None, Path("/out"), Path("/run.py"))
         simulator_hooks.register(context, bridge)
         return context.hooks
@@ -1188,7 +1339,11 @@ class TestSimulatorHooks(unittest.TestCase):
         bridge_dir = Path("/some/dir")
         hooks = self._hooks(bridge_dir / "libvunit_python_bridge.so")
         for backend in ("llvm", "gcc"):
-            self.assertEqual(hooks["ghdl"]["elab_flags"](self._ghdl(backend)), [f"-Wl,-L{bridge_dir!s}"], backend)
+            self.assertEqual(
+                hooks["ghdl"]["elab_flags"](self._ghdl(backend)),
+                [f"-Wl,-L{bridge_dir!s}", f"-Wl,-Wl,-rpath,{bridge_dir!s}"],
+                backend,
+            )
 
     def test_ghdl_run_env_prepends_ld_library_path_without_mutating_input(self):
         bridge_dir = Path("/some/dir")
