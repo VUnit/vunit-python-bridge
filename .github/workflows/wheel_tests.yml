@@ -35,13 +35,17 @@ jobs:
         include:
           - { os: ubuntu-24.04, py: '3.10', sim: nvc }
           - { os: ubuntu-24.04, py: '3.14', sim: ghdl }
+          - { os: ubuntu-24.04, py: '3.15', sim: ghdl }
           - { os: macos-15, py: '3.14', sim: nvc }
+          - { os: macos-15, py: '3.15', sim: nvc }
           - { os: windows-latest, py: '3.10', sim: nvc }
           - { os: windows-latest, py: '3.11', sim: nvc }
           - { os: windows-latest, py: '3.12', sim: nvc }
           - { os: windows-latest, py: '3.13', sim: nvc }
           - { os: windows-latest, py: '3.14', sim: nvc }
+          - { os: windows-latest, py: '3.15', sim: nvc }
           - { os: windows-latest, py: '3.14', sim: ghdl }
+          - { os: windows-latest, py: '3.15', sim: ghdl }
     name: '🎡 Wheel · ${{ matrix.os }} · Python ${{ matrix.py }} · ${{ matrix.sim }}'
     env:
       VUNIT_SIMULATOR: ${{ matrix.sim }}

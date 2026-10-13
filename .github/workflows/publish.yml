@@ -83,7 +83,7 @@ jobs:
         python -m build --wheel
 
     # As in python_bridge.yml: the single wheel for every platform, with sources of
-    # every kind, the manifest, the five DLLs, no other binary, and the version that
+    # every kind, the manifest, the six DLLs, no other binary, and the version that
     # is being released.
     - name: '🔍 Check distribution content'
       run: |
@@ -96,10 +96,10 @@ jobs:
         for file in $(git ls-files src/vunit_python_bridge | grep -E '/(native|hdl/src)/|\.py$|\.toml$' | sed 's#^src/##'); do
           grep -qx "$file" wheel.txt || { echo "missing $file in the wheel"; exit 1; }
         done
-        # The five DLLs and no other binary
-        dlls='^vunit_python_bridge/bin/vunit_python_bridge-cp31[0-4]-win_amd64\.dll$'
-        test "$(grep -c "$dlls" wheel.txt)" = 5
-        test "$(grep -c '\.dll$' wheel.txt)" = 5
+        # The six DLLs and no other binary
+        dlls='^vunit_python_bridge/bin/vunit_python_bridge-cp31[0-5]-win_amd64\.dll$'
+        test "$(grep -c "$dlls" wheel.txt)" = 6
+        test "$(grep -c '\.dll$' wheel.txt)" = 6
         if grep -qE '\.(so|dylib|pyd)$' wheel.txt; then echo "the wheel has a binary"; exit 1; fi
         test -f "dist/vunit_python_bridge-${{ needs.version.outputs.version }}-py3-none-any.whl"
 
