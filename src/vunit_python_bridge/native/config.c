@@ -5,9 +5,10 @@
  *
  * Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
  *
- * Configuration file written by VUnit next to the bridge library. It tells
- * the bridge which Python to embed, where the runtime is and the base
- * directory of relative Python file names.
+ * Configuration file written by VUnit in the output path, named by the
+ * VUNIT_PYTHON_BRIDGE_CONFIG environment variable the simulator hooks set, or
+ * next to the bridge library. It tells the bridge which Python to embed, where
+ * the runtime is and the base directory of relative Python file names.
  */
 
 #include "bridge.h"
@@ -26,6 +27,7 @@
 #endif
 
 #define CONFIG_FILE_NAME "vunit_python_bridge.cfg"
+#define CONFIG_FILE_VARIABLE "VUNIT_PYTHON_BRIDGE_CONFIG"
 
 /* Return a malloc'ed UTF-8 path of the directory containing this library. */
 static char *get_library_directory(void) {
@@ -101,13 +103,46 @@ static FILE *open_utf8_path(const char *path) {
 #endif
 }
 
-/* The configuration file next to this library, opened for reading. */
-static FILE *open_config_file(void) {
-  char *directory = get_library_directory();
-  size_t directory_length;
+/* Return a malloc'ed UTF-8 copy of the configuration file variable, NULL when it is not set. */
+static char *get_config_variable(void) {
+#ifdef _WIN32
+  const wchar_t *value = _wgetenv(L"" CONFIG_FILE_VARIABLE);
+  int length;
   char *path;
+
+  if (value == NULL || value[0] == L'\0') {
+    return NULL;
+  }
+  length = WideCharToMultiByte(CP_UTF8, 0, value, -1, NULL, 0, NULL, NULL);
+  path = length > 0 ? (char *)malloc((size_t)length) : NULL;
+  if (path != NULL) {
+    WideCharToMultiByte(CP_UTF8, 0, value, -1, path, length, NULL, NULL);
+  }
+  return path;
+#else
+  const char *value = getenv(CONFIG_FILE_VARIABLE);
+  return value == NULL || value[0] == '\0' ? NULL : strdup(value);
+#endif
+}
+
+/* The configuration file of the project, opened for reading. */
+static FILE *open_config_file(void) {
+  char *directory;
+  size_t directory_length;
+  char *path = get_config_variable();
   FILE *file;
 
+  if (path != NULL) {
+    file = open_utf8_path(path);
+    if (file == NULL) {
+      vpy_set_error2("Failed to open the Python bridge configuration file named by " CONFIG_FILE_VARIABLE ": ", path);
+    }
+    free(path);
+    return file;
+  }
+
+  /* Without the variable, e.g. a simulation started outside VUnit: next to this library */
+  directory = get_library_directory();
   if (directory == NULL) {
     vpy_set_error("Failed to determine the location of the Python bridge library");
     return NULL;
@@ -126,7 +161,7 @@ static FILE *open_config_file(void) {
 
   file = open_utf8_path(path);
   if (file == NULL) {
-    vpy_set_error2("Failed to open the Python bridge configuration file ", path);
+    vpy_set_error2("Failed to open the Python bridge configuration file (" CONFIG_FILE_VARIABLE " is not set) ", path);
   }
   free(path);
   return file;

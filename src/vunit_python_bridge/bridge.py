@@ -16,10 +16,12 @@ from pathlib import Path
 from typing import List, NamedTuple, Optional
 
 from .native_library import (
+    LIBRARY_DIR_VARIABLE,
     PACKAGE_PATH,
     PythonBridgeError,
     check_python_build,
     check_windows_64bit_simulator,
+    library_directory,
     prepare_library,
     windows_python_dll,
 )
@@ -51,6 +53,7 @@ class PythonBridge(NamedTuple):
     """
 
     library_file: Path
+    config_file: Path
     vhdl_files: List[Path]
 
 
@@ -88,9 +91,12 @@ def setup(
         )
 
     root = Path(output_path) / "python_bridge"
-    library_file = prepare_library(root, Path(simulator_prefix) if is_fli else None)
+    library_file = _prepare_library(Path(simulator_prefix) if is_fli else None)
     run_script_dir = str(Path.cwd() if run_script_path is None else Path(run_script_path).resolve().parent)
-    _write_if_changed(library_file.parent / CONFIG_FILE_NAME, _config_text(run_script_dir))
+    # The configuration belongs to the project, the library may be shared. The simulator
+    # hooks tell the library where the configuration is.
+    config_file = root / CONFIG_FILE_NAME
+    _write_if_changed(config_file, _config_text(run_script_dir))
 
     # The foreign attribute string of an entry point: the name of its wrapper in native/fli.c
     # and the library, by absolute path since Questa accepts it, for the FLI; the VHPIDIRECT
@@ -105,11 +111,28 @@ def setup(
 
     return PythonBridge(
         library_file,
+        config_file,
         [
             bridge_package,
             VHDL_SOURCE_PATH / "python_ffi_pkg_bridge.vhd",
         ],
     )
+
+
+def _prepare_library(fli_prefix: Optional[Path]) -> Path:
+    """
+    Prepare the library in the library directory, failing with a pointer to the variable
+    selecting another one when it cannot be written, e.g. a read-only home directory.
+    """
+    directory = library_directory()
+    try:
+        return prepare_library(directory, fli_prefix)
+    except OSError as exc:
+        source = f"set by {LIBRARY_DIR_VARIABLE}" if os.environ.get(LIBRARY_DIR_VARIABLE) else "the default"
+        raise PythonBridgeError(
+            f"Cannot build the Python bridge library in {directory!s} ({source}): {exc}. "
+            f"Set {LIBRARY_DIR_VARIABLE} to a writable directory."
+        ) from exc
 
 
 def _vhpidirect_token(simulator_name, simulator_backend: Optional[str], library_file: Path) -> str:
