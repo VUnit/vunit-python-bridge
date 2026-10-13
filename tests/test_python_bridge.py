@@ -1011,7 +1011,9 @@ class TestLibraryDirectory(unittest.TestCase):
 
 class TestWindowsLoadCheck(unittest.TestCase):
     """
-    The Windows counterpart of the noexec check: loading the library, with ctypes mocked.
+    The Windows check that the library loads from its directory, with ctypes mocked. On Linux and
+    macOS, TestPosixBuildAndCache tests the noexec check (test_noexec_output_path_raises_before_compiling)
+    and the load check (test_library_that_does_not_load_raises_with_the_loader_error).
     """
 
     @staticmethod
@@ -1040,12 +1042,13 @@ class TestWindowsLoadCheck(unittest.TestCase):
             mock.patch("ctypes.CDLL") as cdll_mock,
             mock.patch("ctypes.windll", mock.Mock(kernel32=kernel32), create=True),
         ):
-            # A 64-bit handle, which FreeLibrary must get as a pointer rather than a C int
-            cdll_mock.return_value._handle = 0x7FF812340000
+            # A handle above the range of a C int, as 64-bit DLL handles are: FreeLibrary must get
+            # it as a pointer, a C int would truncate it
+            cdll_mock.return_value._handle = 2**32 + 0x1000
             path = Path("C:/lib/dir/vunit_python_bridge.dll")
             self.assertEqual(native_library.check_windows_load(path), path)
         cdll_mock.assert_called_once_with(str(path), winmode=0)
-        self.assertEqual(kernel32.FreeLibrary.call_args.args[0].value, 0x7FF812340000)
+        self.assertEqual(kernel32.FreeLibrary.call_args.args[0].value, 2**32 + 0x1000)
 
 
 class TestWindowsDllSelection(unittest.TestCase):
