@@ -29,7 +29,7 @@ else:
     import tomli as tomllib  # A dependency of VUnit before Python 3.11
 
 import vunit_python_bridge
-from vunit_python_bridge import bridge as bridge_setup, foreign_application, native_library, simulator_hooks
+from vunit_python_bridge import bridge as bridge_setup, file_base, foreign_application, native_library, simulator_hooks
 
 PACKAGE_ROOT = Path(vunit_python_bridge.__file__).parent.resolve()
 MANIFEST = PACKAGE_ROOT / "vunit_pkg.toml"
@@ -365,8 +365,8 @@ class TestRelativeFileBase(unittest.TestCase):
 
     @staticmethod
     def _reset():
-        vunit_python_bridge._relative_file_base = None  # pylint: disable=protected-access
-        vunit_python_bridge._setup_done = False  # pylint: disable=protected-access
+        file_base._relative_file_base = None  # pylint: disable=protected-access
+        file_base._setup_done = False  # pylint: disable=protected-access
 
     def _setup(self, name="nvc"):
         """
@@ -448,7 +448,7 @@ class TestRelativeFileBase(unittest.TestCase):
 
     def test_literal_encoding(self):
         # pylint: disable=protected-access
-        encode = vunit_python_bridge._vhdl_string_literal
+        encode = file_base._vhdl_string_literal
         self.assertEqual(encode(""), '""')
         self.assertEqual(encode('"'), '""""')
         # A string expression, not a lone character
@@ -471,7 +471,7 @@ class TestRelativeFileBase(unittest.TestCase):
         # The same directory by another name, compared resolved
         self._set_variable(self.tempdir / "." / "sub" / "..")
         (self.tempdir / "sub").mkdir()
-        with self.assertNoLogs(vunit_python_bridge.LOGGER):
+        with self.assertNoLogs(file_base.LOGGER):
             _, package = self._setup()
         self.assertEqual(self._constant(package), self._literal(self.tempdir))
 
@@ -480,7 +480,7 @@ class TestRelativeFileBase(unittest.TestCase):
         (self.tempdir / "variable").mkdir()
         vunit_python_bridge.set_relative_file_base(self.tempdir / "function")
         self._set_variable(self.tempdir / "variable")
-        with self.assertLogs(vunit_python_bridge.LOGGER, "WARNING") as logs:
+        with self.assertLogs(file_base.LOGGER, "WARNING") as logs:
             _, package = self._setup()
         self.assertEqual(self._constant(package), self._literal(self.tempdir / "variable"))
         self.assertEqual(len(logs.output), 1)
@@ -496,7 +496,7 @@ class TestRelativeFileBase(unittest.TestCase):
 
         self._reset()
         vunit_python_bridge.set_relative_file_base(self.tempdir)
-        with self.assertNoLogs(vunit_python_bridge.LOGGER):
+        with self.assertNoLogs(file_base.LOGGER):
             _, package = self._setup()
         self.assertEqual(self._constant(package), self._literal(self.tempdir))
 
@@ -523,7 +523,7 @@ class TestRelativeFileBase(unittest.TestCase):
         import importlib
 
         importlib.reload(vunit_python_bridge)
-        self.assertIsNone(vunit_python_bridge._relative_file_base)  # pylint: disable=protected-access
+        self.assertIsNone(file_base._relative_file_base)  # pylint: disable=protected-access
 
     def test_bridge_and_vhpi_add_the_package(self):
         for name in ("nvc", "ghdl", "modelsim", "rivierapro", "activehdl"):

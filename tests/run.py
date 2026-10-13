@@ -16,6 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 from vunit import VUnit, VUnitCLI
+from vunit_python_bridge import FILE_BASE_VARIABLE
 
 ROOT = Path(__file__).parent
 
@@ -40,9 +41,6 @@ EXPECTED_FAILURES_VHPI = [
 
 # Simulators where python_pkg is implemented by the VUnit Python bridge
 BRIDGE_SIMULATORS = ["nvc", "ghdl", "modelsim"]
-
-# The environment variable setting the base directory of base_path
-FILE_BASE_VARIABLE = "VUNIT_PYTHON_BRIDGE_FILE_BASE"
 
 
 def remote_test():
