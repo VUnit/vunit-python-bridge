@@ -33,6 +33,7 @@ begin
     constant duplicate_id : id_t := get_id("duplicate");
     constant session_id : id_t := get_id("session_first");
     constant broken_id : id_t := get_id("broken");
+    constant deferred_broken_id : id_t := get_id("deferred_broken");
     constant call_errors_id : id_t := get_id("call_errors");
     variable object, other : python_object_t;
     variable session : python_session_t;
@@ -72,8 +73,7 @@ begin
         check(bits = "00001000", "eval_std_ulogic_vector");
 
       elsif run("Test exec and get_logger of an object") then
-        object := new_python_object("models.counter_model.Counter", id => get_id("exec_test"));
-        create_now(object);
+        object := create_python_object("models.counter_model.Counter", id => get_id("exec_test"));
         check(get_id(get_session(object)) = get_id("exec_test"), "session of the object");
         exec(object, "self.count = 41");
         check_equal(integer'(call(object, "add", arg(1))), 42);
@@ -115,18 +115,16 @@ begin
         check(object = null_python_object, "no object for the identity of a session");
 
       elsif run("Test an object that cannot be created") then
-        object := new_python_object("models.no_such_module.Model", id => broken_id);
+        -- create_python_object reports it right away
         mock(get_logger(broken_id), failure);
-        create_now(object);
+        object := create_python_object("models.no_such_module.Model", id => broken_id);
         check_only_log(
           get_logger(broken_id),
-          "new_python_object(""models.no_such_module.Model"") failed:" & LF &
+          "create_python_object(""models.no_such_module.Model"") failed:" & LF &
           "ImportError: No class named 'models.no_such_module.Model': models has no attribute 'no_such_module'",
           failure
         );
         -- Reported once, then every use fails with the reason
-        create_now(object);
-        check_no_log;
         check_equal(integer'(call(object, "value")), integer'low);
         check_only_log(
           get_logger(broken_id),
@@ -136,6 +134,26 @@ begin
           failure
         );
         unmock(get_logger(broken_id));
+
+        -- new_python_object reports it at the first use, as new_python_object
+        mock(get_logger(deferred_broken_id), failure);
+        object := new_python_object("models.no_such_module.Model", id => deferred_broken_id);
+        check_no_log;
+        check_equal(integer'(call(object, "value")), integer'low);
+        check_log(
+          get_logger(deferred_broken_id),
+          "new_python_object(""models.no_such_module.Model"") failed:" & LF &
+          "ImportError: No class named 'models.no_such_module.Model': models has no attribute 'no_such_module'",
+          failure
+        );
+        check_only_log(
+          get_logger(deferred_broken_id),
+          "call(""value"") failed:" & LF &
+          "RuntimeError: The models.no_such_module.Model object could not be created: " &
+          "ImportError: No class named 'models.no_such_module.Model': models has no attribute 'no_such_module'",
+          failure
+        );
+        unmock(get_logger(deferred_broken_id));
 
       elsif run("Test that the call of a method is named in its errors") then
         object := new_python_object("models.counter_model.Counter", id => call_errors_id);

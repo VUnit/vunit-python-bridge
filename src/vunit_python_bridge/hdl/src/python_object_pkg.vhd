@@ -46,6 +46,13 @@ package python_object_pkg is
   impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
     return python_object_t;
 
+  -- Like new_python_object, but the object is constructed by this call rather
+  -- than on first use, so a wrong class or constructor argument is reported here.
+  -- Only in a process: Python cannot run during elaboration, so a constant or a
+  -- generic is made with new_python_object.
+  impure function create_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
+    return python_object_t;
+
   -- object when it is given, else a new object, like get_logger and get_id:
   -- the default backend of a verification component that can also be given one
   impure function get_python_object(
@@ -57,9 +64,6 @@ package python_object_pkg is
   impure function get_logger(object : python_object_t) return logger_t;
   -- The session of the object, in which it is bound to self
   impure function get_session(object : python_object_t) return python_session_t;
-
-  -- Create the object now rather than on first use
-  procedure create_now(object : python_object_t);
 
   -- Execute code in the session of the object, where it is self, like exec
   procedure exec(object : python_object_t; code : string);
@@ -206,9 +210,9 @@ package body python_object_pkg is
     return result;
   end;
 
-  impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
+  -- new_python_object and create_python_object, operation naming the one called
+  impure function p_new_python_object(class_name : string; args : arg_t; id : id_t; operation : string)
     return python_object_t is
-    constant operation : string := "new_python_object(""" & class_name & """)";
     variable object_id : id_t := id;
     variable data : integer_vector_ptr_t;
   begin
@@ -236,6 +240,12 @@ package body python_object_pkg is
     )));
     set(data, operation_idx, to_integer(new_string_ptr(operation)));
     return (p_data => data);
+  end;
+
+  impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
+    return python_object_t is
+  begin
+    return p_new_python_object(class_name, args, id, "new_python_object(""" & class_name & """)");
   end;
 
   impure function get_python_object(
@@ -274,9 +284,10 @@ package body python_object_pkg is
     return get_id(get_session(object));
   end;
 
-  -- A failure is reported once, as the failure of new_python_object, and the
-  -- object then raises it on every use
-  procedure create_now(object : python_object_t) is
+  -- Construct the object unless it is constructed. A failure is reported once, as
+  -- the failure of new_python_object or create_python_object, and the object
+  -- then raises it on every use.
+  procedure p_create(object : python_object_t) is
     variable ok : boolean;
   begin
     if p_is_null(object) then
@@ -292,13 +303,24 @@ package body python_object_pkg is
     end if;
   end;
 
+  impure function create_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
+    return python_object_t is
+    constant object : python_object_t :=
+      p_new_python_object(class_name, args, id, "create_python_object(""" & class_name & """)");
+  begin
+    if object /= null_python_object then
+      p_create(object);
+    end if;
+    return object;
+  end;
+
   -- Create the object if needed. False for null_python_object, which is reported.
   impure function p_created(object : python_object_t) return boolean is
   begin
     if object = null_python_object then
       return not p_is_null(object);
     end if;
-    create_now(object);
+    p_create(object);
     return true;
   end;
 

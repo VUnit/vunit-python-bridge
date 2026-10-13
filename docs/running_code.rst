@@ -62,14 +62,7 @@ with ``&``. The class is
   name defined there, like ``"np.ndarray"`` after ``exec("import numpy as np")``.
 
 A name that is neither, or that is not a class, is reported as an error of
-``new_python_object``.
-
-The constructor is called when the object is first used, not by
-``new_python_object``. An object can therefore be a constant or a generic,
-made during elaboration, and does not depend on the order of the processes or
-on ``test_runner_setup``. ``create_now`` calls the constructor right away:
-call it early in the test, for example after ``test_runner_setup``, to have a
-wrong constructor argument reported at the start rather than at the first call.
+the object.
 
 ``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
 ``exec(object, code)`` evaluate an expression and execute code in the session
@@ -77,6 +70,47 @@ of the object, where the object is ``self``. They have the same arguments,
 result types and aliases as ``call``, ``eval`` and ``exec``, including the
 procedure forms taking a ``std_ulogic_vector``, ``signed`` or ``unsigned``
 result as an ``out`` parameter.
+
+new_python_object or create_python_object
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both make an object and take the same arguments. They differ in when Python
+constructs it:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * -
+     - ``new_python_object``
+     - ``create_python_object``
+   * - Constructed
+     - On first use: the first ``call``, ``eval`` or ``exec``
+     - By the call itself
+   * - Use it for
+     - Constants, generics and the handles of verification components, made
+       during elaboration
+     - Variables in a process, for example in a test case
+   * - A wrong class or constructor argument
+     - Is reported at the first use
+     - Is reported by ``create_python_object``
+   * - During elaboration
+     - Works: nothing runs in Python
+     - Does not work: the simulator cannot run Python during elaboration
+
+Use ``new_python_object`` wherever the object is declared outside a process: a
+constant in an architecture or a package, a generic, or the record a
+verification component's constructor returns. Nothing happens in Python until
+the object is used, so it does not depend on the order of the processes or on
+``test_runner_setup``.
+
+Use ``create_python_object`` in a process when the object should exist, and
+its errors be reported, at a known point, for example when a test case starts:
+
+.. code-block:: vhdl
+
+    if run("Test a transfer") then
+      model := create_python_object("my_models.uart.UartModel", kwarg("baud", 115200));
 
 Identity
 ~~~~~~~~
@@ -240,7 +274,8 @@ Errors and limitations
   failed:`` for ``eval`` and ``exec(...) failed:`` for ``exec``, followed by
   the Python error.
 * An object that cannot be created, for example since its class is not
-  found, reports the error once, as ``new_python_object("<class>") failed:``.
+  found, reports the error once, as ``new_python_object("<class>") failed:``
+  or ``create_python_object("<class>") failed:``.
   Every later use of the object, calls and assignments alike, fails with
   ``The <class> object could not be created: <error>``.
 * The caveats of sessions apply: the module of a class, and any state kept in
