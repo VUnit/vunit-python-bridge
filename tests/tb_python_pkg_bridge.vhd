@@ -204,6 +204,19 @@ begin
         exec_file("models/reference_model.py");
         check_equal(call_string("get_model_dir"), join(tb_path(runner_cfg), "models"));
 
+      elsif run("Test base_path without a base directory") then
+        -- The run script of these tests sets no base directory
+        mock(python_logger, failure);
+        check_equal(base_path, "");
+        check_only_log(
+          python_logger,
+          "base_path failed: no base directory is set. " &
+          "Call vunit_python_bridge.set_relative_file_base() in the run script before add_package, " &
+          "or set the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE.",
+          failure
+        );
+        unmock(python_logger);
+
       elsif run("Test executing a file with an absolute file name") then
         exec_file(join(tb_path(runner_cfg), "models/reference_model.py"));
         check_equal(call_string("get_model_dir"), join(tb_path(runner_cfg), "models"));

@@ -28,6 +28,8 @@ import importlib.util
 from pathlib import Path
 from vunit import VUnit
 
+import vunit_python_bridge
+
 # Test, the module it imports and the package that provides it
 OPTIONAL_PACKAGES = [
     ("Test GUI browsing for input stimuli file", "PySimpleGUI", "PySimpleGUI"),
@@ -107,6 +109,12 @@ def main():
 
     vu = VUnit.from_argv()
     vu.add_vhdl_builtins()
+    # The base directory that base_path returns, which python_model uses to find its Python model at any
+    # time and from any testbench. It is the directory of this script rather than Path.cwd(), so
+    # the example runs from any working directory. A shared run script that cannot be changed can
+    # leave this out and have it set by the environment variable VUNIT_PYTHON_BRIDGE_FILE_BASE.
+    # It must be set before add_package.
+    vunit_python_bridge.set_relative_file_base(root)
     vu.add_package("vunit-python-bridge", allow_setup=True)
     vu.add_random()
     # The setup function of the package builds the foreign language application of the simulator
