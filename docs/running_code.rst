@@ -67,7 +67,9 @@ A name that is neither, or that is not a class, is reported as an error of
 The constructor is called when the object is first used, not by
 ``new_python_object``. An object can therefore be a constant or a generic,
 made during elaboration, and does not depend on the order of the processes or
-on ``test_runner_setup``. ``create_now`` calls the constructor right away.
+on ``test_runner_setup``. ``create_now`` calls the constructor right away:
+call it early in the test, for example after ``test_runner_setup``, to have a
+wrong constructor argument reported at the start rather than at the first call.
 
 ``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
 ``exec(object, code)`` evaluate an expression and execute code in the session
@@ -80,7 +82,8 @@ Identity
 ~~~~~~~~
 
 The ``id`` of an object names its session and its logger,
-``get_logger(object)``, which reports the errors of its operations. Without an
+``get_logger(object)``, which reports the errors of its operations. It is
+optional and mainly makes the log readable. Without an
 ``id``, objects are enumerated the way VUnit enumerates verification
 components: ``python_bridge:python:object:1``,
 ``python_bridge:python:object:2`` and so on. The session of an object must
@@ -88,6 +91,48 @@ be its own, so ``new_python_object`` with an identity already used by another
 object, or by a session made with ``new_session``, is reported as a failure on
 the logger of the identity and returns ``null_python_object``. Using
 ``null_python_object`` is reported as a failure on ``python_logger``.
+
+From a model with module state to an object
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A model loaded with ``exec_file`` and keeping its state in module globals is
+shared by everything that calls it. Move the state into a class and give every
+user an object:
+
+.. code-block:: python
+
+    # Before: packet_model.py, loaded with exec_file
+    _packets = []
+
+    def make_packets(seed, n):
+        ...
+
+    # After: the state belongs to the instance
+    class PacketSource:
+        def __init__(self, width):
+            self.width = width
+            self.packets = []
+
+        def make_packets(self, seed, n):
+            ...
+
+.. code-block:: vhdl
+
+    -- Before
+    exec_file("packet_model.py");
+    call("make_packets", arg(seed), arg(n));
+
+    -- After: one object per source, found by module name
+    constant source : python_object_t := new_python_object(
+      "packet_model.PacketSource", kwarg("width", 32)
+    );
+    ...
+    call(source, "make_packets", arg(seed), arg(n));
+
+The class is found by its module name, so its directory must be on
+``sys.path``, which for a model next to its testbench means adding that
+directory to ``PYTHONPATH`` in the run script: see
+:ref:`python_bridge:finding_code`.
 
 Backends of verification components
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

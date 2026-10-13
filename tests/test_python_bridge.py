@@ -212,6 +212,10 @@ class TestObjectCreation(unittest.TestCase):
         with self.assertRaisesRegex(ImportError, "No class named 'NoSuchModel': neither defined in the default"):
             self.handle.instantiate_as_self("NoSuchModel")
 
+    def test_a_missing_class_of_a_module_names_the_module(self):
+        with self.assertRaisesRegex(ImportError, "'json.JSONDecoderr': json has no attribute 'JSONDecoderr'"):
+            self.handle.instantiate_as_self("json.JSONDecoderr")
+
     def test_a_name_that_is_not_a_class_is_reported(self):
         with self.assertRaisesRegex(TypeError, "'os.getcwd' is not a class but a builtin_function_or_method"):
             self.handle.instantiate_as_self("os.getcwd")

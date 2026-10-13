@@ -136,7 +136,8 @@ def _resolve_class(class_name):
             raise ImportError(f"No class named {class_name!r}: neither defined in the default session nor importable")
     for attribute in attributes:
         if not hasattr(target, attribute):
-            raise ImportError(f"No class named {class_name!r}")
+            owner = getattr(target, "__name__", type(target).__name__)
+            raise ImportError(f"No class named {class_name!r}: {owner} has no attribute {attribute!r}")
         target = getattr(target, attribute)
     if not isinstance(target, type):
         raise TypeError(f"{class_name!r} is not a class but a {type(target).__name__}")

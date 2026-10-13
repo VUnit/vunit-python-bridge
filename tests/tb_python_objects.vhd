@@ -121,7 +121,7 @@ begin
         check_only_log(
           get_logger(broken_id),
           "new_python_object(""models.no_such_module.Model"") failed:" & LF &
-          "ImportError: No class named 'models.no_such_module.Model'",
+          "ImportError: No class named 'models.no_such_module.Model': models has no attribute 'no_such_module'",
           failure
         );
         -- Reported once, then every use fails with the reason
@@ -132,7 +132,7 @@ begin
           get_logger(broken_id),
           "call(""value"") failed:" & LF &
           "RuntimeError: The models.no_such_module.Model object could not be created: " &
-          "ImportError: No class named 'models.no_such_module.Model'",
+          "ImportError: No class named 'models.no_such_module.Model': models has no attribute 'no_such_module'",
           failure
         );
         unmock(get_logger(broken_id));
