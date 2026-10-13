@@ -6,10 +6,12 @@
 --
 
 library ieee;
+use ieee.std_logic_1164.all;
 use ieee.numeric_std.all;
 
 library vunit_lib;
 context vunit_lib.vunit_context;
+context vunit_lib.vc_context;
 
 library python_bridge;
 context python_bridge.python_context;
@@ -29,8 +31,14 @@ architecture tb of tb_python_objects is
 begin
   main : process
     constant duplicate_id : id_t := get_id("duplicate");
-    variable object : python_object_t;
+    constant session_id : id_t := get_id("session_first");
+    constant broken_id : id_t := get_id("broken");
+    constant call_errors_id : id_t := get_id("call_errors");
+    variable object, other : python_object_t;
+    variable session : python_session_t;
+    variable std_cfg, other_std_cfg : std_cfg_t;
     variable byte : unsigned(7 downto 0);
+    variable bits : std_ulogic_vector(7 downto 0);
   begin
     test_runner_setup(runner, runner_cfg);
 
@@ -57,10 +65,15 @@ begin
         check(integer_vector'(call(object, "history")) = (0, 1, 2, 3, 4, 5, 6));
         check_equal(length(call_integer_array(object, "history")), 7);
         check_true(eval_boolean(object, "self.count == 6"));
+        -- The eval procedures of an object
+        eval_unsigned(object, "self.count + 1", byte);
+        check(byte = 7, "eval_unsigned");
+        eval_std_ulogic_vector(object, "'0000' + '1000'", bits);
+        check(bits = "00001000", "eval_std_ulogic_vector");
 
       elsif run("Test exec and get_logger of an object") then
         object := new_python_object("models.counter_model.Counter", id => get_id("exec_test"));
-        create(object);
+        create_now(object);
         check(get_id(get_session(object)) = get_id("exec_test"), "session of the object");
         exec(object, "self.count = 41");
         check_equal(integer'(call(object, "add", arg(1))), 42);
@@ -73,17 +86,111 @@ begin
         -- Without an id, objects are enumerated like VUnit's verification components
         check_equal(find(full_name(get_id(object)), "python_bridge:python:object:"), 1);
 
-      elsif run("Test that two objects with the same identity fail") then
+      elsif run("Test that an identity used by another object or a session fails") then
         mock(get_logger(duplicate_id), failure);
         object := new_python_object("models.counter_model.Counter", id => duplicate_id);
         check_no_log;
         object := new_python_object("models.counter_model.Counter", id => duplicate_id);
         check_only_log(
           get_logger(duplicate_id),
-          "Two Python objects have the identity duplicate, give each one an id of its own",
+          "new_python_object(""models.counter_model.Counter"") failed:" & LF &
+          "The identity duplicate is already used by another Python object or session, " &
+          "give each object an id of its own.",
           failure
         );
         unmock(get_logger(duplicate_id));
+        check(object = null_python_object, "no object for a used identity");
+
+        session := new_session(session_id);
+        mock(get_logger(session_id), failure);
+        object := new_python_object("models.counter_model.Counter", id => session_id);
+        check_only_log(
+          get_logger(session_id),
+          "new_python_object(""models.counter_model.Counter"") failed:" & LF &
+          "The identity session_first is already used by another Python object or session, " &
+          "give each object an id of its own.",
+          failure
+        );
+        unmock(get_logger(session_id));
+        check(object = null_python_object, "no object for the identity of a session");
+
+      elsif run("Test an object that cannot be created") then
+        object := new_python_object("models.no_such_module.Model", id => broken_id);
+        mock(get_logger(broken_id), failure);
+        create_now(object);
+        check_only_log(
+          get_logger(broken_id),
+          "new_python_object(""models.no_such_module.Model"") failed:" & LF &
+          "ImportError: No class named 'models.no_such_module.Model'",
+          failure
+        );
+        -- Reported once, then every use fails with the reason
+        create_now(object);
+        check_no_log;
+        check_equal(integer'(call(object, "value")), integer'low);
+        check_only_log(
+          get_logger(broken_id),
+          "call(""value"") failed:" & LF &
+          "RuntimeError: The models.no_such_module.Model object could not be created: " &
+          "ImportError: No class named 'models.no_such_module.Model'",
+          failure
+        );
+        unmock(get_logger(broken_id));
+
+      elsif run("Test that the call of a method is named in its errors") then
+        object := new_python_object("models.counter_model.Counter", id => call_errors_id);
+        mock(get_logger(call_errors_id), failure);
+        -- The function and the procedure forms name the call alike
+        check_equal(integer'(call(object, "name")), integer'low);
+        check_only_log(
+          get_logger(call_errors_id),
+          "call(""name"") failed:" & LF &
+          "TypeError: Cannot convert Python str ('counter') to VHDL integer; expected int",
+          failure
+        );
+        call_unsigned(object, "name", byte);
+        check_only_log(
+          get_logger(call_errors_id),
+          "call(""name"") failed:" & LF &
+          "TypeError: Cannot convert Python str ('counter') to VHDL unsigned; expected int",
+          failure
+        );
+        unmock(get_logger(call_errors_id));
+
+      elsif run("Test that objects have sessions and numbers of their own") then
+        object := new_python_object("models.counter_model.Counter", kwarg("start", 1));
+        other := new_python_object("models.counter_model.Counter", kwarg("start", 2));
+        check_equal(integer'(eval(object, "self.count")), 1);
+        check_equal(integer'(eval(other, "self.count")), 2);
+        exec(object, "shared = 'object'");
+        check_false(eval_boolean(other, "'shared' in globals()"), "the sessions are separate");
+        -- Without an id, objects are enumerated like VUnit's verification components
+        check_equal(full_name(get_id(object)), "python_bridge:python:object:" & name(get_id(object)));
+        check_equal(integer'value(name(get_id(other))), integer'value(name(get_id(object))) + 1);
+
+      elsif run("Test that exec and get_logger work before the object is created") then
+        object := new_python_object("models.counter_model.Counter", id => get_id("lazy"));
+        check(get_logger(object) = get_logger(get_id("lazy")), "logger before creation");
+        exec(object, "self.count = 7");
+        check_equal(integer'(call(object, "value")), 7);
+
+      elsif run("Test that null_python_object is reported") then
+        mock(python_logger, failure);
+        call(null_python_object, "value");
+        check_only_log(python_logger, "null_python_object was used, it is not an object", failure);
+        check_equal(integer'(call(null_python_object, "value")), integer'low);
+        check_only_log(python_logger, "null_python_object was used, it is not an object", failure);
+        unmock(python_logger);
+
+      elsif run("Test objects with the identities of create_std_cfg") then
+        -- As in "Backends of verification components" of the user guide
+        std_cfg := create_std_cfg(provider => "test_vcs", vc_name => "counter");
+        other_std_cfg := create_std_cfg(provider => "test_vcs", vc_name => "counter");
+        object := get_python_object(null_python_object, "models.counter_model.Counter", id => get_id(std_cfg));
+        other := get_python_object(null_python_object, "models.counter_model.Counter", id => get_id(other_std_cfg));
+        check_equal(full_name(get_id(object)), "test_vcs:counter:1");
+        check_equal(full_name(get_id(other)), "test_vcs:counter:2");
+        check_equal(integer'(call(object, "add", arg(1))), 1);
       end if;
     end loop;
 

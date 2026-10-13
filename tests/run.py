@@ -112,6 +112,8 @@ def main():
     os.environ.pop(FILE_BASE_VARIABLE, None)
     vu = VUnit.from_args(args)
     vu.add_vhdl_builtins()
+    # For create_std_cfg in the tests of Python objects as backends of verification components
+    vu.add_verification_components()
     vu.add_package("vunit-python-bridge", allow_setup=True)
 
     simulator_name = vu.get_simulator_name()

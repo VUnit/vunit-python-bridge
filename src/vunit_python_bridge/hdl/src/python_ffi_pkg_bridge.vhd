@@ -22,6 +22,7 @@
 -- reporting a failure.
 
 library vunit_lib;
+use vunit_lib.dict_pkg.all;
 use vunit_lib.id_pkg.all;
 use vunit_lib.integer_array_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
@@ -111,6 +112,12 @@ package python_ffi_pkg is
   -----------------------------------------------------------------------------
   -- Private, the primitives the bridge operations of python_pkg are built on
   -----------------------------------------------------------------------------
+  -- Whether this simulator has sessions, and with them Python objects
+  constant p_sessions_supported : boolean := true;
+
+  -- Whether new_session has made a session with the identity
+  impure function p_has_session(id : id_t) return boolean;
+
   -- Result kinds, must match src/vunit_python_bridge/runtime.py
   constant p_kind_integer : integer := 0;
   constant p_kind_real : integer := 1;
@@ -171,6 +178,7 @@ package python_ffi_pkg is
 
   -- The result of the last evaluation
   impure function p_result_integer return integer;
+  impure function p_result_real return real;
   impure function p_result_string return string;
   impure function p_result_integer_vector return integer_vector;
   impure function p_result_real_vector return real_vector;
@@ -191,9 +199,18 @@ package body python_ffi_pkg is
     return new_session(get_id(name, parent => p_python_id));
   end;
 
+  -- The full names of the identities new_session has made sessions with
+  constant p_session_ids : dict_t := new_dict;
+
   impure function new_session(id : id_t) return python_session_t is
   begin
+    set_string(p_session_ids, full_name(id), "");
     return (p_data => new_integer_vector_ptr(1, value => to_integer(id)));
+  end;
+
+  impure function p_has_session(id : id_t) return boolean is
+  begin
+    return has_key(p_session_ids, full_name(id));
   end;
 
   impure function get_id(session : python_session_t) return id_t is
@@ -335,6 +352,11 @@ package body python_ffi_pkg is
   impure function p_result_integer return integer is
   begin
     return vpy_result_integer;
+  end;
+
+  impure function p_result_real return real is
+  begin
+    return vpy_result_real;
   end;
 
   impure function p_result_string return string is

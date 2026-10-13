@@ -27,3 +27,6 @@ class Counter:
 
     def ratio(self):
         return self.count / 4
+
+    def name(self):
+        return "counter"

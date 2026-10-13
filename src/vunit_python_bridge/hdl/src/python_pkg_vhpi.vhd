@@ -9,6 +9,7 @@
 use std.textio.all;
 
 library vunit_lib;
+use vunit_lib.dict_pkg.all;
 use vunit_lib.id_pkg.all;
 use vunit_lib.integer_array_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
@@ -90,6 +91,12 @@ package python_ffi_pkg is
   -----------------------------------------------------------------------------
   -- Private, the primitives the bridge operations of python_pkg are built on
   -----------------------------------------------------------------------------
+  -- Whether this simulator has sessions, and with them Python objects
+  constant p_sessions_supported : boolean := false;
+
+  -- Whether new_session has made a session with the identity
+  impure function p_has_session(id : id_t) return boolean;
+
   -- Some operations of python_pkg are implemented by the VUnit Python
   -- bridge, which is only available for NVC, GHDL and Questa. The primitives
   -- below are declared so that python_pkg has one body for every simulator,
@@ -135,7 +142,10 @@ package python_ffi_pkg is
 
   -- The result of the last evaluation
   impure function p_result_integer return integer;
+  impure function p_result_real return real;
   impure function p_result_string return string;
+  impure function p_result_integer_vector return integer_vector;
+  impure function p_result_real_vector return real_vector;
   impure function p_result_integer_array return integer_array_t;
 
   -- Transfer an integer_array_t to Python and return the id it is staged
@@ -149,9 +159,18 @@ package body python_ffi_pkg is
     return new_session(get_id(name, parent => p_python_id));
   end;
 
+  -- The full names of the identities new_session has made sessions with
+  constant p_session_ids : dict_t := new_dict;
+
   impure function new_session(id : id_t) return python_session_t is
   begin
+    set_string(p_session_ids, full_name(id), "");
     return (p_data => new_integer_vector_ptr(1, value => to_integer(id)));
+  end;
+
+  impure function p_has_session(id : id_t) return boolean is
+  begin
+    return has_key(p_session_ids, full_name(id));
   end;
 
   impure function get_id(session : python_session_t) return id_t is
@@ -180,9 +199,9 @@ package body python_ffi_pkg is
     text : string; is_file : integer; operation : string; session : python_session_t := default_session
   ) return boolean is
   begin
-    p_check_session(session);
-    p_exec(text);
-    return true;
+    -- python_object_pkg, the only user, fails before an object is used here
+    failure(python_logger, operation & " requires NVC, GHDL or Questa");
+    return false;
   end;
 
   impure function eval_integer(expr : string; session : python_session_t := default_session) return integer is
@@ -277,10 +296,30 @@ package body python_ffi_pkg is
     return integer'low;
   end;
 
+  impure function p_result_real return real is
+  begin
+    p_unsupported("p_result_real");
+    return 0.0;
+  end;
+
   impure function p_result_string return string is
   begin
     p_unsupported("p_result_string");
     return "";
+  end;
+
+  impure function p_result_integer_vector return integer_vector is
+    constant no_integers : integer_vector(0 downto 1) := (others => 0);
+  begin
+    p_unsupported("p_result_integer_vector");
+    return no_integers;
+  end;
+
+  impure function p_result_real_vector return real_vector is
+    constant no_reals : real_vector(0 downto 1) := (others => 0.0);
+  begin
+    p_unsupported("p_result_real_vector");
+    return no_reals;
   end;
 
   impure function p_result_integer_array return integer_array_t is

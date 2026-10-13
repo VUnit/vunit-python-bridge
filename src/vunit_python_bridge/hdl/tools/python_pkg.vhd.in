@@ -182,6 +182,10 @@ $call_declarations
   -- or VUNIT_PYTHON_BRIDGE_FILE_BASE. Without one, a failure is reported on
   -- python_logger and "" is returned.
   impure function base_path return string;
+
+  -- Private, the conversions of the results of std_ulogic types, shared with python_object_pkg
+  function p_to_std_ulogic(value : character) return std_ulogic;
+  function p_to_std_ulogic_vector(value : string) return std_ulogic_vector;
 end package;
 
 package body python_pkg is

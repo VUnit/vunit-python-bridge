@@ -7,13 +7,14 @@
 """
 Generate python_pkg.vhd and python_object_pkg.vhd from the templates in this directory.
 
-The template holds the parts of python_pkg that are written by hand. The
-generated parts are the argument value types of call, the result types of eval
-and call and the execution of Python files. They are mostly one overload per
-type, which is why they are generated. The operations that are implemented by
-the Python bridge (NVC, GHDL and Questa) are built on the p_ prefixed
-primitives of python_ffi_pkg, which the VHPI variant of that package
-implements by reporting a failure.
+Each template holds the parts of its package that are written by hand. The
+generated parts of python_pkg are the argument value types of call, the result
+types of eval and call and the execution of Python files. Those of
+python_object_pkg are the call and eval overloads of a python_object_t, from the
+same result tables. They are mostly one overload per type, which is why they are
+generated. The operations that are implemented by the Python bridge (NVC, GHDL
+and Questa) are built on the p_ prefixed primitives of python_ffi_pkg, which the
+VHPI variant of that package implements by reporting a failure.
 """
 
 from pathlib import Path
@@ -75,6 +76,8 @@ RESULTS = [
         name="integer",
         vhdl="integer",
         kind="p_kind_integer",
+        value="p_result_integer",
+        default="integer'low",
         hand_written_eval=True,
         hand_written_call=True,
     ),
@@ -82,6 +85,8 @@ RESULTS = [
         name="real",
         vhdl="real",
         kind="p_kind_real",
+        value="p_result_real",
+        default="0.0",
         hand_written_eval=True,
         hand_written_call=True,
     ),
@@ -89,6 +94,8 @@ RESULTS = [
         name="integer_vector",
         vhdl="integer_vector",
         kind="p_kind_integer_vector",
+        value="p_result_integer_vector",
+        default="p_no_integers",
         hand_written_eval=True,
         hand_written_call=True,
     ),
@@ -96,6 +103,8 @@ RESULTS = [
         name="real_vector",
         vhdl="real_vector",
         kind="p_kind_real_vector",
+        value="p_result_real_vector",
+        default="p_no_reals",
         hand_written_eval=True,
         hand_written_call=False,
     ),
@@ -103,6 +112,8 @@ RESULTS = [
         name="string",
         vhdl="string",
         kind="p_kind_string",
+        value="p_result_string",
+        default='""',
         hand_written_eval=True,
         hand_written_call=False,
     ),
@@ -110,6 +121,8 @@ RESULTS = [
         name="integer_vector_ptr",
         vhdl="integer_vector_ptr_t",
         kind="p_kind_integer_vector",
+        value="p_to_integer_vector_ptr(p_result_integer_vector)",
+        default="null_ptr",
         hand_written_eval=True,
         hand_written_call=False,
     ),
@@ -390,8 +403,11 @@ def object_declarations():
         lines.append(f"    {ARG_PARAMETERS}")
         lines.append(f"  ) return {result['vhdl']};")
         if result.get("alias_call", True):
+            # The signature over two lines, to keep them short
+            signature = OBJECT_ARG_SIGNATURE.split(", ")
             lines.append(f"  alias call is {name}[")
-            lines.append(f"    {OBJECT_ARG_SIGNATURE} return {result['vhdl']}];")
+            lines.append(f"    {', '.join(signature[:7])},")
+            lines.append(f"    {', '.join(signature[7:])} return {result['vhdl']}];")
         lines.append("")
     for result in PROCEDURE_RESULTS:
         lines.append(f"  procedure call_{result['name']}(")
@@ -411,7 +427,9 @@ def object_declarations():
 def object_subprograms():
     """
     Bodies of the call and eval overloads of an object. Each creates the object
-    if needed and performs the python_pkg operation in the session of the object.
+    if needed and performs the operation in the session of the object. The call
+    overloads report their errors as call("<method>") rather than as the code
+    they evaluate, like the call procedure.
     """
     session = "session => get_session(object)"
     parts = [
@@ -422,11 +440,13 @@ def object_subprograms():
   ) is
     variable ok : boolean;
   begin
-    create(object);
+    if not p_created(object) then
+      return;
+    end if;
     -- An error is reported as that of the method rather than of the code executed
     ok := p_exec(
-      to_call_str("self." & method, {ARG_ACTUALS}), 0, p_call_operation(method),
-      get_session(object)
+      to_call_str("self." & method, {ARG_ACTUALS}),
+      0, p_call_operation(method), get_session(object)
     );
   end;
 """
@@ -440,10 +460,16 @@ def object_subprograms():
     {ARG_PARAMETERS}
   ) return {result['vhdl']} is
   begin
-    create(object);
-    return {name}(
-      "self." & method, {ARG_ACTUALS}, {session}
-    );
+    if not p_created(object) then
+      return {result['default']};
+    end if;
+    if p_eval(
+      to_call_str("self." & method, {ARG_ACTUALS}),
+      {result['kind']}, -1, p_call_operation(method), get_session(object)
+    ) then
+      return {result['value']};
+    end if;
+    return {result['default']};
   end;
 """
         )
@@ -455,11 +481,15 @@ def object_subprograms():
     {ARG_PARAMETERS}
   ) is
   begin
-    create(object);
-    call_{result['name']}(
-      "self." & method, result,
-      {ARG_ACTUALS}, {session}
-    );
+    if not p_created(object) then
+      return;
+    end if;
+    if p_eval(
+      to_call_str("self." & method, {ARG_ACTUALS}),
+      {result['kind']}, result'length, p_call_operation(method), get_session(object)
+    ) then
+      result := {result['value']};
+    end if;
   end;
 """
         )
@@ -468,7 +498,9 @@ def object_subprograms():
             f"""\
   impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']} is
   begin
-    create(object);
+    if not p_created(object) then
+      return {result['default']};
+    end if;
     return eval_{result['name']}(expr, {session});
   end;
 """
@@ -478,7 +510,9 @@ def object_subprograms():
             f"""\
   procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']}) is
   begin
-    create(object);
+    if not p_created(object) then
+      return;
+    end if;
     eval_{result['name']}(expr, result, {session});
   end;
 """
