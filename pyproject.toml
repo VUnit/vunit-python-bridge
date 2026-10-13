@@ -59,6 +59,14 @@ vunit_python_bridge = [
 [tool.black]
 line-length = 120
 
+[tool.ruff]
+line-length = 120
+
+[tool.ruff.lint]
+# pyflakes and pycodestyle errors and warnings. Listed explicitly so that a new ruff release
+# doesn't change the rules.
+select = ["E", "F", "W"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
