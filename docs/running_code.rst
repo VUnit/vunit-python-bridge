@@ -54,16 +54,20 @@ of its constructor, given like the arguments of ``call``, including groups made
 with ``&``. The class is
 
 * a dotted name like ``"package.module.Class"``, imported from the module it
-  names, which is found like any other import: see :ref:`Where Python code is
-  found <python_bridge:finding_code>`. No file name is involved, so the class
-  is found the same way wherever the object is created.
+  names, which is found like any other import: see :ref:`python_bridge:finding_code`.
+  No file name is involved, so the class is found the same way wherever the
+  object is created.
 * the name of a class defined in the default session, like ``"Class"``, for
-  example by ``exec`` or ``exec_file`` in the testbench.
+  example by ``exec`` or ``exec_file`` in the testbench, or reached through a
+  name defined there, like ``"np.ndarray"`` after ``exec("import numpy as np")``.
+
+A name that is neither, or that is not a class, is reported as an error of
+``new_python_object``.
 
 The constructor is called when the object is first used, not by
 ``new_python_object``. An object can therefore be a constant or a generic,
 made during elaboration, and does not depend on the order of the processes or
-on ``test_runner_setup``. ``create`` calls the constructor right away.
+on ``test_runner_setup``. ``create_now`` calls the constructor right away.
 
 ``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
 ``exec(object, code)`` evaluate an expression and execute code in the session
@@ -79,9 +83,11 @@ The ``id`` of an object names its session and its logger,
 ``get_logger(object)``, which reports the errors of its operations. Without an
 ``id``, objects are enumerated the way VUnit enumerates verification
 components: ``python_bridge:python:object:1``,
-``python_bridge:python:object:2`` and so on. Two objects with the same
-identity would share a session, so the second ``new_python_object`` of an
-identity is reported as a failure on its logger.
+``python_bridge:python:object:2`` and so on. The session of an object must
+be its own, so ``new_python_object`` with an identity already used by another
+object, or by a session made with ``new_session``, is reported as a failure on
+the logger of the identity and returns ``null_python_object``. Using
+``null_python_object`` is reported as a failure on ``python_logger``.
 
 Backends of verification components
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -184,11 +190,13 @@ name as a ``string`` generic.
 Errors and limitations
 ~~~~~~~~~~~~~~~~~~~~~~
 
-* Errors are reported on the logger of the object, named after what failed,
-  for example ``call("push") failed:`` followed by the Python traceback.
-* An object that cannot be created, for example since its module is not
-  found, reports the error of the import or the constructor once, as
-  ``new_python_object("<class>") failed:``. Its later calls fail with
+* Errors are reported on the logger of the object, named after what failed:
+  ``call("push") failed:`` for every form of ``call``, ``eval("<expr>", ...)
+  failed:`` for ``eval`` and ``exec(...) failed:`` for ``exec``, followed by
+  the Python error.
+* An object that cannot be created, for example since its class is not
+  found, reports the error once, as ``new_python_object("<class>") failed:``.
+  Every later use of the object, calls and assignments alike, fails with
   ``The <class> object could not be created: <error>``.
 * The caveats of sessions apply: the module of a class, and any state kept in
   it, is shared by all objects.
@@ -202,8 +210,8 @@ Errors and limitations
 * An object that holds resources, such as files or threads, is closed by a
   call like any other method: ``call(model, "close")``.
 * Objects need sessions, and so the Python bridge: NVC, GHDL or Questa. On
-  Riviera-PRO/Active-HDL, the first use of an object reports that sessions are
-  only supported there.
+  Riviera-PRO/Active-HDL, ``new_python_object`` reports that as a failure on
+  the logger of the object and returns ``null_python_object``.
 
 exec
 ----
