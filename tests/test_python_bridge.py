@@ -13,7 +13,6 @@ library with the system C compiler, and reading/writing files, is fine.
 
 import importlib.util
 import os
-import pydoc
 import re
 import shutil
 import subprocess
@@ -201,11 +200,27 @@ class TestObjectCreation(unittest.TestCase):
             self.handle.instantiate_as_self("Model")
         self.assertIsInstance(self.namespace["self"], Model)
 
+    def test_a_name_imported_in_the_default_session_is_followed(self):
+        module = types.ModuleType("real_module_name")
+        module.Model = type("Model", (), {})
+        # Like "import real_module_name as alias" in the default session
+        with mock.patch.dict("__main__.__dict__", {"alias": module}):
+            self.handle.instantiate_as_self("alias.Model")
+        self.assertIsInstance(self.namespace["self"], module.Model)
+
+    def test_a_missing_bare_name_is_reported_as_not_found(self):
+        with self.assertRaisesRegex(ImportError, "No class named 'NoSuchModel': neither defined in the default"):
+            self.handle.instantiate_as_self("NoSuchModel")
+
+    def test_a_name_that_is_not_a_class_is_reported(self):
+        with self.assertRaisesRegex(TypeError, "'os.getcwd' is not a class but a builtin_function_or_method"):
+            self.handle.instantiate_as_self("os.getcwd")
+
     def test_a_failing_import_inside_the_module_is_not_hidden(self):
         with create_tempdir() as tempdir:
             (tempdir / "broken_model.py").write_text("import no_such_dependency\n", encoding="utf-8")
             with mock.patch.object(sys, "path", [str(tempdir)] + sys.path):
-                with self.assertRaisesRegex(pydoc.ErrorDuringImport, "No module named 'no_such_dependency'"):
+                with self.assertRaisesRegex(ModuleNotFoundError, "No module named 'no_such_dependency'"):
                     self.handle.instantiate_as_self("broken_model.Model")
 
     def test_an_object_that_cannot_be_created_tells_why_when_used(self):
@@ -216,6 +231,8 @@ class TestObjectCreation(unittest.TestCase):
             "The no_such_module.Model object could not be created: ImportError: No class named 'no_such_module.Model'",
         ):
             self.namespace["self"].step()
+        with self.assertRaisesRegex(RuntimeError, "could not be created"):
+            self.namespace["self"].trace = True
 
 
 class TestGeneratedPackages(unittest.TestCase):

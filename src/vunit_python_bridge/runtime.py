@@ -15,11 +15,11 @@ exec/eval operations.
 """
 
 import builtins
+import importlib
 import linecache
 import math
 import numbers
 import os
-import pydoc
 import struct
 import sys
 import traceback
@@ -112,15 +112,44 @@ def _type_error(kind, value, expected):
 
 def _resolve_class(class_name):
     """
-    The class with a dotted name like "package.module.Class", or a class
-    defined in the default session (__main__) when the name has no dot.
+    The class a name like "package.module.Class" or "Class" names. The first
+    part is looked up in the default session (__main__) first, so that a class
+    defined there, or reached through a name imported there like "np.ndarray",
+    is found, and imported as a module otherwise.
     """
-    if "." not in class_name:
-        return getattr(__main__, class_name)
-    target = pydoc.locate(class_name)
-    if target is None:
-        raise ImportError(f"No class named {class_name!r}")
+    parts = class_name.split(".")
+    if parts[0] in vars(__main__):
+        target, attributes = vars(__main__)[parts[0]], parts[1:]
+    else:
+        for index in range(len(parts) - 1, 0, -1):
+            module_name = ".".join(parts[:index])
+            try:
+                target = importlib.import_module(module_name)
+            except ModuleNotFoundError as exc:
+                # Only a missing module of the name itself, not one the module imports
+                if exc.name is None or not (module_name + ".").startswith(exc.name + "."):
+                    raise
+                continue
+            attributes = parts[index:]
+            break
+        else:
+            raise ImportError(f"No class named {class_name!r}: neither defined in the default session nor importable")
+    for attribute in attributes:
+        if not hasattr(target, attribute):
+            raise ImportError(f"No class named {class_name!r}")
+        target = getattr(target, attribute)
+    if not isinstance(target, type):
+        raise TypeError(f"{class_name!r} is not a class but a {type(target).__name__}")
     return target
+
+
+def _plain(exc):
+    """
+    Mark an exception to be reported without its traceback, which only shows the
+    bridge, e.g. that a class was not found.
+    """
+    exc.vunit_plain = True
+    return exc
 
 
 class _UncreatedObject:  # pylint: disable=too-few-public-methods
@@ -130,10 +159,17 @@ class _UncreatedObject:  # pylint: disable=too-few-public-methods
     """
 
     def __init__(self, class_name, exc):
-        self._message = f"The {class_name} object could not be created: {type(exc).__name__}: {exc}"
+        message = f"The {class_name} object could not be created: {type(exc).__name__}: {exc}"
+        object.__setattr__(self, "_message", message)
 
     def __getattr__(self, name):
-        raise RuntimeError(self._message)
+        raise _plain(RuntimeError(self._message))
+
+    def __setattr__(self, name, value):
+        raise _plain(RuntimeError(self._message))
+
+    def __delattr__(self, name):
+        raise _plain(RuntimeError(self._message))
 
 
 class BridgeHandle:
@@ -171,7 +207,12 @@ class BridgeHandle:
         """
         namespace = self._runtime.namespace
         try:
-            namespace["self"] = _resolve_class(class_name)(*args, **kwargs)
+            class_ = _resolve_class(class_name)
+        except (ImportError, TypeError) as exc:
+            namespace["self"] = _UncreatedObject(class_name, exc)
+            raise _plain(exc)
+        try:
+            namespace["self"] = class_(*args, **kwargs)
         except Exception as exc:
             namespace["self"] = _UncreatedObject(class_name, exc)
             raise
@@ -245,8 +286,12 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
 
     def format_exception(self, exc):
         """
-        Format an exception with its traceback, hiding frames of this module.
+        Format an exception with its traceback, hiding frames of this module, or
+        without it when it is marked plain.
         """
+        if getattr(exc, "vunit_plain", False):
+            self._flush()
+            return "".join(traceback.format_exception_only(type(exc), exc)).rstrip("\n")
         this_file = os.path.normcase(os.path.abspath(__file__))
         traceback_ = exc.__traceback__
         while traceback_ is not None and (
