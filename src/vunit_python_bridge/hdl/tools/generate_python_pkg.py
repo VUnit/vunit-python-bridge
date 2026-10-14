@@ -389,7 +389,7 @@ def object_declarations():
     python_pkg with the object first, the method or expression second.
     """
     lines = [
-        "  -- Call a method of the object, like call",
+        "  -- Call a method of the object",
         "  procedure call(",
         f"    {OBJECT}; method : string;",
         f"    {ARG_PARAMETERS}",

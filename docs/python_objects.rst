@@ -217,17 +217,18 @@ during elaboration, which would give all instances the same identity.
 
 Several components can share an object, and so can a component and the
 testbench: the testbench makes the object and gives it to each of them. A
-scoreboard filled by a monitor and checked by the test is a typical case:
+memory model written by a bus slave and read back by the test is a typical
+case:
 
 .. code-block:: vhdl
 
-    constant scoreboard : python_object_t := new_python_object("my_models.Scoreboard");
+    constant memory : python_object_t := new_python_object("my_models.Memory");
 
     ...
 
-    monitor_inst : entity work.my_monitor
+    slave_inst : entity work.my_bus_slave
       generic map (
-        monitor => new_my_monitor(model => scoreboard)
+        slave => new_my_bus_slave(model => memory)
       )
       port map (
         ...
@@ -235,7 +236,7 @@ scoreboard filled by a monitor and checked by the test is a typical case:
 
     ...
 
-    check_equal(integer'(call(scoreboard, "num_mismatches")), 0);
+    check_equal(integer'(call(memory, "read", arg(16#100#))), 16#cafe#);
 
 In the same way, a component can let its user choose the class, by taking its
 name as a ``string`` generic.
@@ -263,6 +264,3 @@ Errors and limitations
   <https://github.com/VUnit/vunit-python-bridge/issues/17>`__.
 * An object that holds resources, such as files or threads, is closed by a
   call like any other method: ``call(model, "close")``.
-* Objects need sessions, and so the Python bridge: NVC, GHDL or Questa. On
-  Riviera-PRO/Active-HDL, ``new_python_object`` reports that as a failure on
-  the logger of the object and returns ``null_python_object``.

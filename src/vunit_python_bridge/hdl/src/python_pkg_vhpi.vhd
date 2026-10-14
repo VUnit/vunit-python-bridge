@@ -91,9 +91,6 @@ package python_ffi_pkg is
   -----------------------------------------------------------------------------
   -- Private, the primitives the bridge operations of python_pkg are built on
   -----------------------------------------------------------------------------
-  -- Whether this simulator has sessions, and with them Python objects
-  constant p_sessions_supported : boolean := false;
-
   -- Whether new_session has made a session with the identity
   impure function p_has_session(id : id_t) return boolean;
 
@@ -199,7 +196,6 @@ package body python_ffi_pkg is
     text : string; is_file : integer; operation : string; session : python_session_t := default_session
   ) return boolean is
   begin
-    -- python_object_pkg, the only user, fails before an object is used here
     failure(python_logger, operation & " requires NVC, GHDL or Questa");
     return false;
   end;

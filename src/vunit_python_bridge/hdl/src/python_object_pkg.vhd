@@ -68,7 +68,7 @@ package python_object_pkg is
   -- Execute code in the session of the object, where it is self, like exec
   procedure exec(object : python_object_t; code : string);
 
-  -- Call a method of the object, like call
+  -- Call a method of the object
   procedure call(
     object : python_object_t; method : string;
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
@@ -219,10 +219,6 @@ package body python_object_pkg is
     if object_id = null_id then
       -- Like enumerate of vc_pkg, which is only there with the verification components
       object_id := get_id(to_string(num_children(anonymous_id) + 1), parent => anonymous_id);
-    end if;
-    if not p_sessions_supported then
-      failure(get_logger(object_id), operation & " failed:" & LF & "Python objects require NVC, GHDL or Questa.");
-      return null_python_object;
     end if;
     -- The session of the object is that of its identity, which must be its own
     if p_has_session(object_id) then
