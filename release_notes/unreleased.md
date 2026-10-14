@@ -1,5 +1,6 @@
 ## Changes
 
+- **Breaking:** an `integer_array_t` is indexed in NumPy like in VUnit, `get(a, x, y, z)` being `a[x, y, z]` with shape `(width, height, depth)`, instead of `a[y, x, z]` with shape `(height, width, depth)`. This applies to arguments and returned arrays. Code indexing 2D or 3D arrays in Python must swap its first two indices, and an array from an image library, which index rows first, needs `a.swapaxes(0, 1)`.
 - `import_module_from_file` resolves a relative path against the directory of the testbench file, like `exec_file`, rather than against the working directory of the simulator. It must be called after `test_runner_setup`. Callers that relied on a path relative to the working directory must pass an absolute path instead. See #7.
 - A relative file name given to `exec_file` or `import_module_from_file` before `test_runner_setup` has completed is reported as a failure, instead of being taken from the working directory of the simulator. The new `base_path` returns a base directory set with `vunit_python_bridge.set_relative_file_base()` or `VUNIT_PYTHON_BRIDGE_FILE_BASE`, for file names that work at any time, for example in verification components.
 - Python 3.15 is supported, with a prebuilt bridge DLL for Windows.
