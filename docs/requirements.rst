@@ -4,8 +4,7 @@ Requirements
 * A VUnit with support for packages and simulator hooks, see the `README
   <https://github.com/VUnit/vunit-python-bridge#readme>`__.
 * NVC, GHDL, Questa/ModelSim or Riviera-PRO, see :ref:`python_bridge:native`.
-  Active-HDL is set up the same way as Riviera-PRO, but untested. Any other
-  simulator raises a ``RuntimeError``.
+  Any other simulator raises a ``RuntimeError``.
 * VHDL-2008 or later.
 * CPython 3.10 or later with the standard (GIL) build. Free-threaded builds
   are rejected with an error.
@@ -18,7 +17,7 @@ Requirements
 * Windows: a 64-bit CPython from python.org (or compatible, such as
   ``actions/setup-python`` and ``uv``). No compiler is needed for NVC and GHDL
   when the package includes the prebuilt DLLs. Otherwise, and always for
-  Questa and Riviera-PRO/Active-HDL, a MinGW-w64 ``gcc`` is needed: ``CC``, the
+  Questa and Riviera-PRO, a MinGW-w64 ``gcc`` is needed: ``CC``, the
   one bundled with the simulator if there is one, or ``gcc`` on ``PATH``.
   MSYS2/MinGW Pythons are not supported. The simulator must be a 64-bit (x64)
   build too, since the Python DLL is loaded into its process; the package

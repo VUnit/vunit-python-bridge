@@ -33,7 +33,7 @@ CONFIG_FILE_NAME = "vunit_python_bridge.cfg"
 
 # The simulators the bridge serves, reaching it through VHPIDIRECT, the FLI and VHPI.
 FLI_SIMULATORS = ("modelsim",)
-VHPI_SIMULATORS = ("rivierapro", "activehdl")
+VHPI_SIMULATORS = ("rivierapro",)
 BRIDGE_SIMULATORS = ("nvc", "ghdl") + FLI_SIMULATORS + VHPI_SIMULATORS
 
 # GHDL backends that link the design ahead of time. For these the library
@@ -77,7 +77,7 @@ def setup(
     """
     if simulator_name is not None and simulator_name not in BRIDGE_SIMULATORS:
         raise PythonBridgeError(
-            f"The vunit-python-bridge package requires NVC, GHDL, Questa/ModelSim, Riviera-PRO or Active-HDL, "
+            f"The vunit-python-bridge package requires NVC, GHDL, Questa/ModelSim or Riviera-PRO, "
             f"it is not supported for {simulator_name}"
         )
 
@@ -93,9 +93,8 @@ def setup(
         )
 
     root = Path(output_path) / "python_bridge"
-    library_file = _prepare_library(
-        Path(simulator_prefix) if is_fli or is_vhpi else None, "vhpi" if is_vhpi else "fli"
-    )
+    front_end = "fli" if is_fli else "vhpi" if is_vhpi else None
+    library_file = _prepare_library(Path(simulator_prefix) if front_end else None, front_end)
     run_script_dir = str(Path.cwd() if run_script_path is None else Path(run_script_path).resolve().parent)
     # The configuration belongs to the project, the library may be shared. The simulator
     # hooks tell the library where the configuration is.
@@ -126,7 +125,7 @@ def setup(
     )
 
 
-def _prepare_library(simulator_prefix: Optional[Path], front_end: str) -> Path:
+def _prepare_library(simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:
     """
     Prepare the library in the library directory, failing with a pointer to the variable
     selecting another one when it cannot be written, e.g. a read-only home directory.

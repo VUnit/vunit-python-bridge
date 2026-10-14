@@ -58,7 +58,6 @@ NVC                                VHPIDIRECT  Tested on Linux, macOS and Window
 GHDL (mcode, llvm-jit, llvm, gcc)  VHPIDIRECT  Tested on Linux, macOS and Windows
 Questa/ModelSim                    FLI         Tested manually on Linux; the Windows build is untested
 Riviera-PRO                        VHPI        Tested manually on Linux and Windows
-Active-HDL                         VHPI        Untested
 =================================  ==========  ========================================================
 
 Getting started

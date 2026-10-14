@@ -181,7 +181,6 @@ class TestForeignLanguageInterfaces(unittest.TestCase):
                 "ghdl": "VHPIDIRECT_GHDL",
                 "modelsim": "FLI",
                 "rivierapro": "VHPI",
-                "activehdl": "VHPI",
             },
         )
 
@@ -192,7 +191,7 @@ class TestForeignLanguageInterfaces(unittest.TestCase):
         )
 
     def test_the_message_names_every_simulator(self):
-        for simulator in ("NVC", "GHDL", "Questa/ModelSim", "Riviera-PRO", "Active-HDL"):
+        for simulator in ("NVC", "GHDL", "Questa/ModelSim", "Riviera-PRO"):
             self.assertIn(simulator, vunit_python_bridge.SUPPORTED_SIMULATORS)
 
 
@@ -278,10 +277,9 @@ class TestPackageSetup(unittest.TestCase):
         self._check_bridge_files_added(self._simulator("modelsim"))
 
     def test_vhpi_adds_the_bridge_files(self):
-        # Riviera-PRO/Active-HDL are served by the bridge too, through native/vhpi.c.
-        for name in ("rivierapro", "activehdl"):
-            with mock.patch.dict(os.environ):
-                self._check_bridge_files_added(self._simulator(name))
+        # Riviera-PRO is served by the bridge too, through native/vhpi.c.
+        with mock.patch.dict(os.environ):
+            self._check_bridge_files_added(self._simulator("rivierapro"))
 
     def test_vhpi_simulators_are_told_the_configuration_by_the_environment(self):
         # Their VUnit interfaces have no run environment hook, but start vsim with this one.
@@ -514,7 +512,7 @@ class TestRelativeFileBase(unittest.TestCase):
         self.assertIsNone(file_base._relative_file_base)  # pylint: disable=protected-access
 
     def test_bridge_and_vhpi_add_the_package(self):
-        for name in ("nvc", "ghdl", "modelsim", "rivierapro", "activehdl"):
+        for name in ("nvc", "ghdl", "modelsim", "rivierapro"):
             self._reset()
             context, package = self._setup(name)
             self.assertIn(("python_bridge", package), context.added_files, name)
@@ -609,7 +607,7 @@ class TestBridgePackageSubstitution(unittest.TestCase):
         self.assertIsNone(prepare_mock.call_args.args[1])
 
     def test_unsupported_simulator_raises(self):
-        with self.assertRaisesRegex(RuntimeError, "Riviera-PRO or Active-HDL, it is not supported for xsim"):
+        with self.assertRaisesRegex(RuntimeError, "Questa/ModelSim or Riviera-PRO, it is not supported for xsim"):
             self._setup("xsim")
 
     def test_vhpi_attributes_name_the_library_without_its_suffix_and_the_entry_point(self):
@@ -852,7 +850,7 @@ class TestPosixBuildAndCache(unittest.TestCase):
         prefix = self._fake_simulator_prefix()
         calls = []
         with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)):
-            library_file = native_library.prepare_library(self.tempdir / "out", prefix)
+            library_file = native_library.prepare_library(self.tempdir / "out", prefix, "fli")
         self.assertEqual(len(calls), 1)
         self.assertEqual(library_file.name, "libvunit_python_bridge_fli.so")
         self.assertIn(str(native_library.NATIVE_PATH / "fli.c"), calls[0])
@@ -882,7 +880,7 @@ class TestPosixBuildAndCache(unittest.TestCase):
         calls = []
         # The stub compiler writes no real library
         with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)), mock.patch("ctypes.CDLL"):
-            library_file = native_library.prepare_library(self.tempdir / "out")
+            library_file = native_library.prepare_library(self.tempdir / "out", None, None)
         self.assertEqual(library_file.name, "libvunit_python_bridge.so")
         self.assertNotIn(str(native_library.NATIVE_PATH / "fli.c"), calls[0])
         self.assertNotIn(str(native_library.NATIVE_PATH / "vhpi.c"), calls[0])
@@ -892,17 +890,17 @@ class TestPosixBuildAndCache(unittest.TestCase):
         calls = []
         # The stub compiler writes no real library
         with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)), mock.patch("ctypes.CDLL"):
-            vhpidirect = native_library.prepare_library(self.tempdir / "out")
-            fli = native_library.prepare_library(self.tempdir / "out", prefix)
+            vhpidirect = native_library.prepare_library(self.tempdir / "out", None, None)
+            fli = native_library.prepare_library(self.tempdir / "out", prefix, "fli")
         self.assertEqual(len(calls), 2)
         self.assertNotEqual(fli.parent, vhpidirect.parent)
 
     def test_second_fli_setup_reuses_cache_without_compiling(self):
         prefix = self._fake_simulator_prefix()
         with mock.patch("subprocess.run", side_effect=self._compiler_stub([])):
-            first = native_library.prepare_library(self.tempdir / "out", prefix)
+            first = native_library.prepare_library(self.tempdir / "out", prefix, "fli")
         with mock.patch("subprocess.run") as run_mock:
-            second = native_library.prepare_library(self.tempdir / "out", prefix)
+            second = native_library.prepare_library(self.tempdir / "out", prefix, "fli")
         run_mock.assert_not_called()
         self.assertEqual(first, second)
 
@@ -914,8 +912,8 @@ class TestPosixBuildAndCache(unittest.TestCase):
         (other / "bin").mkdir()
         calls = []
         with mock.patch("subprocess.run", side_effect=self._compiler_stub(calls)):
-            first = native_library.prepare_library(self.tempdir / "out", first_prefix)
-            second = native_library.prepare_library(self.tempdir / "out", other / "bin")
+            first = native_library.prepare_library(self.tempdir / "out", first_prefix, "fli")
+            second = native_library.prepare_library(self.tempdir / "out", other / "bin", "fli")
         self.assertEqual(len(calls), 2)
         self.assertNotEqual(first.parent, second.parent)
 
@@ -923,7 +921,7 @@ class TestPosixBuildAndCache(unittest.TestCase):
         prefix = self.tempdir / "questa" / "bin"
         prefix.mkdir(parents=True)
         with self.assertRaisesRegex(RuntimeError, "mti.h"):
-            native_library.prepare_library(self.tempdir / "out", prefix)
+            native_library.prepare_library(self.tempdir / "out", prefix, "fli")
 
     def test_no_prebuilt_library_in_repository(self):
         # Linux libraries are built on first use and Windows DLLs are added to releases by CI
@@ -1132,7 +1130,7 @@ class TestWindowsDllSelection(unittest.TestCase):
                 self.assertEqual(
                     native_library._prepare_windows_library(root), Path("built.dll")  # pylint: disable=protected-access
                 )
-            build.assert_called_once_with(root)
+            build.assert_called_once_with(root, None, None)
 
     def test_non_win_amd64_platform_raises(self):
         with mock.patch("vunit_python_bridge.native_library.sysconfig.get_platform", return_value="mingw"):
@@ -1174,7 +1172,7 @@ class TestWindowsGccBuild(unittest.TestCase):
         with mock.patch.object(native_library, "windows_gcc", return_value=None):
             with self.assertRaisesRegex(native_library.PythonBridgeError, "MinGW-w64.*PATH.*CC"):
                 native_library._build_windows_library(
-                    Path("root"), Path("questa/win64")
+                    Path("root"), Path("questa/win64"), "fli"
                 )  # pylint: disable=protected-access
 
     def _build_cmd(self, tempdir, simulator_prefix):
@@ -1185,7 +1183,7 @@ class TestWindowsGccBuild(unittest.TestCase):
             mock.patch.object(native_library, "compile_library", side_effect=lambda cmd, tmp, target: target) as build,
         ):
             target = native_library._build_windows_library(
-                tempdir, simulator_prefix
+                tempdir, simulator_prefix, "fli" if simulator_prefix else None
             )  # pylint: disable=protected-access
         return target, build.call_args[0][0]
 

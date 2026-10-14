@@ -10,7 +10,7 @@ NVC and GHDL call it through VHPIDIRECT; Questa/ModelSim calls it through the
 FLI, using the front end in `native/fli.c
 <https://github.com/VUnit/vunit-python-bridge/blob/main/src/vunit_python_bridge/native/fli.c>`__
 that converts the FLI parameters of one foreign subprogram per entry point.
-Riviera-PRO/Active-HDL, which have no VHPIDIRECT, call it through VHPI, using
+Riviera-PRO, which has no VHPIDIRECT, calls it through VHPI, using
 the front end in `native/vhpi.c
 <https://github.com/VUnit/vunit-python-bridge/blob/main/src/vunit_python_bridge/native/vhpi.c>`__
 that registers a foreign subprogram per entry point. The generated VHDL and
@@ -24,7 +24,7 @@ Linux
   below. It is rebuilt automatically when the
   source, the Python version or the Python installation changes. For Questa
   the FLI front end is compiled in too, against the ``mti.h`` of the
-  simulator, and for Riviera-PRO/Active-HDL the VHPI front end, against the
+  simulator, and for Riviera-PRO the VHPI front end, against the
   ``vhpi_user.h`` of the simulator. The simulator installation is then part of
   the cache key. The
   package ships no prebuilt Linux library.
@@ -36,7 +36,7 @@ Windows
   the package does not contain the DLLs; they can be built with
   ``tools/build_python_bridge.py`` from an MSVC developer prompt, and without
   them the library is built with gcc like for Questa. For Questa and
-  Riviera-PRO/Active-HDL the library must be linked against the simulator's
+  Riviera-PRO the library must be linked against the simulator's
   ``mtipli`` or ``aldecpli``, so it is always built on
   first use with gcc, against the headers and the import library of the
   Python running VUnit. The compiler is ``CC`` if set, else the MinGW gcc
@@ -65,7 +65,7 @@ Library directory
   build has a directory named after what it was built from. The configuration
   of a project stays in ``<output path>/python_bridge`` and the simulator hooks
   pass its path to the library in ``VUNIT_PYTHON_BRIDGE_CONFIG``. The VUnit
-  interfaces of Riviera-PRO/Active-HDL have no hook for the environment of a
+  interface of Riviera-PRO has no hook for the environment of a
   simulation, so for them the setup sets the variable in the environment of
   the VUnit process, which the simulator inherits.
 
@@ -100,7 +100,7 @@ starts, so it has to go on the command line of the process rather than on the
 ``vsim`` listing it in ``vsim -help all``. No simulator options need to be set
 by the user.
 
-The VHPI attributes generated for Riviera-PRO/Active-HDL name the library by
+The VHPI attributes generated for Riviera-PRO name the library by
 absolute path without its suffix, which the simulator adds. The attribute
 separates its parts by spaces, so the setup fails, asking for
 ``VUNIT_PYTHON_BRIDGE_LIBRARY_DIR`` to be set, when the path of the library

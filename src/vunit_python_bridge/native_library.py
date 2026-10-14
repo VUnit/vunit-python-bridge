@@ -68,16 +68,17 @@ def library_directory() -> Path:
     return Path.home() / ".vunit-python-bridge"
 
 
-def prepare_library(root: Path, simulator_prefix: Optional[Path] = None, front_end: str = "fli") -> Path:
+def prepare_library(root: Path, simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:
     """
     Path of the bridge library for the running Python, built or selected under root.
 
     :param simulator_prefix: Executable directory of a simulator calling the bridge through
-                             a front end, the FLI (Questa/ModelSim) or VHPI (Riviera-PRO/Active-HDL).
+                             a front end, the FLI (Questa/ModelSim) or VHPI (Riviera-PRO).
                              The variant of the library with that front end, native/fli.c or
                              native/vhpi.c, is then built against its headers. None selects the
                              VHPIDIRECT variant used by NVC and GHDL.
-    :param front_end: "fli" or "vhpi", the front end of the simulator at simulator_prefix.
+    :param front_end: "fli" or "vhpi", the front end of the simulator at simulator_prefix, None
+                      without one.
     """
     if sys.platform == "win32":
         add_python_dll_to_path()
@@ -86,7 +87,7 @@ def prepare_library(root: Path, simulator_prefix: Optional[Path] = None, front_e
         return check_windows_load(_prepare_windows_library(root))
     if simulator_prefix is not None:
         return _prepare_posix_library(root, simulator_prefix, front_end)
-    return check_posix_load(_prepare_posix_library(root))
+    return check_posix_load(_prepare_posix_library(root, None, None))
 
 
 # Windows errors of a library that an execution policy (AppLocker, Windows Defender Application
@@ -215,7 +216,7 @@ def _prepare_windows_library(root: Path) -> Path:
     name = windows_dll_name()
     source = BINARY_PATH / name
     if not source.is_file():
-        return _build_windows_library(root)
+        return _build_windows_library(root, None, None)
     data = source.read_bytes()
     directory = root / f"cp{sys.version_info[0]}{sys.version_info[1]}-win_amd64-{hashlib.sha256(data).hexdigest()[:12]}"
     target = directory / "vunit_python_bridge.dll"
@@ -301,9 +302,9 @@ def _compiler() -> List[str]:
     )
 
 
-def bridge_sources(front_end: Optional[str] = None) -> List[Path]:
+def bridge_sources(front_end: Optional[str]) -> List[Path]:
     """
-    The C source files of the bridge library, plus those of a front end, "fli" or "vhpi".
+    The C source files of the bridge library, plus those of a front end, "fli" or "vhpi", if any.
     """
     front_ends = set(FRONT_END_SOURCE_NAMES.values())
     sources = sorted(item for item in NATIVE_PATH.glob("*.c") if item.name not in front_ends)
@@ -327,7 +328,7 @@ def _fli_include_dir(simulator_prefix: Path) -> str:
 
 def _vhpi_include_dir(simulator_prefix: Path) -> str:
     """
-    Directory of vhpi_user.h, interfaces/include of the Riviera-PRO/Active-HDL installation.
+    Directory of vhpi_user.h, interfaces/include of the Riviera-PRO installation.
     """
     include = Path(simulator_prefix).resolve().parent / "interfaces" / "include"
     if not (include / "vhpi_user.h").is_file():
@@ -399,7 +400,7 @@ def check_exec_mount(directory: Path) -> None:
         )
 
 
-def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None, front_end: str = "fli") -> Path:
+def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:
     """
     Compile the bridge for the running Python, reusing a cached build when possible.
 
@@ -410,11 +411,11 @@ def _prepare_posix_library(root: Path, simulator_prefix: Optional[Path] = None, 
     python_library = _python_library()
     include_dirs = _include_dirs()
     if simulator_prefix is None:
-        name, sources = "libvunit_python_bridge.so", bridge_sources()
+        name, sources = "libvunit_python_bridge.so", bridge_sources(None)
     else:
         include_dir = _vhpi_include_dir if front_end == "vhpi" else _fli_include_dir
         include_dirs = include_dirs + [include_dir(simulator_prefix)]
-        name, sources = f"libvunit_python_bridge_{front_end}.so", bridge_sources(front_end=front_end)
+        name, sources = f"libvunit_python_bridge_{front_end}.so", bridge_sources(front_end)
 
     directory = _posix_cache_directory(root, python_library, include_dirs)
     library_file = directory / name
@@ -507,20 +508,17 @@ def add_python_dll_to_path() -> None:
         os.environ["PATH"] = os.pathsep.join([item for item in paths if item] + [directory])
 
 
-def _build_windows_library(root: Path, simulator_prefix: Optional[Path] = None, front_end: str = "fli") -> Path:
+def _build_windows_library(root: Path, simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:
     """
     Build the library on Windows with gcc (see windows_gcc) against the headers and the import
     library of the Python running VUnit, reusing a cached build like the POSIX one.
 
     With simulator_prefix, the variant with the front end of the simulator, the FLI for
-    Questa/ModelSim or VHPI for Riviera-PRO/Active-HDL: the prebuilt DLLs cannot be used for it,
+    Questa/ModelSim or VHPI for Riviera-PRO: the prebuilt DLLs cannot be used for it,
     since they are MSVC builds without the front end, which has to be linked against the
     simulator's own libmtipli or aldecpli. Without, the VHPIDIRECT variant for NVC and GHDL,
     built only when there is no prebuilt DLL.
-
-    The Questa variant is untested.
     """
-    variant = front_end if simulator_prefix is not None else None
     compiler = windows_gcc(simulator_prefix)
     if compiler is None:
         bundled = ""
@@ -534,16 +532,16 @@ def _build_windows_library(root: Path, simulator_prefix: Optional[Path] = None, 
     python_include, python_libs = python_dev_paths()
     include_dirs = [python_include]
     simulator_libraries = []
-    if variant is not None:
-        include_dir = _vhpi_include_dir if variant == "vhpi" else _fli_include_dir
+    if front_end is not None:
+        include_dir = _vhpi_include_dir if front_end == "vhpi" else _fli_include_dir
         include_dirs.append(include_dir(simulator_prefix))
-        simulator_library = "-laldecpli" if variant == "vhpi" else "-lmtipli"
+        simulator_library = "-laldecpli" if front_end == "vhpi" else "-lmtipli"
         simulator_libraries = [f"-L{Path(simulator_prefix).resolve()!s}", simulator_library]
 
-    name = f"vunit_python_bridge_{variant}.dll" if variant else "vunit_python_bridge.dll"
+    name = f"vunit_python_bridge_{front_end}.dll" if front_end else "vunit_python_bridge.dll"
     key_items = [_source_fingerprint(), sys.version, sys.base_prefix, str(simulator_prefix), " ".join(compiler)]
     key = hashlib.sha256("\n".join(key_items).encode("utf-8")).hexdigest()[:16]
-    directory = root / f"cp{sys.version_info[0]}{sys.version_info[1]}-win_amd64-{variant or 'gcc'}-{key}"
+    directory = root / f"cp{sys.version_info[0]}{sys.version_info[1]}-win_amd64-{front_end or 'gcc'}-{key}"
     library_file = directory / name
     if library_file.is_file():
         return library_file
@@ -553,9 +551,9 @@ def _build_windows_library(root: Path, simulator_prefix: Optional[Path] = None, 
     cmd = (
         compiler
         + ["-shared", "-m64", "-O2", "-D__USE_MINGW_ANSI_STDIO=1"]
-        + (["-freg-struct-return"] if variant == "fli" else [])
+        + (["-freg-struct-return"] if front_end == "fli" else [])
         + [f"-I{path}" for path in include_dirs]
-        + [str(path) for path in bridge_sources(front_end=variant)]
+        + [str(path) for path in bridge_sources(front_end)]
         + ["-o", str(tmp)]
         + [f"-L{python_libs!s}", f"-lpython{sys.version_info[0]}{sys.version_info[1]}"]
         + simulator_libraries

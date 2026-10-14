@@ -14,7 +14,7 @@ language interface implementing them for the selected simulator:
 
 the VUnit Python bridge, a small C library (native/*.c) embedding CPython in the simulator
 process, called through VHPIDIRECT (NVC, GHDL), the FLI (Questa/ModelSim) or VHPI
-(Riviera-PRO/Active-HDL).
+(Riviera-PRO).
 
 Modules:
 
@@ -43,17 +43,16 @@ VHDL_PATH = Path(__file__).parent.resolve() / "hdl" / "src"
 # The foreign language interface implementing the package for a simulator. VUnit says which
 # simulator was selected, the package says how it is served: NVC and GHDL both go through
 # VHPIDIRECT but bind the library differently, Questa/ModelSim goes through the FLI and
-# Riviera-PRO/Active-HDL through VHPI.
+# Riviera-PRO through VHPI.
 FOREIGN_LANGUAGE_INTERFACES = {
     "nvc": "VHPIDIRECT_NVC",
     "ghdl": "VHPIDIRECT_GHDL",
     "modelsim": "FLI",
     "rivierapro": "VHPI",
-    "activehdl": "VHPI",
 }
 
 # The simulators of the table, named as a user knows them
-SUPPORTED_SIMULATORS = "NVC, GHDL, Questa/ModelSim, Riviera-PRO or Active-HDL"
+SUPPORTED_SIMULATORS = "NVC, GHDL, Questa/ModelSim or Riviera-PRO"
 
 
 def setup(context):

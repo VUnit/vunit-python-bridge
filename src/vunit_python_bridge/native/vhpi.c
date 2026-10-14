@@ -6,7 +6,7 @@
  * Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
  *
  * VHPI front end of the bridge, compiled into the library only for
- * Riviera-PRO/Active-HDL, which have no direct binding (VHPIDIRECT). Every
+ * Riviera-PRO, which has no direct binding (VHPIDIRECT). Every
  * entry point of bridge.h is registered as a foreign subprogram of the same
  * name, bound by the "VHPI <library> <entry point>" attributes of the
  * generated python_bridge_pkg.vhd. The callbacks read the parameters with

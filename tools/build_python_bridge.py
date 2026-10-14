@@ -77,7 +77,7 @@ def main():
         "/Brepro",
         f"/I{include_dir}",
         f"/Fo{build_dir}\\",
-        *[str(path) for path in NATIVE_LIBRARY.bridge_sources()],
+        *[str(path) for path in NATIVE_LIBRARY.bridge_sources(None)],
         f"/Fe{output}",
         "/link",
         "/Brepro",
