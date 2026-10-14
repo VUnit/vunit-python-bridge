@@ -815,7 +815,7 @@ begin
       ---------------------------------------------------------------------
       -- integer_array_t
       ---------------------------------------------------------------------
-      elsif run("Test that a 2D array preserves axis orientation, get(a, x, y) is row y column x") then
+      elsif run("Test that a 2D array is indexed like VUnit, get(a, x, y) is a[x, y]") then
         arr := new_2d(width => 3, height => 2, bit_width => 16, is_signed => false);
         for y in 0 to 1 loop
           for x in 0 to 2 loop
@@ -824,11 +824,11 @@ begin
         end loop;
         exec(
           "def orientation_ok(a):" +
-          "    return bool(a[0, 1] == 1 and a[1, 2] == 12 and a.shape == (2, 3))"
+          "    return bool(a[1, 0] == 1 and a[2, 1] == 12 and a.shape == (3, 2))"
         );
         check_true(call_boolean("orientation_ok", arg(arr)));
 
-      elsif run("Test that a 3D array preserves axis orientation, get(a, x, y, z) is row y column x plane z") then
+      elsif run("Test that a 3D array is indexed like VUnit, get(a, x, y, z) is a[x, y, z]") then
         arr := new_3d(width => 3, height => 2, depth => 4, bit_width => 16, is_signed => false);
         for y in 0 to 1 loop
           for x in 0 to 2 loop
@@ -839,17 +839,17 @@ begin
         end loop;
         exec(
           "def orientation_ok3(a):" +
-          "    return bool(a[0, 1, 2] == 12 and a[1, 2, 3] == 123 and a.shape == (2, 3, 4))"
+          "    return bool(a[1, 0, 2] == 12 and a[2, 1, 3] == 123 and a.shape == (3, 2, 4))"
         );
         check_true(call_boolean("orientation_ok3", arg(arr)));
 
-      elsif run("Test that returned 2D and 3D arrays preserve axis orientation") then
+      elsif run("Test that returned 2D and 3D arrays are indexed like VUnit") then
         exec(
           "import numpy as np" +
           "def make2():" +
-          "    return np.array([[10 * y + x for x in range(3)] for y in range(2)], dtype=np.int16)" +
+          "    return np.array([[10 * y + x for y in range(2)] for x in range(3)], dtype=np.int16)" +
           "def make3():" +
-          "    return np.fromfunction(lambda y, x, z: 100 * y + 10 * x + z, (2, 3, 4), dtype=int)"
+          "    return np.fromfunction(lambda x, y, z: 100 * y + 10 * x + z, (3, 2, 4), dtype=int)"
         );
         result := call_integer_array("make2");
         check_equal(width(result), 3);
@@ -938,11 +938,12 @@ begin
         check_equal(length(result), 6);
         check_equal(bit_width(result), 32);
         check_true(is_signed(result));
+        -- NumPy flattens a[x, y] x first
         check_equal(get(result, 0), 0);
-        check_equal(get(result, 1), 1);
-        check_equal(get(result, 2), 2);
-        check_equal(get(result, 3), 10);
-        check_equal(get(result, 4), 11);
+        check_equal(get(result, 1), 10);
+        check_equal(get(result, 2), 1);
+        check_equal(get(result, 3), 11);
+        check_equal(get(result, 4), 2);
         check_equal(get(result, 5), 12);
 
       elsif run("Test null array round trip") then

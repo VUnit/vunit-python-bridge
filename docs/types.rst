@@ -37,16 +37,21 @@ integer_array_t and NumPy
 
 An ``integer_array_t`` argument is transferred to Python and referred to by
 the expression as a NumPy array of dtype ``int32``, so it can be reused in
-several calls. The shape follows VUnit's indexing so that elements correspond
+several calls. It is indexed like VUnit, so that elements correspond
 directly:
 
 ============= ================================ ===========================
 Array         VHDL                             Python
 ============= ================================ ===========================
 1D            ``get(a, i)``                    ``a[i]``, shape ``(length,)``
-2D            ``get(a, x, y)``                 ``a[y, x]``, shape ``(height, width)``
-3D            ``get(a, x, y, z)``              ``a[y, x, z]``, shape ``(height, width, depth)``
+2D            ``get(a, x, y)``                 ``a[x, y]``, shape ``(width, height)``
+3D            ``get(a, x, y, z)``              ``a[x, y, z]``, shape ``(width, height, depth)``
 ============= ================================ ===========================
+
+Image libraries such as Pillow and OpenCV, and ``numpy.loadtxt`` of a CSV file
+written by VUnit's ``save_csv``, index rows first, ``[y, x]``. Swap the first two
+axes of such an array with ``a.swapaxes(0, 1)``, or ``a.T`` for a 2D array, before
+returning it to VHDL, and of an argument before passing it to them.
 
 ``integer_array_t`` does not record its number of dimensions. An argument is
 treated as 3D if its depth is larger than one, else as 2D if its height is

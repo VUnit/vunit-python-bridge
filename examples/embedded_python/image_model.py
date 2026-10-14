@@ -20,6 +20,6 @@ def transpose(image):
 
 def pixel(image, x, y):
     """
-    The pixel in column x of row y. VHDL get(a, x, y) is Python a[y, x].
+    The pixel in column x of row y. VHDL get(a, x, y) is Python a[x, y].
     """
-    return int(image[y, x])
+    return int(image[x, y])

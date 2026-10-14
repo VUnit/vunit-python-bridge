@@ -600,7 +600,7 @@ begin
       elsif run("Test NumPy arrays both ways") then
         -- integer_array_t is the VUnit type for data sets such as images and it is passed
         -- to Python as a NumPy array of the same shape. An array returned by Python
-        -- becomes a new integer_array_t. The indexing matches: get(a, x, y) is a[y, x].
+        -- becomes a new integer_array_t. The indexing matches: get(a, x, y) is a[x, y].
         import_module_from_file("image_model.py", "image_model");  -- <testbench directory>/image_model.py
 
         -- A 4 x 3 image with the column in the ones and the row in the tens

@@ -392,8 +392,8 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
     @staticmethod
     def _shape(length, width, height, depth):
         """
-        NumPy shape of an integer_array_t. get(arr, x, y) is a[y, x] and
-        get(arr, x, y, z) is a[y, x, z], matching VUnit's storage order.
+        NumPy shape of the storage of an integer_array_t, which VUnit orders
+        by y, then x, then z.
         """
         if depth > 1:
             return (height, width, depth)
@@ -405,10 +405,13 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self, storage, length, width, height, depth, bit_width, is_signed
     ):  # pylint: disable=too-many-arguments,too-many-positional-arguments
         """
-        Create the NumPy array for an integer_array_t value. The bridge
-        fills the storage (native int32) after this call returns.
+        Create the NumPy array for an integer_array_t value, indexed like
+        VUnit: get(arr, x, y, z) is a[x, y, z]. The array is a view of the
+        storage (native int32), which the bridge fills after this call returns.
         """
         array = numpy.frombuffer(storage, dtype=numpy.int32).reshape(self._shape(length, width, height, depth))
+        if array.ndim > 1:
+            array = array.swapaxes(0, 1)
         self._array_meta[id(array)] = (array, bit_width, bool(is_signed))
         return array
 
@@ -605,8 +608,10 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
                     f"{low} to {high})"
                 )
 
-        # get(arr, x, y, z) is value[y, x, z]
-        height, width, depth = (value.shape + (1, 1))[:3] if value.ndim > 1 else (1, value.shape[0], 1)
+        # get(arr, x, y, z) is value[x, y, z], stored by y, then x, then z
+        width, height, depth = (value.shape + (1, 1))[:3] if value.ndim > 1 else (value.shape[0], 1, 1)
+        if value.ndim > 1:
+            value = value.swapaxes(0, 1)
 
         data = numpy.ascontiguousarray(value, dtype=numpy.int32).tobytes()
         return (0, 0.0, data, (value.size, width, height, depth, bit_width, int(is_signed)))
