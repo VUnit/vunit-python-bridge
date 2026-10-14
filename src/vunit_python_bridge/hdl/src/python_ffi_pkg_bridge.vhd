@@ -414,13 +414,11 @@ package body python_ffi_pkg is
     variable offset, n : natural := 0;
     variable staged_id : integer;
   begin
-    -- The bridge library cannot be called during elaboration, see #17
-    if get_phase = test_runner_entry then
+    if get_phase < test_runner_setup then
       failure(
         python_logger,
         operation & " failed:" & LF &
-        "An integer_array_t argument cannot be made before test_runner_setup, for example in a constant. " &
-        "Make it in a process after test_runner_setup."
+        "An integer_array_t argument cannot be made before test_runner_setup, for example in a constant."
       );
       return -1;
     end if;
