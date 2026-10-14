@@ -31,10 +31,10 @@ VHDL_SOURCE_PATH = PACKAGE_PATH / "hdl" / "src"
 BRIDGE_PACKAGE_TEMPLATE = VHDL_SOURCE_PATH / "python_bridge_pkg.vhd.in"
 CONFIG_FILE_NAME = "vunit_python_bridge.cfg"
 
-# The simulators the bridge serves, reaching it through VHPIDIRECT and through the FLI.
-# The rest of the simulators of the package are served by the VHPI application.
+# The simulators the bridge serves, reaching it through VHPIDIRECT, the FLI and VHPI.
 FLI_SIMULATORS = ("modelsim",)
-BRIDGE_SIMULATORS = ("nvc", "ghdl") + FLI_SIMULATORS
+VHPI_SIMULATORS = ("rivierapro", "activehdl")
+BRIDGE_SIMULATORS = ("nvc", "ghdl") + FLI_SIMULATORS + VHPI_SIMULATORS
 
 # GHDL backends that link the design ahead of time. For these the library
 # token in the VHPIDIRECT attribute is passed to the linker instead of being
@@ -77,7 +77,7 @@ def setup(
     """
     if simulator_name is not None and simulator_name not in BRIDGE_SIMULATORS:
         raise PythonBridgeError(
-            f"The vunit-python-bridge package requires NVC, GHDL or Questa/ModelSim, "
+            f"The vunit-python-bridge package requires NVC, GHDL, Questa/ModelSim, Riviera-PRO or Active-HDL, "
             f"it is not supported for {simulator_name}"
         )
 
@@ -85,13 +85,17 @@ def setup(
     check_windows_64bit_simulator(simulator_name, simulator_prefix)
 
     is_fli = simulator_name in FLI_SIMULATORS
-    if is_fli and simulator_prefix is None:
+    is_vhpi = simulator_name in VHPI_SIMULATORS
+    if (is_fli or is_vhpi) and simulator_prefix is None:
         raise PythonBridgeError(
-            f"The FLI variant of the bridge is built against the {simulator_name} installation, but it was not found"
+            f"The {'FLI' if is_fli else 'VHPI'} variant of the bridge is built against the {simulator_name} "
+            "installation, but it was not found"
         )
 
     root = Path(output_path) / "python_bridge"
-    library_file = _prepare_library(Path(simulator_prefix) if is_fli else None)
+    library_file = _prepare_library(
+        Path(simulator_prefix) if is_fli or is_vhpi else None, "vhpi" if is_vhpi else "fli"
+    )
     run_script_dir = str(Path.cwd() if run_script_path is None else Path(run_script_path).resolve().parent)
     # The configuration belongs to the project, the library may be shared. The simulator
     # hooks tell the library where the configuration is.
@@ -99,13 +103,16 @@ def setup(
     _write_if_changed(config_file, _config_text(run_script_dir))
 
     # The foreign attribute string of an entry point: the name of its wrapper in native/fli.c
-    # and the library, by absolute path since Questa accepts it, for the FLI; the VHPIDIRECT
-    # library token and the entry point itself for NVC and GHDL.
-    foreign = (
-        f"fli_{{entry_point}} {library_file!s}"
-        if is_fli
-        else f"VHPIDIRECT {_vhpidirect_token(simulator_name, simulator_backend, library_file)} {{entry_point}}"
-    )
+    # and the library, by absolute path since Questa accepts it, for the FLI; the library by
+    # absolute path without its suffix, which Riviera-PRO adds, and the entry point registered
+    # by native/vhpi.c for VHPI; the VHPIDIRECT library token and the entry point itself for
+    # NVC and GHDL.
+    if is_fli:
+        foreign = f"fli_{{entry_point}} {library_file!s}"
+    elif is_vhpi:
+        foreign = f"VHPI {_vhpi_library_token(library_file)} {{entry_point}}"
+    else:
+        foreign = f"VHPIDIRECT {_vhpidirect_token(simulator_name, simulator_backend, library_file)} {{entry_point}}"
     bridge_package = root / "vhdl" / "python_bridge_pkg.vhd"
     _write_if_changed(bridge_package, _render_bridge_package(foreign))
 
@@ -119,14 +126,14 @@ def setup(
     )
 
 
-def _prepare_library(fli_prefix: Optional[Path]) -> Path:
+def _prepare_library(simulator_prefix: Optional[Path], front_end: str) -> Path:
     """
     Prepare the library in the library directory, failing with a pointer to the variable
     selecting another one when it cannot be written, e.g. a read-only home directory.
     """
     directory = library_directory()
     try:
-        return prepare_library(directory, fli_prefix)
+        return prepare_library(directory, simulator_prefix, front_end)
     except OSError as exc:
         source = f"set by {LIBRARY_DIR_VARIABLE}" if os.environ.get(LIBRARY_DIR_VARIABLE) else "the default"
         raise PythonBridgeError(
@@ -143,6 +150,20 @@ def _vhpidirect_token(simulator_name, simulator_backend: Optional[str], library_
     if simulator_name == "ghdl" and simulator_backend in GHDL_LINKING_BACKENDS:
         return "-lvunit_python_bridge"
     return library_file.name
+
+
+def _vhpi_library_token(library_file: Path) -> str:
+    """
+    The library of the VHPI attributes: its path without the suffix the simulator adds. The
+    attribute separates its parts by spaces, so the path cannot have any.
+    """
+    token = str(library_file.with_suffix(""))
+    if any(character.isspace() for character in token):
+        raise PythonBridgeError(
+            f"The Python bridge library for VHPI is in {library_file.parent!s}, whose path has a space, which the "
+            f"VHPI foreign attribute cannot name. Set {LIBRARY_DIR_VARIABLE} to a directory without spaces."
+        )
+    return token
 
 
 def _render_bridge_package(foreign: str) -> str:

@@ -45,6 +45,10 @@ def register(context, bridge: PythonBridge) -> None:
     context.register_simulator_hooks(
         "modelsim", process_flags=_modelsim_process_flags(), run_env=_config_run_env(bridge)
     )
+    if context.simulator_name in ("rivierapro", "activehdl"):
+        # Their interfaces have no run environment hook, but start vsim with the environment of
+        # this process, after the setup
+        os.environ[CONFIG_FILE_VARIABLE] = str(bridge.config_file)
 
 
 def _config_run_env(bridge: PythonBridge):

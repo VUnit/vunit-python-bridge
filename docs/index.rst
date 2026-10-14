@@ -57,7 +57,8 @@ Simulator                          Interface   Status
 NVC                                VHPIDIRECT  Tested on Linux, macOS and Windows
 GHDL (mcode, llvm-jit, llvm, gcc)  VHPIDIRECT  Tested on Linux, macOS and Windows
 Questa/ModelSim                    FLI         Tested manually on Linux; the Windows build is untested
-Riviera-PRO, Active-HDL            VHPI        Untested; a subset of the API, see :doc:`other_simulators`
+Riviera-PRO                        VHPI        Tested manually on Linux and Windows
+Active-HDL                         VHPI        Untested
 =================================  ==========  ========================================================
 
 Getting started
@@ -127,7 +128,6 @@ become available through ``python_context``:
    :hidden:
 
    how_it_works
-   other_simulators
 
 .. toctree::
    :caption: About

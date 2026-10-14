@@ -3,11 +3,9 @@ Requirements
 
 * A VUnit with support for packages and simulator hooks, see the `README
   <https://github.com/VUnit/vunit-python-bridge#readme>`__.
-* NVC, GHDL or Questa/ModelSim, through the VUnit Python bridge, see
-  :ref:`python_bridge:native`, or Riviera-PRO/Active-HDL (VHPI) through the VHPI application, which
-  the package builds in the same way, see
-  :ref:`python_bridge:other_simulators`. Any other simulator raises a
-  ``RuntimeError``.
+* NVC, GHDL, Questa/ModelSim or Riviera-PRO, see :ref:`python_bridge:native`.
+  Active-HDL is set up the same way as Riviera-PRO, but untested. Any other
+  simulator raises a ``RuntimeError``.
 * VHDL-2008 or later.
 * CPython 3.10 or later with the standard (GIL) build. Free-threaded builds
   are rejected with an error.
