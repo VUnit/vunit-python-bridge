@@ -1,5 +1,12 @@
 # vunit-python-bridge
 
+[![Documentation](https://img.shields.io/readthedocs/vunit-python-bridge?label=documentation)](https://vunit-python-bridge.readthedocs.io)
+[![Repository](https://img.shields.io/badge/github-VUnit%2Fvunit--python--bridge-blue?logo=github)](https://github.com/VUnit/vunit-python-bridge)
+[![PyPI](https://img.shields.io/pypi/v/vunit-python-bridge?label=pip%20install%20vunit-python-bridge&color=blue)](https://pypi.org/project/vunit-python-bridge/)
+[![Python versions](https://img.shields.io/badge/python-3.10%20%E2%80%93%203.15-blue?logo=python&logoColor=white)](https://vunit-python-bridge.readthedocs.io/en/latest/requirements.html)
+[![License](https://img.shields.io/badge/license-MPL--2.0-blue)](https://github.com/VUnit/vunit-python-bridge/blob/main/LICENSE)
+[![CI status](https://github.com/VUnit/vunit-python-bridge/actions/workflows/python_bridge.yml/badge.svg?branch=main)](https://github.com/VUnit/vunit-python-bridge/actions/workflows/python_bridge.yml)
+
 A VUnit package making Python callable from VHDL.
 
 ## Overview
@@ -88,10 +95,7 @@ environment and its installed packages.
 
 ## Documentation
 
-The user guide is in [docs/user_guide.rst](docs/user_guide.rst): sessions, `exec`, `eval`, `call`
-and its argument forms, `exec_file`, `import_run_script`, the type mapping, `integer_array_t` and
-NumPy, error reporting, and how the bridge works. A complete example covering all three simulator
-families is in [examples/embedded_python](examples/embedded_python).
+The documentation is at [vunit-python-bridge.readthedocs.io](https://vunit-python-bridge.readthedocs.io).
 
 ## License
 
