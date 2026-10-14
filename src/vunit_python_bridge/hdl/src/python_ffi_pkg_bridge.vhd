@@ -26,6 +26,8 @@ use vunit_lib.id_pkg.all;
 use vunit_lib.integer_array_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
 use vunit_lib.logger_pkg.all;
+use vunit_lib.run_pkg.get_phase;
+use vunit_lib.run_types_pkg.all;
 use work.python_bridge_pkg.all;
 
 package python_ffi_pkg is
@@ -412,6 +414,16 @@ package body python_ffi_pkg is
     variable offset, n : natural := 0;
     variable staged_id : integer;
   begin
+    -- The bridge library cannot be called during elaboration, see #17
+    if get_phase = test_runner_entry then
+      failure(
+        python_logger,
+        operation & " failed:" & LF &
+        "An integer_array_t argument cannot be made before test_runner_setup, for example in a constant. " &
+        "Make it in a process after test_runner_setup."
+      );
+      return -1;
+    end if;
     if not p_succeeded(
       vpy_push_array(len, width(arr), height(arr), depth(arr), bit_width(arr), boolean'pos(is_signed(arr))),
       operation

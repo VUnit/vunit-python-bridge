@@ -39,6 +39,10 @@ EXPECTED_FAILURES_VHPI = [
     "lib.tb_python_pkg.Test eval of real with underflow from C to VHDL",
 ]
 
+# Fails during elaboration, with this error rather than a crash, see #17
+ELABORATION_ARRAY_TEST = "lib.tb_elaboration_array.all"
+ELABORATION_ARRAY_ERROR = "An integer_array_t argument cannot be made before test_runner_setup"
+
 # Simulators where python_pkg is implemented by the VUnit Python bridge
 BRIDGE_SIMULATORS = ["nvc", "ghdl", "modelsim"]
 
@@ -66,6 +70,11 @@ def verify(results, expected_failures):
     missing = [name for name in expected if name not in failed]
     if missing:
         raise RuntimeError("Tests expected to fail but did not:\n" + "\n".join(missing))
+
+    if ELABORATION_ARRAY_TEST in expected and ELABORATION_ARRAY_ERROR not in (
+        tests[ELABORATION_ARRAY_TEST].path / "output.txt"
+    ).read_text(encoding="utf-8"):
+        raise RuntimeError(f"{ELABORATION_ARRAY_TEST} failed without the error: {ELABORATION_ARRAY_ERROR}")
 
     if expected:
         print(f"Verified {len(expected)} expected failures: {', '.join(name.split('.')[-1] for name in expected)}")
@@ -113,6 +122,8 @@ def main():
     if simulator_name in BRIDGE_SIMULATORS:
         # The operations implemented by the Python bridge
         lib.add_source_file(ROOT / "tb_python_pkg_bridge.vhd")
+        lib.add_source_file(ROOT / "tb_elaboration_array.vhd")
+        expected_failures.append(ELABORATION_ARRAY_TEST)
 
     vu.set_compile_option("rivierapro.vcom_flags", ["-dbg"])
     vu.set_sim_option("rivierapro.vsim_flags", ["-interceptcoutput"])

@@ -37,8 +37,11 @@ integer_array_t and NumPy
 
 An ``integer_array_t`` argument is transferred to Python and referred to by
 the expression as a NumPy array of dtype ``int32``, so it can be reused in
-several calls. It is indexed like VUnit, so that elements correspond
-directly:
+several calls. Since it is transferred when the argument is made, the
+argument must be made after ``test_runner_setup``, not during elaboration, for
+example in a constant. Otherwise ``arg`` and ``kwarg`` report a failure, see
+`#17 <https://github.com/VUnit/vunit-python-bridge/issues/17>`__. It is
+indexed like VUnit, so that elements correspond directly:
 
 ============= ================================ ===========================
 Array         VHDL                             Python
