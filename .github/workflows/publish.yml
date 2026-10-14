@@ -165,7 +165,8 @@ jobs:
         name: distribution
         path: dist
 
-    # The release says what release_notes/<version>.md says, or else what was written
+    # The release says what release_notes/<version>.md says, renamed from
+    # release_notes/unreleased.md in the commit bumping the version, or else what was written
     # when the tag was made, or else what GitHub generates from the merged pull requests.
     - name: '🏷️ Create the release'
       env:

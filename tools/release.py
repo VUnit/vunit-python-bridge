@@ -14,7 +14,8 @@ PyPI, where a version cannot be taken back.
     python tools/release.py version           print the version of pyproject.toml
     python tools/release.py validate          check that the version is a release version
     python tools/release.py validate --tag v1.2.3
-                                              check the tag against it as well
+                                              check the tag against it as well, and that
+                                              release_notes/unreleased.md was renamed
 """
 
 import argparse
@@ -24,6 +25,7 @@ import tomllib
 from pathlib import Path
 
 PYPROJECT = Path(__file__).parent.parent.resolve() / "pyproject.toml"
+UNRELEASED_NOTES = PYPROJECT.parent / "release_notes" / "unreleased.md"
 
 # The versions a release may have: MAJOR.MINOR.PATCH, optionally a pre-release of it.
 RELEASE_VERSION = re.compile(r"\d+\.\d+\.\d+(a\d+|b\d+|rc\d+)?")
@@ -53,6 +55,12 @@ def validate(tag) -> None:
         raise SystemExit(
             f"The tag {tag!r} does not name the version of {PYPROJECT}, which is {project_version!r}. "
             f"Expected the tag v{project_version}."
+        )
+
+    if tag is not None and UNRELEASED_NOTES.exists():
+        raise SystemExit(
+            f"{UNRELEASED_NOTES} still exists. Rename it to release_notes/{project_version}.md "
+            "in the commit bumping the version."
         )
 
     print(f"Version {project_version}" + ("" if tag is None else f", tagged {tag}"))
