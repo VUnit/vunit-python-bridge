@@ -418,7 +418,7 @@ package body python_ffi_pkg is
       failure(
         python_logger,
         operation & " failed:" & LF &
-        "An integer_array_t argument cannot be made before test_runner_setup, for example in a constant."
+        "An integer_array_t argument cannot be made before test_runner_setup."
       );
       return -1;
     end if;
