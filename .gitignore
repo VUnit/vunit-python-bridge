@@ -6,6 +6,5 @@ __pycache__/
 /docs/_build/
 /src/vunit_python_bridge/bin/
 vunit_out/
-/docs/release_notes.rst
+/docs/release_notes.md
 /docs/api/
-/docs/news.md
