@@ -273,7 +273,7 @@ case:
 
     ...
 
-    check_equal(integer'(call(memory, "read", arg(16#100#))), 16#cafe#);
+    check_equal(call_integer(memory, "read", arg(16#100#)), 16#cafe#);
 
 In the same way, a component can let its user choose the class, by taking its
 name as a ``string`` generic.

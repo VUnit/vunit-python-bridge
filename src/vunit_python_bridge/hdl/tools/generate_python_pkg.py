@@ -202,6 +202,15 @@ def call_name(result):
     return "call_integer_w_arg" if result["name"] == "integer" else f"call_{result['name']}"
 
 
+def call_aliases(result):
+    """
+    Aliases of the call function of a result type: call, and call_integer for
+    call_integer_w_arg, named like the other results, as in python_pkg.vhd.in.
+    """
+    aliases = ["call"] if result.get("alias_call", True) else []
+    return aliases + (["call_integer"] if result["name"] == "integer" else [])
+
+
 # -------------------------------------------------------------------------
 # arg and kwarg
 # -------------------------------------------------------------------------
@@ -322,8 +331,8 @@ def call_declarations():
         lines.append(f"    identifier : string; {ARG_PARAMETERS};")
         lines.append(f"    {SESSION}")
         lines.append(f"  ) return {result['vhdl']};")
-        if result.get("alias_call", True):
-            lines.append(f"  alias call is {name}[")
+        for alias in call_aliases(result):
+            lines.append(f"  alias {alias} is {name}[")
             lines.append(f"    {ARG_SIGNATURE} return {result['vhdl']}];")
         lines.append("")
     for result in PROCEDURE_RESULTS:
@@ -402,10 +411,10 @@ def object_declarations():
         lines.append(f"    {OBJECT}; method : string;")
         lines.append(f"    {ARG_PARAMETERS}")
         lines.append(f"  ) return {result['vhdl']};")
-        if result.get("alias_call", True):
+        for alias in call_aliases(result):
             # The signature over two lines, to keep them short
             signature = OBJECT_ARG_SIGNATURE.split(", ")
-            lines.append(f"  alias call is {name}[")
+            lines.append(f"  alias {alias} is {name}[")
             lines.append(f"    {', '.join(signature[:7])},")
             lines.append(f"    {', '.join(signature[7:])} return {result['vhdl']}];")
         lines.append("")

@@ -86,6 +86,9 @@ package python_object_pkg is
   alias call is call_integer_w_arg[
     python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t,
     arg_t, arg_t, arg_t, arg_t, arg_t return integer];
+  alias call_integer is call_integer_w_arg[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t,
+    arg_t, arg_t, arg_t, arg_t, arg_t return integer];
 
   impure function call_real(
     object : python_object_t; method : string;

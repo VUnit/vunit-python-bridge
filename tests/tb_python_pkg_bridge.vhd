@@ -172,6 +172,7 @@ begin
         );
         check_equal(integer'(call("double", arg(21))), 42);
         check_equal(integer'(call("double", arg(-5))), -10);
+        check_equal(call_integer("double", arg(4)), 8, "the call_integer alias");
 
       elsif run("Test that + joins source lines") then
         check_equal(string'("a" + "b"), "a" & LF & "b");

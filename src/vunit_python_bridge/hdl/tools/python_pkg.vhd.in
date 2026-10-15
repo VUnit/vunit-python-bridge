@@ -101,6 +101,8 @@ $arg_declarations
   ) return integer;
   alias call is call_integer_w_arg[
     string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer];
+  alias call_integer is call_integer_w_arg[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer];
 
   procedure call(
     identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;

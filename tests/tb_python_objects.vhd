@@ -54,19 +54,19 @@ begin
         check_equal(count_b, 6, "vc_b, a Counter of its own with step 2");
         check_equal(count_c, 103, "vc_c, the shared Counter");
         check_equal(count_d, 9, "vc_d, a Counter of its own with step 3, by instance path");
-        check_equal(integer'(call(get_python_object("tb_python_objects:vc_d"), "value")), 9, "vc_d by its path");
-        check_equal(integer'(call(get_python_object("vc_a"), "value")), 3, "the model of vc_a by its identity");
-        check_equal(integer'(call(shared_model, "value")), 103);
+        check_equal(call_integer(get_python_object("tb_python_objects:vc_d"), "value"), 9, "vc_d by its path");
+        check_equal(call_integer(get_python_object("vc_a"), "value"), 3, "the model of vc_a by its identity");
+        check_equal(call_integer(shared_model, "value"), 103);
         check_equal(eval_string(shared_model, "type(obj).__name__"), "Counter");
 
       elsif run("Test the result types of the calls of an object") then
         object := new_python_object("models.counter_model.Counter", kwarg("start", 5));
-        check_equal(integer'(eval(object, "obj.count")), 5);
-        check_equal(real'(call(object, "ratio")), 1.25);
+        check_equal(eval_integer(object, "obj.count"), 5);
+        check_equal(call_real(object, "ratio"), 1.25);
         call(object, "add", arg(1));
         call_unsigned(object, "value", byte);
         check(byte = 6, "unsigned result");
-        check(integer_vector'(call(object, "history")) = (0, 1, 2, 3, 4, 5, 6));
+        check(call_integer_vector(object, "history") = (0, 1, 2, 3, 4, 5, 6));
         check_equal(length(call_integer_array(object, "history")), 7);
         check_true(eval_boolean(object, "obj.count == 6"));
         -- The eval procedures of an object
@@ -79,13 +79,13 @@ begin
         object := create_python_object("models.counter_model.Counter", id => get_id("exec_test"));
         check(get_id(get_session(object)) = get_id("exec_test"), "session of the object");
         exec(object, "obj.count = 41");
-        check_equal(integer'(call(object, "add", arg(1))), 42);
+        check_equal(call_integer(object, "add", arg(1)), 42);
         check(get_logger(object) = get_logger(get_id("exec_test")), "logger of the object");
 
       elsif run("Test an object of a class defined in the default session") then
         exec("class Doubler:" + "    def apply(self, x):" + "        return 2 * x");
         object := new_python_object("Doubler");
-        check_equal(integer'(call(object, "apply", arg(21))), 42);
+        check_equal(call_integer(object, "apply", arg(21)), 42);
         -- Without an id, objects are enumerated per class
         check_equal(full_name(get_id(object)), "python_bridge:python:object:Doubler:1");
 
@@ -128,7 +128,7 @@ begin
           failure
         );
         -- Reported once, then every use fails with the reason
-        check_equal(integer'(call(object, "value")), integer'low);
+        check_equal(call_integer(object, "value"), integer'low);
         check_only_log(
           get_logger(broken_id),
           "call(""value"") failed:" & LF &
@@ -142,7 +142,7 @@ begin
         mock(get_logger(deferred_broken_id), failure);
         object := new_python_object("models.no_such_module.Model", id => deferred_broken_id);
         check_no_log;
-        check_equal(integer'(call(object, "value")), integer'low);
+        check_equal(call_integer(object, "value"), integer'low);
         check_log(
           get_logger(deferred_broken_id),
           "new_python_object(""models.no_such_module.Model"") failed:" & LF &
@@ -181,8 +181,8 @@ begin
       elsif run("Test that objects have sessions and numbers of their own") then
         object := new_python_object("models.counter_model.Counter", kwarg("start", 1));
         other := new_python_object("models.counter_model.Counter", kwarg("start", 2));
-        check_equal(integer'(eval(object, "obj.count")), 1);
-        check_equal(integer'(eval(other, "obj.count")), 2);
+        check_equal(eval_integer(object, "obj.count"), 1);
+        check_equal(eval_integer(other, "obj.count"), 2);
         exec(object, "shared = 'object'");
         check_false(eval_boolean(other, "'shared' in globals()"), "the sessions are separate");
         -- Without an id, objects are enumerated per class, the class name giving the hierarchy
@@ -195,7 +195,7 @@ begin
         object := new_python_object("models.counter_model.Counter", id => get_id("lazy"));
         check(get_logger(object) = get_logger(get_id("lazy")), "logger before creation");
         exec(object, "obj.count = 7");
-        check_equal(integer'(call(object, "value")), 7);
+        check_equal(call_integer(object, "value"), 7);
 
       elsif run("Test that get_python_object finds an object by its identity or full name") then
         object := new_python_object("models.counter_model.Counter", kwarg("start", 5), name => "tb:by_name");
@@ -203,7 +203,7 @@ begin
         check(get_python_object("tb:by_name") = object, "by full name");
         check(get_python_object(get_id("tb:by_name")) = object, "by identity");
         other := create_python_object("models.counter_model.Counter", kwarg("start", 6), name => "tb:created");
-        check_equal(integer'(call(get_python_object("tb:created"), "value")), 6);
+        check_equal(call_integer(get_python_object("tb:created"), "value"), 6);
 
       elsif run("Test that get_python_object returns null_python_object for an identity without an object") then
         check(get_python_object("tb:no_object") = null_python_object, "unknown name");
@@ -215,7 +215,7 @@ begin
         mock(python_logger, failure);
         call(null_python_object, "value");
         check_only_log(python_logger, "null_python_object was used, it is not an object", failure);
-        check_equal(integer'(call(null_python_object, "value")), integer'low);
+        check_equal(call_integer(null_python_object, "value"), integer'low);
         check_only_log(python_logger, "null_python_object was used, it is not an object", failure);
         unmock(python_logger);
 
@@ -227,7 +227,7 @@ begin
         other := new_python_object("models.counter_model.Counter", id => get_id(other_std_cfg));
         check_equal(full_name(get_id(object)), "test_vcs:counter:1");
         check_equal(full_name(get_id(other)), "test_vcs:counter:2");
-        check_equal(integer'(call(object, "add", arg(1))), 1);
+        check_equal(call_integer(object, "add", arg(1)), 1);
       end if;
     end loop;
 
