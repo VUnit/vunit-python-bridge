@@ -56,6 +56,39 @@ vunit_python_bridge = [
   "bin/*.dll",
 ]
 
+# The release notes of the next release are news fragments, release_notes/news.d/<PR>.<type>.md,
+# collected into release_notes/unreleased.md with `towncrier build --version <version>` when releasing.
+[tool.towncrier]
+directory = "release_notes/news.d"
+filename = "release_notes/unreleased.md"
+title_format = false
+issue_format = "#{issue}"
+
+[[tool.towncrier.type]]
+directory = "breaking"
+name = "Breaking changes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "feature"
+name = "Features"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "bugfix"
+name = "Bug fixes"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "doc"
+name = "Documentation"
+showcontent = true
+
+[[tool.towncrier.type]]
+directory = "misc"
+name = "Miscellaneous"
+showcontent = true
+
 [tool.black]
 line-length = 120
 

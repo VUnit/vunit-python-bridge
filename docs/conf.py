@@ -46,12 +46,27 @@ html_context = {
 }
 
 
-# The release notes page, generated from release_notes/*.md: unreleased.md, then the releases, newest first
+# The release notes page, generated from release_notes: the news fragments of news.d, which
+# towncrier collects into unreleased.md when releasing, and unreleased.md, then the releases, newest first
+with (ROOT / "pyproject.toml").open("rb") as _fptr:
+    _types = tomllib.load(_fptr)["tool"]["towncrier"]["type"]
+_news = []
+for _type in _types:
+    _fragments = sorted((ROOT / "release_notes" / "news.d").glob(f"*.{_type['directory']}.md"))
+    if _fragments:
+        _news += [f"### {_type['name']}", ""]
+        _news += [f"- {path.read_text().strip()} (#{path.name.split('.')[0]})" for path in _fragments] + [""]
+(ROOT / "docs" / "news.md").write_text("\n".join(_news))
 _notes = ["Release notes", "=============", ""]
+_unreleased = [ROOT / "docs" / "news.md"] if _news else []
+_unreleased += sorted((ROOT / "release_notes").glob("unreleased.md"))
+if _unreleased:
+    _notes += ["Unreleased", "----------", ""]
+    for _path in _unreleased:
+        _notes += [f".. include:: ../{_path.relative_to(ROOT).as_posix()}", "   :parser: myst_parser.sphinx_", ""]
 _releases = sorted((ROOT / "release_notes").glob("[0-9]*.md"), key=lambda path: Version(path.stem), reverse=True)
-for _path in sorted((ROOT / "release_notes").glob("unreleased.md")) + _releases:
-    _title = _path.stem.capitalize()
-    _notes += [_title, "-" * len(_title), "", f".. include:: ../release_notes/{_path.name}"]
+for _path in _releases:
+    _notes += [_path.stem, "-" * len(_path.stem), "", f".. include:: ../release_notes/{_path.name}"]
     _notes += ["   :parser: myst_parser.sphinx_", ""]
 (ROOT / "docs" / "release_notes.rst").write_text("\n".join(_notes))
 
