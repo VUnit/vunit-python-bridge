@@ -167,9 +167,9 @@ Backends of verification components
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 A verification component usually makes its object in the constructor of its
-handle, the way VUnit's own components make everything they need there.
-Every instance then gets a backend of its own, unless the testbench gives it
-one:
+handle, the way VUnit's own components make everything they need there. A
+second constructor takes an object instead, for a testbench that gives the
+component one:
 
 .. code-block:: vhdl
 
@@ -178,16 +178,20 @@ one:
       p_model : python_object_t;
     end record;
 
-    impure function new_uart_master(
-      baud : positive; model : python_object_t := null_python_object; id : id_t := null_id
-    ) return uart_master_t is
+    -- A UartModel of its own
+    impure function new_uart_master(baud : positive; id : id_t := null_id) return uart_master_t is
       constant std_cfg : std_cfg_t := create_std_cfg(id, "my_vcs", "uart_master");
-      variable result : uart_master_t := (p_std_cfg => std_cfg, p_model => model);
     begin
-      if model = null_python_object then
-        result.p_model := new_python_object("my_vcs.uart.UartModel", kwarg("baud", baud), get_id(std_cfg));
-      end if;
-      return result;
+      return (
+        p_std_cfg => std_cfg,
+        p_model => new_python_object("my_vcs.uart.UartModel", kwarg("baud", baud), get_id(std_cfg))
+      );
+    end;
+
+    -- A given model, e.g. shared with other components or the testbench
+    impure function new_uart_master(model : python_object_t; id : id_t := null_id) return uart_master_t is
+    begin
+      return (p_std_cfg => create_std_cfg(id, "my_vcs", "uart_master"), p_model => model);
     end;
 
 The component itself only calls the object of its handle:
@@ -205,9 +209,18 @@ The component itself only calls the object of its handle:
       end process;
 
 The handle is a constant made during elaboration, and so is its object, but
-nothing happens in Python until the first call. ``create_std_cfg`` numbers the
-instances made without an ``id``, ``my_vcs:uart_master:1``,
-``my_vcs:uart_master:2`` and so on, and their objects get the same identities.
+nothing happens in Python until the first call.
+
+The identities follow from who makes the object:
+
+* A component making its own object gives it its own identity: the ``id``
+  given, or the one ``create_std_cfg`` numbers, ``my_vcs:uart_master:1``,
+  ``my_vcs:uart_master:2`` and so on. The log of the component and of its
+  object then share a name.
+* A component given an object is named by its own ``id``, or numbered, never
+  by the object. The object keeps the identity it was made with, since it is
+  given in order to be shared, with the testbench or with other components,
+  each with a name of its own.
 
 ``filter_vc`` of the `embedded_python example
 <https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__

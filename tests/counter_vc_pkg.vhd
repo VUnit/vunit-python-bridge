@@ -18,24 +18,23 @@ package counter_vc_pkg is
     p_model : python_object_t;
   end record;
 
-  -- A Counter of its own, with the identity of the VC, unless given a model
-  impure function new_counter_vc(
-    step : natural := 1; model : python_object_t := null_python_object; id : id_t := null_id
-  ) return counter_vc_t;
+  -- A Counter of its own, with the identity of the VC
+  impure function new_counter_vc(step : natural := 1; id : id_t := null_id) return counter_vc_t;
+  -- A given model, e.g. shared with other VCs or the testbench
+  impure function new_counter_vc(model : python_object_t) return counter_vc_t;
 
   impure function get_model(vc : counter_vc_t) return python_object_t;
 end package;
 
 package body counter_vc_pkg is
-  impure function new_counter_vc(
-    step : natural := 1; model : python_object_t := null_python_object; id : id_t := null_id
-  ) return counter_vc_t is
-    variable result : counter_vc_t := (p_model => model);
+  impure function new_counter_vc(step : natural := 1; id : id_t := null_id) return counter_vc_t is
   begin
-    if model = null_python_object then
-      result.p_model := new_python_object("models.counter_model.Counter", kwarg("step", step), id);
-    end if;
-    return result;
+    return (p_model => new_python_object("models.counter_model.Counter", kwarg("step", step), id));
+  end;
+
+  impure function new_counter_vc(model : python_object_t) return counter_vc_t is
+  begin
+    return (p_model => model);
   end;
 
   impure function get_model(vc : counter_vc_t) return python_object_t is

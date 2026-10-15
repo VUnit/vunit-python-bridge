@@ -19,24 +19,23 @@ package filter_vc_pkg is
     p_model : python_object_t;
   end record;
 
-  -- A MovingAverage of its own, named by id, unless the testbench gives it a model
-  impure function new_filter_vc(
-    window : positive := 2; model : python_object_t := null_python_object; id : id_t := null_id
-  ) return filter_vc_t;
+  -- A MovingAverage of its own, named by id
+  impure function new_filter_vc(window : positive := 2; id : id_t := null_id) return filter_vc_t;
+  -- A model given by the testbench, e.g. shared with it
+  impure function new_filter_vc(model : python_object_t) return filter_vc_t;
 
   impure function get_model(filter : filter_vc_t) return python_object_t;
 end package;
 
 package body filter_vc_pkg is
-  impure function new_filter_vc(
-    window : positive := 2; model : python_object_t := null_python_object; id : id_t := null_id
-  ) return filter_vc_t is
-    variable result : filter_vc_t := (p_model => model);
+  impure function new_filter_vc(window : positive := 2; id : id_t := null_id) return filter_vc_t is
   begin
-    if model = null_python_object then
-      result.p_model := new_python_object("filter_model.MovingAverage", kwarg("window", window), id);
-    end if;
-    return result;
+    return (p_model => new_python_object("filter_model.MovingAverage", kwarg("window", window), id));
+  end;
+
+  impure function new_filter_vc(model : python_object_t) return filter_vc_t is
+  begin
+    return (p_model => model);
   end;
 
   impure function get_model(filter : filter_vc_t) return python_object_t is
