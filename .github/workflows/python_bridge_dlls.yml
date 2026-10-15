@@ -19,11 +19,11 @@ jobs:
     - name: '🧰 Checkout'
       uses: actions/checkout@v4
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: ${{ matrix.py }}
-        architecture: x64
+        activate-environment: true
 
     - name: '⚙️ Setup MSVC'
       uses: ilammy/msvc-dev-cmd@v1

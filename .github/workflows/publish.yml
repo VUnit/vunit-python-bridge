@@ -33,10 +33,11 @@ jobs:
     - name: '🧰 Checkout'
       uses: actions/checkout@v4
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: '3.13'
+        activate-environment: true
 
     - name: '🔍 Check the version and the tag'
       id: version
@@ -72,15 +73,15 @@ jobs:
         name: python-bridge-dlls
         path: src/vunit_python_bridge/bin
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: '3.13'
+        activate-environment: true
 
     - name: '📦 Build the wheel'
       run: |
-        pip install -U build --progress-bar off
-        python -m build --wheel
+        uv build --wheel
 
     # As in python_bridge.yml: the single wheel for every platform, with sources of
     # every kind, the manifest, the six DLLs, no other binary, and the version that

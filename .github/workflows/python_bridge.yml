@@ -1,6 +1,6 @@
 name: 'python bridge'
 
-# Tests of the vunit-python-bridge package on CPython from python.org: Linux
+# Tests of the vunit-python-bridge package on the CPython builds uv installs: Linux
 # and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs, and
 # a gcc build without them), the Python unit tests, the content of the
 # distribution, and the built wheel installed on every kind of system.
@@ -63,8 +63,8 @@ jobs:
     - name: '🧰 Checkout'
       uses: actions/checkout@v4
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: ${{ matrix.py }}
 
@@ -100,9 +100,9 @@ jobs:
     # options from these paths.
     - name: '🐍 Install the package in a virtual environment'
       run: |
-        python -m venv "$RUNNER_TEMP/venv with space"
+        uv venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
+        uv pip install --python "$RUNNER_TEMP/venv with space" -e . pytest
 
     - name: '🚧 Python unit tests'
       run: python -m pytest tests/test_python_bridge.py
@@ -152,11 +152,10 @@ jobs:
       if: matrix.bridge == 'gcc'
       run: echo "C:/mingw64/bin" >> "$GITHUB_PATH"
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: ${{ matrix.py }}
-        architecture: x64
 
     - name: '⚙️ Setup NVC'
       if: matrix.sim == 'nvc'
@@ -176,9 +175,9 @@ jobs:
     # Same as on Linux: outside the checkout, with a space in the path
     - name: '🐍 Install the package in a virtual environment'
       run: |
-        python -m venv "$RUNNER_TEMP/venv with space"
+        uv venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/Scripts" >> "$GITHUB_PATH"
-        "$RUNNER_TEMP/venv with space/Scripts/pip" install -e . --progress-bar off
+        uv pip install --python "$RUNNER_TEMP/venv with space" -e .
 
     # The simulator is accepted as x64, and a 32-bit executable of Windows itself is detected
     - name: '🔍 64-bit check'
@@ -222,15 +221,14 @@ jobs:
         name: python-bridge-dlls
         path: src/vunit_python_bridge/bin
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: '3.13'
 
     - name: '📦 Build the wheel'
       run: |
-        pip install -U build --progress-bar off
-        python -m build --wheel
+        uv build --wheel
 
     # The single wheel for every platform: sources of every kind, the manifest, the six
     # DLLs, no other binary

@@ -60,8 +60,8 @@ jobs:
         name: ${{ inputs.artifact }}
         path: dist
 
-    - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+    - name: '🐍 Setup uv and Python'
+      uses: astral-sh/setup-uv@v10
       with:
         python-version: ${{ matrix.py }}
 
@@ -92,10 +92,10 @@ jobs:
 
     - name: '🐍 Install the wheel in a virtual environment'
       run: |
-        python -m venv "$RUNNER_TEMP/venv"
+        uv venv "$RUNNER_TEMP/venv"
         scripts="$RUNNER_TEMP/venv/$([ "$RUNNER_OS" = Windows ] && echo Scripts || echo bin)"
         echo "$scripts" >> "$GITHUB_PATH"
-        "$scripts/pip" install dist/*.whl --progress-bar off
+        uv pip install --python "$RUNNER_TEMP/venv" dist/*.whl
 
     - name: '🚧 Feature tests against the installed wheel'
       run: |
