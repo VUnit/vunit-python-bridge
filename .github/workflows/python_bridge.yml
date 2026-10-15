@@ -1,7 +1,8 @@
 name: 'python bridge'
 
 # Tests of the vunit-python-bridge package on CPython from python.org: Linux
-# and macOS (bridge compiled on first use), Windows (prebuilt MSVC DLLs, and
+# and macOS (bridge compiled on first use), Linux on ARM64, Linux with the Pythons
+# of the distribution, uv and pyenv, Enterprise Linux 8 and 9, Windows (prebuilt MSVC DLLs, and
 # a gcc build without them), the Python unit tests, the content of the
 # distribution, and the built wheel installed on every kind of system.
 
@@ -55,6 +56,8 @@ jobs:
           - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: gcc, ghdl: latest }
           - { os: ubuntu-24.04, py: '3.15', sim: ghdl, backend: gcc, ghdl: latest }
           - { os: ubuntu-24.04, py: '3.14', sim: ghdl, backend: gcc, ghdl: nightly, canary: true }
+          # Linux on ARM64: no NVC package exists for it, so NVC is built from its release
+          - { os: ubuntu-24.04-arm, py: '3.14', sim: nvc, nvc: '1.22.1' }
           - { os: macos-15, py: '3.14', sim: nvc, nvc: brew }
           - { os: macos-15, py: '3.15', sim: nvc, nvc: brew }
           # macos-15: setup-ghdl has no build for newer macOS versions yet, and only the llvm backend
@@ -75,17 +78,18 @@ jobs:
         python-version: ${{ matrix.py }}
 
     - name: '⚙️ Setup NVC'
-      if: matrix.sim == 'nvc' && matrix.nvc != 'brew' && matrix.nvc != 'master'
+      if: matrix.sim == 'nvc' && matrix.nvc != 'brew' && matrix.nvc != 'master' && runner.arch == 'X64'
       run: |
         curl -fsSL -o nvc.deb "https://github.com/nickg/nvc/releases/download/r${{ matrix.nvc }}/nvc_${{ matrix.nvc }}-1_amd64_ubuntu-24.04.deb"
         sudo apt-get install -y ./nvc.deb
 
-    # As in NVC's README
-    - name: '⚙️ Build NVC from its master branch'
-      if: matrix.nvc == 'master'
+    # As in NVC's README: its master branch, or its release on ARM64, which has no package
+    - name: '⚙️ Build NVC from source'
+      if: matrix.nvc == 'master' || (matrix.sim == 'nvc' && runner.os == 'Linux' && runner.arch == 'ARM64')
       run: |
         sudo apt-get install -y -qq build-essential automake autoconf flex check llvm-dev pkg-config zlib1g-dev libdw-dev libffi-dev libzstd-dev
-        git clone --depth 1 https://github.com/nickg/nvc.git "$RUNNER_TEMP/nvc"
+        ref=${{ matrix.nvc == 'master' && 'master' || format('r{0}', matrix.nvc) }}
+        git clone --depth 1 --branch "$ref" https://github.com/nickg/nvc.git "$RUNNER_TEMP/nvc"
         cd "$RUNNER_TEMP/nvc" && ./autogen.sh && mkdir build && cd build && ../configure && make -j"$(nproc)" && sudo make install
         nvc --version
 
@@ -107,6 +111,123 @@ jobs:
     - name: '🐍 Install the package in a virtual environment'
       run: |
         python -m venv "$RUNNER_TEMP/venv with space"
+        echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
+
+    - name: '🚧 Python unit tests'
+      run: python -m pytest tests/test_python_bridge.py
+
+    - name: '🚧 Feature tests'
+      run: python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
+
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
+
+#
+# Linux with the Pythons users have besides python.org's: the one of the distribution
+# (libpython in the multiarch directory), the one uv installs (python-build-standalone)
+# and the one pyenv builds from source
+#
+
+  pythons:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: [apt, uv, pyenv]
+    name: 'ubuntu-24.04 · Python from ${{ matrix.python }} · nvc'
+    env:
+      VUNIT_SIMULATOR: nvc
+    steps:
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '⚙️ Setup NVC'
+      run: |
+        curl -fsSL -o nvc.deb "https://github.com/nickg/nvc/releases/download/r1.22.1/nvc_1.22.1-1_amd64_ubuntu-24.04.deb"
+        sudo apt-get install -y ./nvc.deb
+
+    - name: '⚙️ Setup uv'
+      if: matrix.python == 'uv'
+      uses: astral-sh/setup-uv@v10.3.0
+
+    # The path of the Python goes to PY
+    - name: '🐍 Install Python with ${{ matrix.python }}'
+      run: |
+        case '${{ matrix.python }}' in
+          apt)
+            sudo apt-get install -y -qq python3-dev python3-venv
+            echo "PY=/usr/bin/python3" >> "$GITHUB_ENV" ;;
+          uv)
+            uv python install 3.13
+            echo "PY=$(uv python find --managed-python 3.13)" >> "$GITHUB_ENV" ;;
+          pyenv)
+            sudo apt-get install -y -qq libssl-dev zlib1g-dev libbz2-dev libreadline-dev libsqlite3-dev libffi-dev liblzma-dev
+            git clone --depth 1 https://github.com/pyenv/pyenv.git "$RUNNER_TEMP/pyenv"
+            PYENV_ROOT="$RUNNER_TEMP/pyenv" "$RUNNER_TEMP/pyenv/bin/pyenv" install 3.13
+            echo "PY=$(ls -d "$RUNNER_TEMP"/pyenv/versions/3.13*/bin/python3)" >> "$GITHUB_ENV" ;;
+        esac
+
+    # As on python.org's Python: outside the checkout, with a space in the path
+    - name: '🐍 Install the package in a virtual environment'
+      run: |
+        "$PY" -m venv "$RUNNER_TEMP/venv with space"
+        echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
+        "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
+
+    - name: '🚧 Python unit tests'
+      run: python -m pytest tests/test_python_bridge.py
+
+    - name: '🚧 Feature tests'
+      run: python tests/run.py -p 4 -o "$RUNNER_TEMP/out dir"
+
+    - name: '🚧 Example'
+      run: python examples/embedded_python/run.py -p 4 --without-attributes .optional_deps --without-attributes .expected_failure
+
+#
+# Enterprise Linux, the Python and the gcc of the distribution: EL8 is the oldest
+# toolchain supported (gcc 8, binutils 2.30). NVC has no packages for it, so it is
+# built from its release with the LLVM of the distribution.
+#
+
+  el:
+    runs-on: ubuntu-24.04
+    container: almalinux:${{ matrix.el }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The default Python of EL8 (3.6) and EL9 (3.9) is older than the oldest supported
+        include:
+          - { el: 8, py: python3.11 }
+          - { el: 9, py: python3.12 }
+    name: 'AlmaLinux ${{ matrix.el }} · ${{ matrix.py }} · nvc'
+    env:
+      VUNIT_SIMULATOR: nvc
+    steps:
+
+    - name: '⚙️ Install the Python and the build tools of the distribution'
+      run: |
+        dnf install -y -q ${{ matrix.py }} ${{ matrix.py }}-devel gcc gcc-c++ make git tar which \
+          llvm-devel zlib-devel elfutils-devel libffi-devel libzstd-devel flex bison
+
+    - name: '🧰 Checkout'
+      uses: actions/checkout@v4
+
+    - name: '⚙️ Build NVC'
+      run: |
+        curl -fsSL https://github.com/nickg/nvc/releases/download/r1.22.1/nvc-1.22.1.tar.gz | tar xz -C "$RUNNER_TEMP"
+        mkdir "$RUNNER_TEMP/nvc-1.22.1/build"
+        cd "$RUNNER_TEMP/nvc-1.22.1/build"
+        ../configure -q
+        make -j"$(nproc)" -s
+        make -s install
+        nvc --version
+
+    # As on Ubuntu: outside the checkout, with a space in the path
+    - name: '🐍 Install the package in a virtual environment'
+      run: |
+        ${{ matrix.py }} -m venv "$RUNNER_TEMP/venv with space"
         echo "$RUNNER_TEMP/venv with space/bin" >> "$GITHUB_PATH"
         "$RUNNER_TEMP/venv with space/bin/pip" install -e . pytest --progress-bar off
 
