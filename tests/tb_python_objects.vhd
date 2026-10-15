@@ -17,6 +17,7 @@ library python_bridge;
 context python_bridge.python_context;
 
 use work.counter_vc_pkg.all;
+use work.path_counter_vc_pkg.all;
 
 entity tb_python_objects is
   generic(runner_cfg : string);
@@ -53,6 +54,7 @@ begin
         check_equal(count_b, 6, "vc_b, a Counter of its own with step 2");
         check_equal(count_c, 103, "vc_c, the shared Counter");
         check_equal(count_d, 9, "vc_d, a Counter of its own with step 3, by instance path");
+        check_equal(integer'(call(get_python_object("tb_python_objects:vc_d"), "value")), 9, "vc_d by its path");
         check_equal(integer'(call(get_python_object("vc_a"), "value")), 3, "the model of vc_a by its identity");
         check_equal(integer'(call(shared_model, "value")), 103);
         check_equal(eval_string(shared_model, "type(obj).__name__"), "Counter");
@@ -260,10 +262,10 @@ begin
       count => count_c
     );
 
-  -- Without a handle: the instance path is the identity
+  -- A handle without an id: the instance path is the identity
   vc_d : entity work.path_counter_vc
     generic map (
-      step => 3
+      vc => new_path_counter_vc(step => 3)
     )
     port map (
       tick  => tick,

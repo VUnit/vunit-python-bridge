@@ -230,25 +230,27 @@ Its ``Test Python objects as backends of verification components`` test case
 drives three instances, two with objects of their own and one sharing an object
 with the testbench.
 
-A component without a handle can take the path of its instance, ``'path_name``,
-as the identity, in the statement part of a process: GHDL leaves the instance
-labels out of ``'path_name`` and ``'instance_name`` when they are evaluated
-during elaboration, which would give all instances the same identity.
-``tests/path_counter_vc.vhd`` shows this:
+A component can also take the path of its instance, ``'path_name``, as the
+identity when its handle has no ``id``. The object is then made in the
+statement part of a process rather than in the constructor: GHDL leaves the
+instance labels out of ``'path_name`` and ``'instance_name`` when they are
+evaluated during elaboration, which would give all instances the same
+identity. ``tests/path_counter_vc.vhd`` shows this:
 
 .. code-block:: vhdl
 
     process
-      variable vc_id : id_t := id;
-      variable backend : python_object_t := model;
+      variable vc_id : id_t := vc.p_id;
+      variable backend : python_object_t;
     begin
       if vc_id = null_id then
         vc_id := get_id(path_counter_vc'path_name);
       end if;
-      if backend = null_python_object then
-        backend := new_python_object("models.counter_model.Counter", kwarg("step", step), vc_id);
-      end if;
+      backend := new_python_object("models.counter_model.Counter", kwarg("step", vc.p_step), vc_id);
       ...
+
+The testbench reaches such an object by the path of the instance, for example
+``get_python_object("tb:counter_inst")``.
 
 Several components can share an object, and so can a component and the
 testbench: the testbench makes the object and gives it to each of them. A

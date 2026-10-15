@@ -4,8 +4,8 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- A verification component without a handle whose behaviour is a Python
--- object: its identity is its instance path or the id it is given.
+-- A verification component whose behaviour is a Python object made by the
+-- component: its identity is the id of its handle or its instance path.
 
 library vunit_lib;
 context vunit_lib.vunit_context;
@@ -13,13 +13,34 @@ context vunit_lib.vunit_context;
 library python_bridge;
 context python_bridge.python_context;
 
+package path_counter_vc_pkg is
+  type path_counter_vc_t is record
+    p_step : natural;
+    p_id : id_t;
+  end record;
+
+  -- The identity of the VC is id, or its instance path when null_id
+  impure function new_path_counter_vc(step : natural := 1; id : id_t := null_id) return path_counter_vc_t;
+end package;
+
+package body path_counter_vc_pkg is
+  impure function new_path_counter_vc(step : natural := 1; id : id_t := null_id) return path_counter_vc_t is
+  begin
+    return (p_step => step, p_id => id);
+  end;
+end package body;
+
+library vunit_lib;
+context vunit_lib.vunit_context;
+
+library python_bridge;
+context python_bridge.python_context;
+
+use work.path_counter_vc_pkg.all;
+
 entity path_counter_vc is
   generic(
-    -- The identity of the VC, the instance path when null_id
-    id : id_t := null_id;
-    -- The object to use instead of a Counter of its own
-    model : python_object_t := null_python_object;
-    step : natural := 1
+    vc : path_counter_vc_t
   );
   port(
     tick : in natural;
@@ -30,17 +51,15 @@ end entity;
 architecture python of path_counter_vc is
 begin
   process
-    variable vc_id : id_t := id;
-    variable backend : python_object_t := model;
+    variable vc_id : id_t := vc.p_id;
+    variable backend : python_object_t;
   begin
     -- 'path_name is taken in the process body: during elaboration GHDL leaves
     -- the instance out of it, which would give every instance the same identity
     if vc_id = null_id then
       vc_id := get_id(path_counter_vc'path_name);
     end if;
-    if backend = null_python_object then
-      backend := new_python_object("models.counter_model.Counter", kwarg("step", step), vc_id);
-    end if;
+    backend := new_python_object("models.counter_model.Counter", kwarg("step", vc.p_step), vc_id);
 
     loop
       wait on tick;
