@@ -82,8 +82,7 @@ package python_pkg is
   --
   -- H and L are read as 1 and 0. Any other metavalue is an error.
   --
-  -- An integer_array_t value is transferred to Python by the Python bridge,
-  -- which is only available for NVC, GHDL and Questa, and is referred to by
+  -- An integer_array_t value is transferred to Python and is referred to by
   -- the expression, which means that it can be used in several calls.
   function arg(value : real_vector) return arg_t;
   function kwarg(kw : string; value : real_vector) return arg_t;
@@ -157,13 +156,10 @@ package python_pkg is
   impure function "&"(l, r : arg_t) return arg_t;
 
   -----------------------------------------------------------------------------
-  -- Operations implemented by the Python bridge (NVC, GHDL and Questa)
+  -- Operations built on the primitives of python_ffi_pkg
   -----------------------------------------------------------------------------
-  -- The operations below are implemented by the VUnit Python bridge and are
-  -- therefore only available for NVC, GHDL and Questa; the other simulators
-  -- report a failure when they are used. Like the other operations, every one
-  -- of them takes the session it is performed in as its last parameter,
-  -- defaulting to the default session.
+  -- Like the other operations, every one of them takes the session it is
+  -- performed in as its last parameter, defaulting to the default session.
 
   -----------------------------------------------------------------------------
   -- Results of eval: boolean, std_ulogic, vectors and arrays
@@ -869,7 +865,7 @@ package body python_pkg is
   end;
 
   -----------------------------------------------------------------------------
-  -- Operations implemented by the Python bridge (NVC, GHDL and Questa)
+  -- Operations built on the primitives of python_ffi_pkg
   -----------------------------------------------------------------------------
   -- Python represents std_ulogic values by these characters
   constant p_std_ulogic_characters : string(1 to 9) := "UX01ZWLH-";

@@ -4,9 +4,8 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- Tests of the python_pkg operations that are implemented by the Python
--- bridge and therefore only available for NVC and GHDL. The rest of the
--- package is tested by tb_python_pkg.
+-- Tests of the python_pkg operations beyond exec and the eval and call results
+-- of tb_python_pkg: sessions, typed results, arguments and integer_array_t.
 
 library ieee;
 use ieee.std_logic_1164.all;
@@ -825,7 +824,7 @@ begin
       ---------------------------------------------------------------------
       -- integer_array_t
       ---------------------------------------------------------------------
-      elsif run("Test that a 2D array is indexed like VUnit, get(a, x, y) is a[x, y]") then
+      elsif run("Test that a 2D array is indexed like VUnit") then
         arr := new_2d(width => 3, height => 2, bit_width => 16, is_signed => false);
         for y in 0 to 1 loop
           for x in 0 to 2 loop
@@ -838,7 +837,7 @@ begin
         );
         check_true(call_boolean("orientation_ok", arg(arr)));
 
-      elsif run("Test that a 3D array is indexed like VUnit, get(a, x, y, z) is a[x, y, z]") then
+      elsif run("Test that a 3D array is indexed like VUnit") then
         arr := new_3d(width => 3, height => 2, depth => 4, bit_width => 16, is_signed => false);
         for y in 0 to 1 loop
           for x in 0 to 2 loop

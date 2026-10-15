@@ -4,8 +4,7 @@ Python files and modules
 exec_file
 ---------
 
-``exec_file`` executes a Python file (where the Python bridge implements the
-API: NVC, GHDL and Questa), with the equivalent of
+``exec_file`` executes a Python file, with the equivalent of
 
 .. code-block:: python
 
