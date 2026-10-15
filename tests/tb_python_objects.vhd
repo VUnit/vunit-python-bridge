@@ -84,8 +84,8 @@ begin
         exec("class Doubler:" + "    def apply(self, x):" + "        return 2 * x");
         object := new_python_object("Doubler");
         check_equal(integer'(call(object, "apply", arg(21))), 42);
-        -- Without an id, objects are enumerated like VUnit's verification components
-        check_equal(find(full_name(get_id(object)), "python_bridge:python:object:"), 1);
+        -- Without an id, objects are enumerated per class
+        check_equal(full_name(get_id(object)), "python_bridge:python:object:Doubler:1");
 
       elsif run("Test that an identity used by another object or a session fails") then
         mock(get_logger(duplicate_id), failure);
@@ -183,8 +183,10 @@ begin
         check_equal(integer'(eval(other, "obj.count")), 2);
         exec(object, "shared = 'object'");
         check_false(eval_boolean(other, "'shared' in globals()"), "the sessions are separate");
-        -- Without an id, objects are enumerated like VUnit's verification components
-        check_equal(full_name(get_id(object)), "python_bridge:python:object:" & name(get_id(object)));
+        -- Without an id, objects are enumerated per class, the class name giving the hierarchy
+        check_equal(
+          full_name(get_id(object)), "python_bridge:python:object:models:counter_model:Counter:" & name(get_id(object))
+        );
         check_equal(integer'value(name(get_id(other))), integer'value(name(get_id(object))) + 1);
 
       elsif run("Test that exec and get_logger work before the object is created") then

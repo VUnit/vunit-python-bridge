@@ -92,9 +92,11 @@ Identity
 The ``id`` of an object names its session and its logger,
 ``get_logger(object)``, which reports the errors of its operations. It is
 optional and mainly makes the log readable. Without an
-``id``, objects are enumerated the way VUnit enumerates verification
-components: ``python_bridge:python:object:1``,
-``python_bridge:python:object:2`` and so on. The session of an object must
+``id``, objects are enumerated per class, the way VUnit enumerates
+verification components, with the class name as the hierarchy:
+``new_python_object("models.uart.UartModel")`` gives
+``python_bridge:python:object:models:uart:UartModel:1``, then ``…:2`` and so
+on. The session of an object must
 be its own, so ``new_python_object`` with an identity already used by another
 object, or by a session made with ``new_session``, is reported as a failure on
 the logger of the identity and returns ``null_python_object``. Using
