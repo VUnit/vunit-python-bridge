@@ -30,8 +30,12 @@ package body counter_vc_pkg is
   impure function new_counter_vc(
     step : natural := 1; model : python_object_t := null_python_object; id : id_t := null_id
   ) return counter_vc_t is
+    variable result : counter_vc_t := (p_model => model);
   begin
-    return (p_model => get_python_object(model, "models.counter_model.Counter", kwarg("step", step), id));
+    if model = null_python_object then
+      result.p_model := new_python_object("models.counter_model.Counter", kwarg("step", step), id);
+    end if;
+    return result;
   end;
 
   impure function get_model(vc : counter_vc_t) return python_object_t is

@@ -31,14 +31,16 @@ architecture python of path_counter_vc is
 begin
   process
     variable vc_id : id_t := id;
-    variable backend : python_object_t;
+    variable backend : python_object_t := model;
   begin
     -- 'path_name is taken in the process body: during elaboration GHDL leaves
     -- the instance out of it, which would give every instance the same identity
     if vc_id = null_id then
       vc_id := get_id(path_counter_vc'path_name);
     end if;
-    backend := get_python_object(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+    if backend = null_python_object then
+      backend := new_python_object("models.counter_model.Counter", kwarg("step", step), vc_id);
+    end if;
 
     loop
       wait on tick;

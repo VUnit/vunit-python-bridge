@@ -100,6 +100,24 @@ object, or by a session made with ``new_session``, is reported as a failure on
 the logger of the identity and returns ``null_python_object``. Using
 ``null_python_object`` is reported as a failure on ``python_logger``.
 
+The identity can also be given by its full name, like ``get_logger(name)``:
+``new_python_object("models.Uart", name => "tb:uart_model")`` is
+``new_python_object("models.Uart", id => get_id("tb:uart_model"))``, and so
+for ``create_python_object``.
+
+``get_python_object(id)`` and ``get_python_object(name)`` return the object
+made with that identity, so a testbench can reach the object of a component
+without being given it:
+
+.. code-block:: vhdl
+
+    check_true(eval_boolean(get_python_object("tb:uart_model"), "self.is_idle()"));
+
+Unlike ``get_logger``, it does not make one: an identity without an object is
+reported as a failure on ``python_logger`` and returns ``null_python_object``.
+An object is found once it is made, which for one made by another constant
+during elaboration depends on the order of elaboration, so get it in a process.
+
 From a model with module state to an object
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -147,10 +165,8 @@ Backends of verification components
 
 A verification component usually makes its object in the constructor of its
 handle, the way VUnit's own components make everything they need there.
-``get_python_object(object, class_name, args, id)`` returns ``object`` when one
-is given and makes a new one otherwise, like ``get_logger`` and ``get_id`` do
-for loggers and identities. Every instance then gets a backend of its own,
-unless the testbench gives it one:
+Every instance then gets a backend of its own, unless the testbench gives it
+one:
 
 .. code-block:: vhdl
 
@@ -163,11 +179,12 @@ unless the testbench gives it one:
       baud : positive; model : python_object_t := null_python_object; id : id_t := null_id
     ) return uart_master_t is
       constant std_cfg : std_cfg_t := create_std_cfg(id, "my_vcs", "uart_master");
+      variable result : uart_master_t := (p_std_cfg => std_cfg, p_model => model);
     begin
-      return (
-        p_std_cfg => std_cfg,
-        p_model => get_python_object(model, "my_vcs.uart.UartModel", kwarg("baud", baud), get_id(std_cfg))
-      );
+      if model = null_python_object then
+        result.p_model := new_python_object("my_vcs.uart.UartModel", kwarg("baud", baud), get_id(std_cfg));
+      end if;
+      return result;
     end;
 
 The component itself only calls the object of its handle:
@@ -207,12 +224,14 @@ during elaboration, which would give all instances the same identity.
 
     process
       variable vc_id : id_t := id;
-      variable backend : python_object_t;
+      variable backend : python_object_t := model;
     begin
       if vc_id = null_id then
         vc_id := get_id(path_counter_vc'path_name);
       end if;
-      backend := get_python_object(model, "models.counter_model.Counter", kwarg("step", step), vc_id);
+      if backend = null_python_object then
+        backend := new_python_object("models.counter_model.Counter", kwarg("step", step), vc_id);
+      end if;
       ...
 
 Several components can share an object, and so can a component and the

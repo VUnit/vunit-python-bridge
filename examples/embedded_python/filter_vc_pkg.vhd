@@ -31,8 +31,12 @@ package body filter_vc_pkg is
   impure function new_filter_vc(
     window : positive := 2; model : python_object_t := null_python_object; id : id_t := null_id
   ) return filter_vc_t is
+    variable result : filter_vc_t := (p_model => model);
   begin
-    return (p_model => get_python_object(model, "filter_model.MovingAverage", kwarg("window", window), id));
+    if model = null_python_object then
+      result.p_model := new_python_object("filter_model.MovingAverage", kwarg("window", window), id);
+    end if;
+    return result;
   end;
 
   impure function get_model(filter : filter_vc_t) return python_object_t is

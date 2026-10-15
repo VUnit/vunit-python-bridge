@@ -53,6 +53,7 @@ begin
         check_equal(count_b, 6, "vc_b, a Counter of its own with step 2");
         check_equal(count_c, 103, "vc_c, the shared Counter");
         check_equal(count_d, 9, "vc_d, a Counter of its own with step 3, by instance path");
+        check_equal(integer'(call(get_python_object("vc_a"), "value")), 3, "the model of vc_a by its identity");
         check_equal(integer'(call(shared_model, "value")), 103);
         check_equal(eval_string(shared_model, "type(self).__name__"), "Counter");
 
@@ -192,6 +193,34 @@ begin
         exec(object, "self.count = 7");
         check_equal(integer'(call(object, "value")), 7);
 
+      elsif run("Test that get_python_object finds an object by its identity or full name") then
+        object := new_python_object("models.counter_model.Counter", kwarg("start", 5), name => "tb:by_name");
+        check_equal(full_name(get_id(object)), "tb:by_name");
+        check(get_python_object("tb:by_name") = object, "by full name");
+        check(get_python_object(get_id("tb:by_name")) = object, "by identity");
+        other := create_python_object("models.counter_model.Counter", kwarg("start", 6), name => "tb:created");
+        check_equal(integer'(call(get_python_object("tb:created"), "value")), 6);
+
+      elsif run("Test that get_python_object reports an identity without an object") then
+        mock(python_logger, failure);
+        check(get_python_object("tb:no_object") = null_python_object, "unknown name");
+        check_only_log(
+          python_logger,
+          "get_python_object(""tb:no_object"") failed:" & LF & "No Python object has the identity tb:no_object." &
+          " Make it with new_python_object or create_python_object before getting it.",
+          failure
+        );
+        check_false(has_id("tb:no_object"), "a failed lookup makes no identity");
+        check(get_python_object(get_id("tb:id_without_object")) = null_python_object, "identity without object");
+        check_only_log(
+          python_logger,
+          "get_python_object(""tb:id_without_object"") failed:" & LF &
+          "No Python object has the identity tb:id_without_object." &
+          " Make it with new_python_object or create_python_object before getting it.",
+          failure
+        );
+        unmock(python_logger);
+
       elsif run("Test that null_python_object is reported") then
         mock(python_logger, failure);
         call(null_python_object, "value");
@@ -204,8 +233,8 @@ begin
         -- As in "Backends of verification components" of the user guide
         std_cfg := create_std_cfg(provider => "test_vcs", vc_name => "counter");
         other_std_cfg := create_std_cfg(provider => "test_vcs", vc_name => "counter");
-        object := get_python_object(null_python_object, "models.counter_model.Counter", id => get_id(std_cfg));
-        other := get_python_object(null_python_object, "models.counter_model.Counter", id => get_id(other_std_cfg));
+        object := new_python_object("models.counter_model.Counter", id => get_id(std_cfg));
+        other := new_python_object("models.counter_model.Counter", id => get_id(other_std_cfg));
         check_equal(full_name(get_id(object)), "test_vcs:counter:1");
         check_equal(full_name(get_id(other)), "test_vcs:counter:2");
         check_equal(integer'(call(object, "add", arg(1))), 1);
