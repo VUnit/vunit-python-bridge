@@ -115,8 +115,9 @@ without being given it:
 
     check_true(eval_boolean(get_python_object("tb:uart_model"), "obj.is_idle()"));
 
-Unlike ``get_logger``, it does not make one: an identity without an object is
-reported as a failure on ``python_logger`` and returns ``null_python_object``.
+Unlike ``get_logger``, it does not make one, since that takes the class and
+the arguments of its constructor: an identity without an object returns
+``null_python_object``, and the object is made with ``new_python_object``.
 An object is found once it is made, which for one made by another constant
 during elaboration depends on the order of elaboration, so get it in a process.
 

@@ -59,8 +59,8 @@ package python_object_pkg is
     return python_object_t;
 
   -- The object made with the identity, or with the identity of the full name.
-  -- Unlike get_logger, it does not make one: an identity without an object is
-  -- reported as a failure on python_logger, and null_python_object is returned.
+  -- Unlike get_logger, it does not make one: null_python_object is returned for
+  -- an identity without an object.
   impure function get_python_object(id : id_t) return python_object_t;
   impure function get_python_object(name : string) return python_object_t;
 
@@ -272,23 +272,9 @@ package body python_object_pkg is
     return new_python_object(class_name, args, get_id(name));
   end;
 
-  procedure p_no_object(name : string) is
-  begin
-    failure(
-      python_logger,
-      "get_python_object(""" & name & """) failed:" & LF & "No Python object has the identity " & name &
-      ". Make it with new_python_object or create_python_object before getting it."
-    );
-  end;
-
   impure function get_python_object(id : id_t) return python_object_t is
   begin
-    if id = null_id then
-      p_no_object("null_id");
-      return null_python_object;
-    end if;
-    if not has_key(p_objects, full_name(id)) then
-      p_no_object(full_name(id));
+    if id = null_id or not has_key(p_objects, full_name(id)) then
       return null_python_object;
     end if;
     return (p_data => to_integer_vector_ptr(integer'value(get_string(p_objects, full_name(id)))));
@@ -298,7 +284,6 @@ package body python_object_pkg is
   begin
     -- has_id first: get_id would make the identity of a wrong name
     if not has_id(name) then
-      p_no_object(name);
       return null_python_object;
     end if;
     return get_python_object(get_id(name));

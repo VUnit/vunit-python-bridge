@@ -203,25 +203,11 @@ begin
         other := create_python_object("models.counter_model.Counter", kwarg("start", 6), name => "tb:created");
         check_equal(integer'(call(get_python_object("tb:created"), "value")), 6);
 
-      elsif run("Test that get_python_object reports an identity without an object") then
-        mock(python_logger, failure);
+      elsif run("Test that get_python_object returns null_python_object for an identity without an object") then
         check(get_python_object("tb:no_object") = null_python_object, "unknown name");
-        check_only_log(
-          python_logger,
-          "get_python_object(""tb:no_object"") failed:" & LF & "No Python object has the identity tb:no_object." &
-          " Make it with new_python_object or create_python_object before getting it.",
-          failure
-        );
         check_false(has_id("tb:no_object"), "a failed lookup makes no identity");
         check(get_python_object(get_id("tb:id_without_object")) = null_python_object, "identity without object");
-        check_only_log(
-          python_logger,
-          "get_python_object(""tb:id_without_object"") failed:" & LF &
-          "No Python object has the identity tb:id_without_object." &
-          " Make it with new_python_object or create_python_object before getting it.",
-          failure
-        );
-        unmock(python_logger);
+        check(get_python_object(null_id) = null_python_object, "null_id");
 
       elsif run("Test that null_python_object is reported") then
         mock(python_logger, failure);
