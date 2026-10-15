@@ -125,8 +125,8 @@ jobs:
 
 #
 # Linux with the Pythons users have besides python.org's: the one of the distribution
-# (libpython in the multiarch directory), the one uv installs (python-build-standalone)
-# and the one pyenv builds from source
+# (libpython in the multiarch directory), the one uv installs (python-build-standalone),
+# the one pyenv builds from source and conda-forge's (python executable linked statically)
 #
 
   pythons:
@@ -134,7 +134,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python: [apt, uv, pyenv]
+        python: [apt, uv, pyenv, conda]
     name: 'ubuntu-24.04 · Python from ${{ matrix.python }} · nvc'
     env:
       VUNIT_SIMULATOR: nvc
@@ -167,6 +167,11 @@ jobs:
             git clone --depth 1 https://github.com/pyenv/pyenv.git "$RUNNER_TEMP/pyenv"
             PYENV_ROOT="$RUNNER_TEMP/pyenv" "$RUNNER_TEMP/pyenv/bin/pyenv" install 3.13
             echo "PY=$(ls -d "$RUNNER_TEMP"/pyenv/versions/3.13*/bin/python3)" >> "$GITHUB_ENV" ;;
+          conda)
+            curl -fsSL -o miniforge.sh https://github.com/conda-forge/miniforge/releases/latest/download/Miniforge3-Linux-x86_64.sh
+            bash miniforge.sh -b -p "$RUNNER_TEMP/miniforge"
+            "$RUNNER_TEMP/miniforge/bin/conda" create -q -y -p "$RUNNER_TEMP/conda" python=3.13
+            echo "PY=$RUNNER_TEMP/conda/bin/python" >> "$GITHUB_ENV" ;;
         esac
 
     # As on python.org's Python: outside the checkout, with a space in the path
