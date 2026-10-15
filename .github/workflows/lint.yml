@@ -22,7 +22,7 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '🧹 ruff check'
       run: pipx run ruff==0.17.0 check --output-format=github
