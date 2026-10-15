@@ -155,7 +155,7 @@ def _plain(exc):
 
 class _UncreatedObject:  # pylint: disable=too-few-public-methods
     """
-    Bound to self when the object of a python_object_t could not be created, so
+    Bound to obj when the object of a python_object_t could not be created, so
     that its later uses fail with the reason rather than with NameError.
     """
 
@@ -200,22 +200,22 @@ class BridgeHandle:
         """
         raise RuntimeError(message)
 
-    def instantiate_as_self(self, class_name, *args, **kwargs):
+    def instantiate_as_obj(self, class_name, *args, **kwargs):
         """
         Construct the object of a VHDL python_object_t, an instance of the class
-        named class_name, and bind it to self in the current session. If that
-        fails, self raises the reason on every use instead of being undefined.
+        named class_name, and bind it to obj in the current session. If that
+        fails, obj raises the reason on every use instead of being undefined.
         """
         namespace = self._runtime.namespace
         try:
             class_ = _resolve_class(class_name)
         except (ImportError, TypeError) as exc:
-            namespace["self"] = _UncreatedObject(class_name, exc)
+            namespace["obj"] = _UncreatedObject(class_name, exc)
             raise _plain(exc)
         try:
-            namespace["self"] = class_(*args, **kwargs)
+            namespace["obj"] = class_(*args, **kwargs)
         except Exception as exc:
-            namespace["self"] = _UncreatedObject(class_name, exc)
+            namespace["obj"] = _UncreatedObject(class_name, exc)
             raise
 
     def __repr__(self):

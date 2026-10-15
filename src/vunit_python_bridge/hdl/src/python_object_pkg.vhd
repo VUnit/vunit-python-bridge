@@ -5,7 +5,7 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
 -- Python objects owned by VHDL. An object is an instance of a Python class
--- living in a session of its own, where it is self, created on first use. It
+-- living in a session of its own, where it is obj, created on first use. It
 -- is typically the backend of a verification component, see "Python objects"
 -- in the user guide.
 --
@@ -66,10 +66,10 @@ package python_object_pkg is
   impure function get_id(object : python_object_t) return id_t;
   -- The logger of the object, which reports the errors of its operations
   impure function get_logger(object : python_object_t) return logger_t;
-  -- The session of the object, in which it is bound to self
+  -- The session of the object, in which it is bound to obj
   impure function get_session(object : python_object_t) return python_session_t;
 
-  -- Execute code in the session of the object, where it is self, like exec
+  -- Execute code in the session of the object, where it is obj, like exec
   procedure exec(object : python_object_t; code : string);
 
   -- Call a method of the object
@@ -168,7 +168,7 @@ package python_object_pkg is
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
   );
 
-  -- Evaluate an expression in the session of the object, where it is self, like eval
+  -- Evaluate an expression in the session of the object, where it is obj, like eval
   impure function eval_integer(object : python_object_t; expr : string) return integer;
   alias eval is eval_integer[python_object_t, string return integer];
   impure function eval_real(object : python_object_t; expr : string) return real;
@@ -239,7 +239,7 @@ package body python_object_pkg is
     data := new_integer_vector_ptr(4);
     set(data, session_idx, to_integer(new_session(object_id).p_data));
     set(data, code_idx, to_integer(new_string_ptr(
-      to_call_str("__vunit__.instantiate_as_self", arg(class_name), args)
+      to_call_str("__vunit__.instantiate_as_obj", arg(class_name), args)
     )));
     set(data, operation_idx, to_integer(new_string_ptr(operation)));
     set_string(p_objects, full_name(object_id), integer'image(to_integer(data)));
@@ -300,7 +300,7 @@ package body python_object_pkg is
     return false;
   end;
 
-  -- The session of null_python_object, where nothing is bound to self
+  -- The session of null_python_object, where nothing is bound to obj
   constant null_session : python_session_t := new_session(get_id("null_object", parent => p_python_id));
 
   impure function get_session(object : python_object_t) return python_session_t is
@@ -391,7 +391,7 @@ package body python_object_pkg is
     end if;
     -- An error is reported as that of the method rather than of the code executed
     ok := p_exec(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       0, p_call_operation(method), get_session(object)
     );
   end;
@@ -405,7 +405,7 @@ package body python_object_pkg is
       return integer'low;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_integer, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_integer;
@@ -422,7 +422,7 @@ package body python_object_pkg is
       return 0.0;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_real, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_real;
@@ -439,7 +439,7 @@ package body python_object_pkg is
       return p_no_integers;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_integer_vector, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_integer_vector;
@@ -456,7 +456,7 @@ package body python_object_pkg is
       return p_no_reals;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_real_vector, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_real_vector;
@@ -473,7 +473,7 @@ package body python_object_pkg is
       return "";
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_string, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_string;
@@ -490,7 +490,7 @@ package body python_object_pkg is
       return null_ptr;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_integer_vector, -1, p_call_operation(method), get_session(object)
     ) then
       return p_to_integer_vector_ptr(p_result_integer_vector);
@@ -507,7 +507,7 @@ package body python_object_pkg is
       return false;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_boolean, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_integer /= 0;
@@ -524,7 +524,7 @@ package body python_object_pkg is
       return 'U';
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_std_ulogic, -1, p_call_operation(method), get_session(object)
     ) then
       return p_to_std_ulogic(p_result_string(1));
@@ -541,7 +541,7 @@ package body python_object_pkg is
       return "";
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_std_ulogic_vector, -1, p_call_operation(method), get_session(object)
     ) then
       return p_to_std_ulogic_vector(p_result_string);
@@ -558,7 +558,7 @@ package body python_object_pkg is
       return null_integer_array;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_integer_array, -1, p_call_operation(method), get_session(object)
     ) then
       return p_result_integer_array;
@@ -575,7 +575,7 @@ package body python_object_pkg is
       return;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_std_ulogic_vector, result'length, p_call_operation(method), get_session(object)
     ) then
       result := p_to_std_ulogic_vector(p_result_string);
@@ -591,7 +591,7 @@ package body python_object_pkg is
       return;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_signed, result'length, p_call_operation(method), get_session(object)
     ) then
       result := signed(p_to_std_ulogic_vector(p_result_string));
@@ -607,7 +607,7 @@ package body python_object_pkg is
       return;
     end if;
     if p_eval(
-      to_call_str("self." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
       p_kind_unsigned, result'length, p_call_operation(method), get_session(object)
     ) then
       result := unsigned(p_to_std_ulogic_vector(p_result_string));

@@ -5,7 +5,7 @@ Python objects
 
 A ``python_object_t`` is an instance of a Python class owned by VHDL. Every
 object lives in a :ref:`session <python_bridge:sessions>` of its own, where it
-is bound to ``self``, so several objects, of the same class or not, never
+is bound to ``obj``, so several objects, of the same class or not, never
 share names or state. This makes an object the natural backend of a
 verification component: every instance of the component gets an object of its
 own, and a testbench can create one and give it to a component.
@@ -18,10 +18,10 @@ own, and a testbench can create one and give it to a component.
 
     ...
 
-    count := call(model, "push", arg(byte));   -- calls self.push(byte)
+    count := call(model, "push", arg(byte));   -- calls obj.push(byte)
     call(model, "reset");                      -- no return value
-    check_true(eval_boolean(model, "self.is_idle()"));
-    exec(model, "self.trace = True");
+    check_true(eval_boolean(model, "obj.is_idle()"));
+    exec(model, "obj.trace = True");
 
 ``new_python_object(class_name, args, id)`` names the class and the arguments
 of its constructor, given like the arguments of ``call``, including groups made
@@ -40,7 +40,7 @@ the object.
 
 ``call(object, method, ...)`` calls a method, and ``eval(object, expr)`` and
 ``exec(object, code)`` evaluate an expression and execute code in the session
-of the object, where the object is ``self``. They have the same arguments,
+of the object, where the object is ``obj``. They have the same arguments,
 result types and aliases as ``call``, ``eval`` and ``exec``, including the
 procedure forms taking a ``std_ulogic_vector``, ``signed`` or ``unsigned``
 result as an ``out`` parameter.
@@ -111,7 +111,7 @@ without being given it:
 
 .. code-block:: vhdl
 
-    check_true(eval_boolean(get_python_object("tb:uart_model"), "self.is_idle()"));
+    check_true(eval_boolean(get_python_object("tb:uart_model"), "obj.is_idle()"));
 
 Unlike ``get_logger``, it does not make one: an identity without an object is
 reported as a failure on ``python_logger`` and returns ``null_python_object``.

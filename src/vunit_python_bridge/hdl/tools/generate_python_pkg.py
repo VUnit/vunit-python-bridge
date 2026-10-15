@@ -414,7 +414,7 @@ def object_declarations():
         lines.append(f"    {OBJECT}; method : string; result : out {result['vhdl']};")
         lines.append(f"    {ARG_PARAMETERS}")
         lines.append("  );")
-    lines += ["", "  -- Evaluate an expression in the session of the object, where it is self, like eval"]
+    lines += ["", "  -- Evaluate an expression in the session of the object, where it is obj, like eval"]
     for result in RESULTS:
         lines.append(f"  impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']};")
         if result.get("alias_eval", True):
@@ -445,7 +445,7 @@ def object_subprograms():
     end if;
     -- An error is reported as that of the method rather than of the code executed
     ok := p_exec(
-      to_call_str("self." & method, {ARG_ACTUALS}),
+      to_call_str("obj." & method, {ARG_ACTUALS}),
       0, p_call_operation(method), get_session(object)
     );
   end;
@@ -464,7 +464,7 @@ def object_subprograms():
       return {result['default']};
     end if;
     if p_eval(
-      to_call_str("self." & method, {ARG_ACTUALS}),
+      to_call_str("obj." & method, {ARG_ACTUALS}),
       {result['kind']}, -1, p_call_operation(method), get_session(object)
     ) then
       return {result['value']};
@@ -485,7 +485,7 @@ def object_subprograms():
       return;
     end if;
     if p_eval(
-      to_call_str("self." & method, {ARG_ACTUALS}),
+      to_call_str("obj." & method, {ARG_ACTUALS}),
       {result['kind']}, result'length, p_call_operation(method), get_session(object)
     ) then
       result := {result['value']};

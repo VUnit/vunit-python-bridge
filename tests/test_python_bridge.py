@@ -172,7 +172,7 @@ class TestManifest(unittest.TestCase):
 
 class TestObjectCreation(unittest.TestCase):
     """
-    __vunit__.instantiate_as_self, which creates the object of a python_object_t in its session.
+    __vunit__.instantiate_as_obj, which creates the object of a python_object_t in its session.
     """
 
     def setUp(self):
@@ -182,61 +182,61 @@ class TestObjectCreation(unittest.TestCase):
         self.handle = runtime.BridgeHandle(mock.Mock(namespace=self.namespace))
 
     def test_binds_an_instance_of_a_class_of_a_module_to_self(self):
-        self.handle.instantiate_as_self("collections.OrderedDict", a=1)
-        self.assertEqual(self.namespace["self"], {"a": 1})
+        self.handle.instantiate_as_obj("collections.OrderedDict", a=1)
+        self.assertEqual(self.namespace["obj"], {"a": 1})
 
     def test_a_dotted_name_can_name_a_class_in_a_class(self):
         module = types.ModuleType("models_under_test")
         module.Outer = type("Outer", (), {"Inner": type("Inner", (), {})})
         with mock.patch.dict(sys.modules, {"models_under_test": module}):
-            self.handle.instantiate_as_self("models_under_test.Outer.Inner")
-        self.assertIsInstance(self.namespace["self"], module.Outer.Inner)
+            self.handle.instantiate_as_obj("models_under_test.Outer.Inner")
+        self.assertIsInstance(self.namespace["obj"], module.Outer.Inner)
 
     def test_a_bare_name_is_a_class_of_the_default_session(self):
         class Model:  # pylint: disable=too-few-public-methods
             pass
 
         with mock.patch.dict("__main__.__dict__", {"Model": Model}):
-            self.handle.instantiate_as_self("Model")
-        self.assertIsInstance(self.namespace["self"], Model)
+            self.handle.instantiate_as_obj("Model")
+        self.assertIsInstance(self.namespace["obj"], Model)
 
     def test_a_name_imported_in_the_default_session_is_followed(self):
         module = types.ModuleType("real_module_name")
         module.Model = type("Model", (), {})
         # Like "import real_module_name as alias" in the default session
         with mock.patch.dict("__main__.__dict__", {"alias": module}):
-            self.handle.instantiate_as_self("alias.Model")
-        self.assertIsInstance(self.namespace["self"], module.Model)
+            self.handle.instantiate_as_obj("alias.Model")
+        self.assertIsInstance(self.namespace["obj"], module.Model)
 
     def test_a_missing_bare_name_is_reported_as_not_found(self):
         with self.assertRaisesRegex(ImportError, "No class named 'NoSuchModel': neither defined in the default"):
-            self.handle.instantiate_as_self("NoSuchModel")
+            self.handle.instantiate_as_obj("NoSuchModel")
 
     def test_a_missing_class_of_a_module_names_the_module(self):
         with self.assertRaisesRegex(ImportError, "'json.JSONDecoderr': json has no attribute 'JSONDecoderr'"):
-            self.handle.instantiate_as_self("json.JSONDecoderr")
+            self.handle.instantiate_as_obj("json.JSONDecoderr")
 
     def test_a_name_that_is_not_a_class_is_reported(self):
         with self.assertRaisesRegex(TypeError, "'os.getcwd' is not a class but a builtin_function_or_method"):
-            self.handle.instantiate_as_self("os.getcwd")
+            self.handle.instantiate_as_obj("os.getcwd")
 
     def test_a_failing_import_inside_the_module_is_not_hidden(self):
         with create_tempdir() as tempdir:
             (tempdir / "broken_model.py").write_text("import no_such_dependency\n", encoding="utf-8")
             with mock.patch.object(sys, "path", [str(tempdir)] + sys.path):
                 with self.assertRaisesRegex(ModuleNotFoundError, "No module named 'no_such_dependency'"):
-                    self.handle.instantiate_as_self("broken_model.Model")
+                    self.handle.instantiate_as_obj("broken_model.Model")
 
     def test_an_object_that_cannot_be_created_tells_why_when_used(self):
         with self.assertRaises(ImportError):
-            self.handle.instantiate_as_self("no_such_module.Model", 1)
+            self.handle.instantiate_as_obj("no_such_module.Model", 1)
         with self.assertRaisesRegex(
             RuntimeError,
             "The no_such_module.Model object could not be created: ImportError: No class named 'no_such_module.Model'",
         ):
-            self.namespace["self"].step()
+            self.namespace["obj"].step()
         with self.assertRaisesRegex(RuntimeError, "could not be created"):
-            self.namespace["self"].trace = True
+            self.namespace["obj"].trace = True
 
 
 class TestGeneratedPackages(unittest.TestCase):

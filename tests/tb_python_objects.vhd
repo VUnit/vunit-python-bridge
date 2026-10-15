@@ -55,20 +55,20 @@ begin
         check_equal(count_d, 9, "vc_d, a Counter of its own with step 3, by instance path");
         check_equal(integer'(call(get_python_object("vc_a"), "value")), 3, "the model of vc_a by its identity");
         check_equal(integer'(call(shared_model, "value")), 103);
-        check_equal(eval_string(shared_model, "type(self).__name__"), "Counter");
+        check_equal(eval_string(shared_model, "type(obj).__name__"), "Counter");
 
       elsif run("Test the result types of the calls of an object") then
         object := new_python_object("models.counter_model.Counter", kwarg("start", 5));
-        check_equal(integer'(eval(object, "self.count")), 5);
+        check_equal(integer'(eval(object, "obj.count")), 5);
         check_equal(real'(call(object, "ratio")), 1.25);
         call(object, "add", arg(1));
         call_unsigned(object, "value", byte);
         check(byte = 6, "unsigned result");
         check(integer_vector'(call(object, "history")) = (0, 1, 2, 3, 4, 5, 6));
         check_equal(length(call_integer_array(object, "history")), 7);
-        check_true(eval_boolean(object, "self.count == 6"));
+        check_true(eval_boolean(object, "obj.count == 6"));
         -- The eval procedures of an object
-        eval_unsigned(object, "self.count + 1", byte);
+        eval_unsigned(object, "obj.count + 1", byte);
         check(byte = 7, "eval_unsigned");
         eval_std_ulogic_vector(object, "'0000' + '1000'", bits);
         check(bits = "00001000", "eval_std_ulogic_vector");
@@ -76,7 +76,7 @@ begin
       elsif run("Test exec and get_logger of an object") then
         object := create_python_object("models.counter_model.Counter", id => get_id("exec_test"));
         check(get_id(get_session(object)) = get_id("exec_test"), "session of the object");
-        exec(object, "self.count = 41");
+        exec(object, "obj.count = 41");
         check_equal(integer'(call(object, "add", arg(1))), 42);
         check(get_logger(object) = get_logger(get_id("exec_test")), "logger of the object");
 
@@ -179,8 +179,8 @@ begin
       elsif run("Test that objects have sessions and numbers of their own") then
         object := new_python_object("models.counter_model.Counter", kwarg("start", 1));
         other := new_python_object("models.counter_model.Counter", kwarg("start", 2));
-        check_equal(integer'(eval(object, "self.count")), 1);
-        check_equal(integer'(eval(other, "self.count")), 2);
+        check_equal(integer'(eval(object, "obj.count")), 1);
+        check_equal(integer'(eval(other, "obj.count")), 2);
         exec(object, "shared = 'object'");
         check_false(eval_boolean(other, "'shared' in globals()"), "the sessions are separate");
         -- Without an id, objects are enumerated like VUnit's verification components
@@ -190,7 +190,7 @@ begin
       elsif run("Test that exec and get_logger work before the object is created") then
         object := new_python_object("models.counter_model.Counter", id => get_id("lazy"));
         check(get_logger(object) = get_logger(get_id("lazy")), "logger before creation");
-        exec(object, "self.count = 7");
+        exec(object, "obj.count = 7");
         check_equal(integer'(call(object, "value")), 7);
 
       elsif run("Test that get_python_object finds an object by its identity or full name") then
