@@ -116,8 +116,7 @@ as the procedures ``eval_std_ulogic_vector``, ``eval_signed`` and
 ``eval_unsigned``, that take the result as an ``out`` parameter. The width is
 given by the actual, and a Python value that does not fit that width is an
 error. Functions of the same names take the width like ``to_unsigned`` does,
-as a length or as the length of ``size_res``, and return a vector of
-``'U'`` on an error.
+as a length or as the length of ``size_res``.
 
 .. code-block:: vhdl
 
