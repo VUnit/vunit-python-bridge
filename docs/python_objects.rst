@@ -23,7 +23,7 @@ own, and a testbench can create one and give it to a component.
     check_true(eval_boolean(model, "obj.is_idle()"));
     exec(model, "obj.trace = True");
 
-``new_python_object(class_name, args, id)`` names the class and the arguments
+``new_python_object(class_name, args, id)``, or ``name`` instead of ``id``, names the class and the arguments
 of its constructor, given like the arguments of ``call``, including groups made
 with ``&``. The class is
 
@@ -95,8 +95,8 @@ The ``id`` of an object names its session and its logger,
 optional and mainly makes the log readable. Without an
 ``id``, objects are enumerated per class, the way VUnit enumerates
 verification components, with the class name as the hierarchy:
-``new_python_object("models.uart.UartModel")`` gives
-``python_bridge:python:object:models:uart:UartModel:1``, then ``…:2`` and so
+``new_python_object("my_models.uart.UartModel")`` gives
+``python_bridge:python:object:my_models:uart:UartModel:1``, then ``…:2`` and so
 on. The session of an object must
 be its own, so ``new_python_object`` with an identity already used by another
 object, or by a session made with ``new_session``, is reported as a failure on
@@ -104,9 +104,9 @@ the logger of the identity and returns ``null_python_object``. Using
 ``null_python_object`` is reported as a failure on ``python_logger``.
 
 The identity can also be given by its full name, like ``get_logger(name)``:
-``new_python_object("models.Uart", name => "tb:uart_model")`` is
-``new_python_object("models.Uart", id => get_id("tb:uart_model"))``, and so
-for ``create_python_object``.
+``new_python_object("my_models.uart.UartModel", name => "tb:uart_model")`` is
+``new_python_object("my_models.uart.UartModel", id => get_id("tb:uart_model"))``,
+and so for ``create_python_object``.
 
 ``get_python_object(id)`` and ``get_python_object(name)`` return the object
 made with that identity, so a testbench can reach the object of a component
@@ -277,7 +277,7 @@ case:
     check_equal(call_integer(memory, "read", arg(16#100#)), 16#cafe#);
 
 In the same way, a component can let its user choose the class, by taking its
-name as a ``string`` generic.
+name as an argument of the constructor of its handle.
 
 Errors and limitations
 ~~~~~~~~~~~~~~~~~~~~~~

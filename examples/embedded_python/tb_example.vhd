@@ -272,7 +272,7 @@ begin
 
       elsif run("Test result types of eval and call") then
         -- eval and call convert the Python value to the VHDL type the context expects.
-        -- The result types a function cannot size by itself are procedures instead.
+        -- The result types a function cannot size by itself are given the width.
         import_device_model;
 
         -- A boolean result can be used directly as a condition
@@ -290,6 +290,8 @@ begin
         -- The procedure form takes the width of the result from the variable it writes to
         call_unsigned("device_model.status_word", status);
         check_equal(status, unsigned'(x"BEEF"));
+        -- The function form takes it like to_unsigned, as a length or as size_res
+        check_equal(call_unsigned("device_model.status_word", status'length), unsigned'(x"BEEF"));
 
         -- Strings, real vectors and dynamically sized integer vectors
         check_equal(call_string("device_model.status_name"), "running");

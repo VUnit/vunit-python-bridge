@@ -173,8 +173,9 @@ package python_pkg is
   -- std_ulogic_vector and integer_array_t results are only available under
   -- their explicit names, not as eval overloads, which keeps
   -- check_equal(eval("17"), 17) and length(eval("[1, 2]")) unambiguous.
-  -- signed and unsigned results are only available in the procedure form
-  -- since a function cannot know the width of the result.
+  -- signed and unsigned results, like std_ulogic_vector ones of a given width,
+  -- are procedures writing the result, or functions given the width as a
+  -- length or as size_res, like to_unsigned.
   impure function eval_boolean(
     expr : string; session : python_session_t := default_session
   ) return boolean;

@@ -251,7 +251,7 @@ begin
       count => count_a
     );
 
-  -- No id: an enumerated anonymous identity
+  -- No id: an identity numbered per class
   vc_b : entity work.counter_vc
     generic map (
       vc => new_counter_vc(step => 2)

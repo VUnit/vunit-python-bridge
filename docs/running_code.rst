@@ -207,9 +207,10 @@ On NVC, GHDL and Questa, ``call`` returns the same types as ``eval``:
 ``call_integer_vector_ptr``, plus the procedures ``call_std_ulogic_vector``,
 ``call_signed`` and ``call_unsigned`` taking the result as an ``out``
 parameter, and the functions of the same names taking a length or
-``size_res`` after the identifier, like ``eval``. All of the functions but ``call_std_ulogic_vector`` are aliased
-``call``. The ``integer`` one, ``call_integer_w_arg``, is also aliased
-``call_integer``, like ``eval_integer``.
+``size_res`` after the identifier, like ``eval``. The functions without a
+width but ``call_std_ulogic_vector`` are aliased ``call``. The ``integer``
+one, ``call_integer_w_arg``, is also aliased ``call_integer``, like
+``eval_integer``.
 
 ``to_call_str`` builds the Python call expression itself, as a string, which
 is useful to embed a call inside a larger ``exec``/``eval`` string:

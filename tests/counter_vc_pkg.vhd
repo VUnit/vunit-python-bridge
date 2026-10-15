@@ -5,7 +5,8 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
 -- The handle of counter_vc, made the way VUnit's verification components are:
--- the constructor creates everything, including the Python object.
+-- the constructor creates everything, including the Python object, unless
+-- the other constructor is given one.
 
 library vunit_lib;
 context vunit_lib.vunit_context;
