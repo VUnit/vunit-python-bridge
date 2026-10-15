@@ -17,10 +17,10 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.py }}
         architecture: x64
@@ -34,7 +34,7 @@ jobs:
       run: python tools/build_python_bridge.py --output-dir dlls
 
     - name: '📤 Upload DLL'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: python-bridge-dll-${{ matrix.py }}
         path: dlls/*.dll
@@ -47,7 +47,7 @@ jobs:
     steps:
 
     - name: '📥 Download DLLs'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         pattern: python-bridge-dll-*
         merge-multiple: true
@@ -57,7 +57,7 @@ jobs:
       run: test "$(ls dlls/*.dll | wc -l)" = 6
 
     - name: '📤 Upload DLLs'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: python-bridge-dlls
         path: dlls/*.dll

@@ -31,10 +31,10 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: '3.13'
 
@@ -64,16 +64,16 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '📥 Download bridge DLLs'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: python-bridge-dlls
         path: src/vunit_python_bridge/bin
 
     - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: '3.13'
 
@@ -104,7 +104,7 @@ jobs:
         test -f "dist/vunit_python_bridge-${{ needs.version.outputs.version }}-py3-none-any.whl"
 
     - name: '📤 Upload the distribution'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: distribution
         path: dist/*
@@ -135,7 +135,7 @@ jobs:
     steps:
 
     - name: '📥 Download the distribution'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: distribution
         path: dist
@@ -155,12 +155,12 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
       with:
         fetch-depth: 0
 
     - name: '📥 Download the distribution'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: distribution
         path: dist

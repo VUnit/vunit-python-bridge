@@ -70,10 +70,10 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.py }}
 
@@ -141,7 +141,7 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '⚙️ Setup NVC'
       run: |
@@ -212,7 +212,7 @@ jobs:
           llvm-devel zlib-devel elfutils-devel libffi-devel libzstd-devel flex bison
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '⚙️ Build NVC'
       run: |
@@ -266,11 +266,11 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '📥 Download bridge DLLs'
       if: matrix.bridge == 'dll'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: python-bridge-dlls
         path: src/vunit_python_bridge/bin
@@ -280,7 +280,7 @@ jobs:
       run: echo "C:/mingw64/bin" >> "$GITHUB_PATH"
 
     - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: ${{ matrix.py }}
         architecture: x64
@@ -341,16 +341,16 @@ jobs:
     steps:
 
     - name: '🧰 Checkout'
-      uses: actions/checkout@v4
+      uses: actions/checkout@v7
 
     - name: '📥 Download bridge DLLs'
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: python-bridge-dlls
         path: src/vunit_python_bridge/bin
 
     - name: '🐍 Setup Python'
-      uses: actions/setup-python@v6
+      uses: actions/setup-python@v7
       with:
         python-version: '3.13'
 
@@ -379,7 +379,7 @@ jobs:
         if grep -qE '\.(so|dylib|pyd)$' wheel.txt; then echo "the wheel has a binary"; exit 1; fi
 
     - name: '📤 Upload the distribution'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: distribution
         path: dist/*
