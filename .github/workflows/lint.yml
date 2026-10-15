@@ -8,6 +8,12 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A new push cancels the run of the same branch or pull request still in progress.
+# On main and on tags every commit has a group of its own, so every run finishes.
+concurrency:
+  group: ${{ github.workflow }}-${{ (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/')) && github.sha || github.ref }}
+  cancel-in-progress: true
+
 jobs:
 
   lint:
