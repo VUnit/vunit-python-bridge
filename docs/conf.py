@@ -26,7 +26,7 @@ author = "Lars Asplund"
 with (ROOT / "pyproject.toml").open("rb") as fptr:
     release = tomllib.load(fptr)["project"]["version"]
 
-extensions = ["myst_parser"]
+extensions = ["myst_parser", "sphinxcontrib.towncrier.ext"]
 # The release notes start at ## since they are included under a version heading
 suppress_warnings = ["myst.header"]
 exclude_patterns = ["_build"]
@@ -46,13 +46,21 @@ html_context = {
 }
 
 
-# The release notes page, generated from release_notes/*.md: unreleased.md, then the releases, newest first
-_notes = ["Release notes", "=============", ""]
+# The release notes page, generated from release_notes: the draft of the news fragments in
+# news.d, rendered by towncrier, and unreleased.md, then the releases, newest first. It is
+# Markdown, since towncrier writes Markdown and the draft is parsed like the page.
+towncrier_draft_autoversion_mode = "draft"
+towncrier_draft_include_empty = False
+towncrier_draft_working_directory = ROOT
+_notes = ["# Release notes", ""]
+_unreleased = sorted((ROOT / "release_notes").glob("unreleased.md"))
+if _unreleased or any((ROOT / "release_notes" / "news.d").glob("*.md")):
+    _notes += ["## Unreleased", "", "```{towncrier-draft-entries}", "```", ""]
 _releases = sorted((ROOT / "release_notes").glob("[0-9]*.md"), key=lambda path: Version(path.stem), reverse=True)
-for _path in sorted((ROOT / "release_notes").glob("unreleased.md")) + _releases:
-    _title = _path.stem.capitalize()
-    _notes += [_title, "-" * len(_title), "", f".. include:: ../release_notes/{_path.name}"]
-    _notes += ["   :parser: myst_parser.sphinx_", ""]
-(ROOT / "docs" / "release_notes.rst").write_text("\n".join(_notes))
+for _path in _unreleased + _releases:
+    if _path.stem != "unreleased":
+        _notes += [f"## {_path.stem}", ""]
+    _notes += [f"```{{include}} ../release_notes/{_path.name}", ":heading-offset: 1", "```", ""]
+(ROOT / "docs" / "release_notes.md").write_text("\n".join(_notes))
 
 vhdl_api.write(ROOT / "docs" / "api")

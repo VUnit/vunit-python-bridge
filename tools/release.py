@@ -16,6 +16,7 @@ PyPI, where a version cannot be taken back.
     python tools/release.py validate --tag v1.2.3
                                               check the tag against it as well, and that
                                               release_notes/unreleased.md was renamed
+                                              and has the news fragments
 """
 
 import argparse
@@ -26,6 +27,7 @@ from pathlib import Path
 
 PYPROJECT = Path(__file__).parent.parent.resolve() / "pyproject.toml"
 UNRELEASED_NOTES = PYPROJECT.parent / "release_notes" / "unreleased.md"
+NEWS_FRAGMENTS = PYPROJECT.parent / "release_notes" / "news.d"
 
 # The versions a release may have: MAJOR.MINOR.PATCH, optionally a pre-release of it.
 RELEASE_VERSION = re.compile(r"\d+\.\d+\.\d+(a\d+|b\d+|rc\d+)?")
@@ -61,6 +63,12 @@ def validate(tag) -> None:
         raise SystemExit(
             f"{UNRELEASED_NOTES} still exists. Rename it to release_notes/{project_version}.md "
             "in the commit bumping the version."
+        )
+
+    if tag is not None and any(NEWS_FRAGMENTS.glob("*.md")):
+        raise SystemExit(
+            f"{NEWS_FRAGMENTS} still has news fragments. Collect them into {UNRELEASED_NOTES} with "
+            f"towncrier build --version {project_version} before renaming it."
         )
 
     print(f"Version {project_version}" + ("" if tag is None else f", tagged {tag}"))
