@@ -27,6 +27,6 @@ begin
   process
   begin
     wait on tick;
-    count <= call(get_model(vc), "add", arg(1));
+    count <= call(vc.p_model, "add", arg(1));
   end process;
 end architecture;

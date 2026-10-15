@@ -34,7 +34,7 @@ begin
   process(clk)
   begin
     if rising_edge(clk) and valid = '1' then
-      y <= call(get_model(filter), "push", arg(x));
+      y <= call(filter.p_model, "push", arg(x));
     end if;
   end process;
 end architecture;

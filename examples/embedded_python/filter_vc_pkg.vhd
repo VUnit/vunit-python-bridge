@@ -23,8 +23,6 @@ package filter_vc_pkg is
   impure function new_filter_vc(window : positive := 2; id : id_t := null_id) return filter_vc_t;
   -- A model given by the testbench, e.g. shared with it
   impure function new_filter_vc(model : python_object_t) return filter_vc_t;
-
-  impure function get_model(filter : filter_vc_t) return python_object_t;
 end package;
 
 package body filter_vc_pkg is
@@ -36,10 +34,5 @@ package body filter_vc_pkg is
   impure function new_filter_vc(model : python_object_t) return filter_vc_t is
   begin
     return (p_model => model);
-  end;
-
-  impure function get_model(filter : filter_vc_t) return python_object_t is
-  begin
-    return filter.p_model;
   end;
 end package body;

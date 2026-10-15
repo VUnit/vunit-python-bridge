@@ -293,8 +293,6 @@ Errors and limitations
   ``The <class> object could not be created: <error>``.
 * The caveats of sessions apply: the module of a class, and any state kept in
   it, is shared by all objects.
-* String arguments are passed to Python verbatim, see
-  :ref:`python_bridge:semantics`, which applies to constructor arguments too.
 * An ``integer_array_t`` argument is transferred to Python when it is made, so
   it cannot be a constructor argument of an object made during elaboration,
   before the simulation starts. Give the values to the object in a call
