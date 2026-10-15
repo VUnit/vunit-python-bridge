@@ -203,6 +203,26 @@ package python_pkg is
     expr : string; result : out unsigned; session : python_session_t := default_session
   );
 
+  -- Like the procedures, the length given or that of size_res, like to_unsigned
+  impure function eval_std_ulogic_vector(
+    expr : string; length : natural; session : python_session_t := default_session
+  ) return std_ulogic_vector;
+  impure function eval_std_ulogic_vector(
+    expr : string; size_res : std_ulogic_vector; session : python_session_t := default_session
+  ) return std_ulogic_vector;
+  impure function eval_signed(
+    expr : string; length : natural; session : python_session_t := default_session
+  ) return signed;
+  impure function eval_signed(
+    expr : string; size_res : signed; session : python_session_t := default_session
+  ) return signed;
+  impure function eval_unsigned(
+    expr : string; length : natural; session : python_session_t := default_session
+  ) return unsigned;
+  impure function eval_unsigned(
+    expr : string; size_res : unsigned; session : python_session_t := default_session
+  ) return unsigned;
+
   -----------------------------------------------------------------------------
   -- Results of call: string, boolean, std_ulogic, vectors and arrays
   -----------------------------------------------------------------------------
@@ -268,6 +288,38 @@ package python_pkg is
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
     session : python_session_t := default_session
   );
+
+  -- Like the procedures, the length given or that of size_res, like to_unsigned
+  impure function call_std_ulogic_vector(
+    identifier : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic_vector;
+  impure function call_std_ulogic_vector(
+    identifier : string; size_res : std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic_vector;
+  impure function call_signed(
+    identifier : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return signed;
+  impure function call_signed(
+    identifier : string; size_res : signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return signed;
+  impure function call_unsigned(
+    identifier : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return unsigned;
+  impure function call_unsigned(
+    identifier : string; size_res : unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return unsigned;
 
   -----------------------------------------------------------------------------
   -- Execution of Python files
@@ -1037,6 +1089,66 @@ package body python_pkg is
     end if;
   end;
 
+  impure function eval_std_ulogic_vector(
+    expr : string; length : natural; session : python_session_t := default_session
+  ) return std_ulogic_vector is
+    variable result : std_ulogic_vector(length - 1 downto 0);
+  begin
+    eval_std_ulogic_vector(
+      expr, result, session
+    );
+    return result;
+  end;
+
+  impure function eval_std_ulogic_vector(
+    expr : string; size_res : std_ulogic_vector; session : python_session_t := default_session
+  ) return std_ulogic_vector is
+  begin
+    return eval_std_ulogic_vector(
+      expr, size_res'length, session
+    );
+  end;
+
+  impure function eval_signed(
+    expr : string; length : natural; session : python_session_t := default_session
+  ) return signed is
+    variable result : signed(length - 1 downto 0);
+  begin
+    eval_signed(
+      expr, result, session
+    );
+    return result;
+  end;
+
+  impure function eval_signed(
+    expr : string; size_res : signed; session : python_session_t := default_session
+  ) return signed is
+  begin
+    return eval_signed(
+      expr, size_res'length, session
+    );
+  end;
+
+  impure function eval_unsigned(
+    expr : string; length : natural; session : python_session_t := default_session
+  ) return unsigned is
+    variable result : unsigned(length - 1 downto 0);
+  begin
+    eval_unsigned(
+      expr, result, session
+    );
+    return result;
+  end;
+
+  impure function eval_unsigned(
+    expr : string; size_res : unsigned; session : python_session_t := default_session
+  ) return unsigned is
+  begin
+    return eval_unsigned(
+      expr, size_res'length, session
+    );
+  end;
+
   -----------------------------------------------------------------------------
   -- call
   -----------------------------------------------------------------------------
@@ -1140,6 +1252,78 @@ package body python_pkg is
   begin
     eval_unsigned(
       to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), result, session
+    );
+  end;
+
+  impure function call_std_ulogic_vector(
+    identifier : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic_vector is
+    variable result : std_ulogic_vector(length - 1 downto 0);
+  begin
+    call_std_ulogic_vector(
+      identifier, result, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session
+    );
+    return result;
+  end;
+
+  impure function call_std_ulogic_vector(
+    identifier : string; size_res : std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return std_ulogic_vector is
+  begin
+    return call_std_ulogic_vector(
+      identifier, size_res'length, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session
+    );
+  end;
+
+  impure function call_signed(
+    identifier : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return signed is
+    variable result : signed(length - 1 downto 0);
+  begin
+    call_signed(
+      identifier, result, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session
+    );
+    return result;
+  end;
+
+  impure function call_signed(
+    identifier : string; size_res : signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return signed is
+  begin
+    return call_signed(
+      identifier, size_res'length, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session
+    );
+  end;
+
+  impure function call_unsigned(
+    identifier : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return unsigned is
+    variable result : unsigned(length - 1 downto 0);
+  begin
+    call_unsigned(
+      identifier, result, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session
+    );
+    return result;
+  end;
+
+  impure function call_unsigned(
+    identifier : string; size_res : unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return unsigned is
+  begin
+    return call_unsigned(
+      identifier, size_res'length, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10, session
     );
   end;
 end package body;

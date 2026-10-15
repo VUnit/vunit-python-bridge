@@ -43,7 +43,8 @@ the object.
 of the object, where the object is ``obj``. They have the same arguments,
 result types and aliases as ``call``, ``eval`` and ``exec``, including the
 procedure forms taking a ``std_ulogic_vector``, ``signed`` or ``unsigned``
-result as an ``out`` parameter.
+result as an ``out`` parameter and the function forms taking its length or
+``size_res``, for example ``byte := call_unsigned(model, "pop", byte'length)``.
 
 new_python_object or create_python_object
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

@@ -75,6 +75,14 @@ begin
         eval_std_ulogic_vector(object, "'0000' + '1000'", bits);
         check(bits = "00001000", "eval_std_ulogic_vector");
 
+        -- The sized function forms, like to_unsigned
+        check_equal(call_unsigned(object, "value", 8), to_unsigned(6, 8));
+        check_equal(call_unsigned(object, "value", byte), to_unsigned(6, 8));
+        check_equal(call_signed(object, "add", 8, arg(-10)), to_signed(-4, 8));
+        check_equal(eval_signed(object, "obj.count", to_signed(0, 4)), to_signed(-4, 4));
+        check_equal(eval_unsigned(object, "obj.count + 10", 8), to_unsigned(6, 8));
+        check_equal(eval_std_ulogic_vector(object, "'0000' + '1000'", 8), std_ulogic_vector'("00001000"));
+        check_equal(eval_std_ulogic_vector(object, "'00000011'", bits), std_ulogic_vector'("00000011"));
       elsif run("Test exec and get_logger of an object") then
         object := create_python_object("models.counter_model.Counter", id => get_id("exec_test"));
         check(get_id(get_session(object)) = get_id("exec_test"), "session of the object");

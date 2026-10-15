@@ -415,6 +415,17 @@ begin
         eval_unsigned("2 ** 8 - 1", u8);
         check_equal(u8, to_unsigned(255, 8));
 
+      elsif run("Test the sized function forms of the vector results") then
+        exec("def identity(x):" + "    return x");
+        check_equal(call_signed("identity", 8, arg(-128)), to_signed(-128, 8));
+        check_equal(call_unsigned("identity", u8, arg(255)), to_unsigned(255, 8));
+        check_equal(call_std_ulogic_vector("identity", 4, arg("1010")), std_ulogic_vector'("1010"));
+        check_equal(call_std_ulogic_vector("identity", slv4, arg("0110")), std_ulogic_vector'("0110"));
+        check_equal(eval_signed("-1", s8), to_signed(-1, 8));
+        check_equal(eval_unsigned("2 ** 8 - 1", 8), to_unsigned(255, 8));
+        check_equal(eval_std_ulogic_vector("'01'", 2), std_ulogic_vector'("01"));
+        check_equal(eval_std_ulogic_vector("'0011'", slv4), std_ulogic_vector'("0011"));
+
       elsif run("Test integer_vector and real_vector results") then
         exec("def identity(x):" + "    return x");
         reals := call_real_vector("identity", arg(real_vector'(1.5, -0.25, 0.0)));

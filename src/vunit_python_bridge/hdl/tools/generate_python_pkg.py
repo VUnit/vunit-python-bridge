@@ -194,6 +194,49 @@ PROCEDURE_RESULTS = [
 ]
 
 
+def sized_declarations(prefix, name, vhdl, extra=""):
+    """
+    Declarations of the sized function forms of a procedure result, like to_unsigned:
+    the length given, or the length of size_res.
+    """
+    return [
+        f"  impure function {name}(",
+        f"    {prefix}length : natural{extra}",
+        f"  ) return {vhdl};",
+        f"  impure function {name}(",
+        f"    {prefix}size_res : {vhdl}{extra}",
+        f"  ) return {vhdl};",
+    ]
+
+
+def sized_bodies(prefix, name, vhdl, procedure_actuals, size_res_actuals, extra=""):
+    """
+    Bodies of the sized function forms of a procedure result. They call the
+    procedure, so a failure returns the vector of the length with 'U' elements.
+    """
+    return f"""\
+  impure function {name}(
+    {prefix}length : natural{extra}
+  ) return {vhdl} is
+    variable result : {vhdl}(length - 1 downto 0);
+  begin
+    {name}(
+      {procedure_actuals}
+    );
+    return result;
+  end;
+
+  impure function {name}(
+    {prefix}size_res : {vhdl}{extra}
+  ) return {vhdl} is
+  begin
+    return {name}(
+      {size_res_actuals}
+    );
+  end;
+"""
+
+
 def call_name(result):
     """
     Name of the call function of a result type. The integer one is named
@@ -275,6 +318,9 @@ def eval_declarations():
         lines.append(f"  procedure eval_{result['name']}(")
         lines.append(f"    expr : string; result : out {result['vhdl']}; {SESSION}")
         lines.append("  );")
+    lines += ["", "  -- Like the procedures, the length given or that of size_res, like to_unsigned"]
+    for result in PROCEDURE_RESULTS:
+        lines += sized_declarations("expr : string; ", f"eval_{result['name']}", result["vhdl"], f"; {SESSION}")
     return "\n".join(lines)
 
 
@@ -312,6 +358,13 @@ def eval_subprograms():
   end;
 """
         )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            sized_bodies(
+                "expr : string; ", f"eval_{result['name']}", result["vhdl"],
+                "expr, result, session", "expr, size_res'length, session", f"; {SESSION}",
+            )
+        )
     return "\n".join(parts).rstrip("\n")
 
 
@@ -341,6 +394,14 @@ def call_declarations():
         lines.append(f"    {ARG_PARAMETERS};")
         lines.append(f"    {SESSION}")
         lines.append("  );")
+    lines += ["", "  -- Like the procedures, the length given or that of size_res, like to_unsigned"]
+    for result in PROCEDURE_RESULTS:
+        lines += sized_declarations(
+            "identifier : string; ",
+            f"call_{result['name']}",
+            result["vhdl"],
+            f";\n    {ARG_PARAMETERS};\n    {SESSION}",
+        )
     return "\n".join(lines)
 
 
@@ -381,6 +442,15 @@ def call_subprograms():
     );
   end;
 """
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            sized_bodies(
+                "identifier : string; ", f"call_{result['name']}", result["vhdl"],
+                f"identifier, result, {ARG_ACTUALS}, session",
+                f"identifier, size_res'length, {ARG_ACTUALS}, session",
+                f";\n    {ARG_PARAMETERS};\n    {SESSION}",
+            )
         )
     return "\n".join(parts).rstrip("\n")
 
@@ -430,6 +500,12 @@ def object_declarations():
             lines.append(f"  alias eval is eval_{result['name']}[python_object_t, string return {result['vhdl']}];")
     for result in PROCEDURE_RESULTS:
         lines.append(f"  procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']});")
+    lines += ["", "  -- Like the procedures, the length given or that of size_res, like to_unsigned"]
+    for result in PROCEDURE_RESULTS:
+        lines += sized_declarations(
+            f"{OBJECT}; method : string; ", f"call_{result['name']}", result["vhdl"], f";\n    {ARG_PARAMETERS}"
+        )
+        lines += sized_declarations(f"{OBJECT}; expr : string; ", f"eval_{result['name']}", result["vhdl"])
     return "\n".join(lines)
 
 
@@ -525,6 +601,21 @@ def object_subprograms():
     eval_{result['name']}(expr, result, {session});
   end;
 """
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            sized_bodies(
+                f"{OBJECT}; method : string; ", f"call_{result['name']}", result["vhdl"],
+                f"object, method, result, {ARG_ACTUALS}",
+                f"object, method, size_res'length, {ARG_ACTUALS}",
+                f";\n    {ARG_PARAMETERS}",
+            )
+        )
+        parts.append(
+            sized_bodies(
+                f"{OBJECT}; expr : string; ", f"eval_{result['name']}", result["vhdl"],
+                "object, expr, result", "object, expr, size_res'length",
+            )
         )
     return "\n".join(parts).rstrip("\n")
 

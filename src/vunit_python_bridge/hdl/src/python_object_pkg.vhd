@@ -194,6 +194,50 @@ package python_object_pkg is
   procedure eval_std_ulogic_vector(object : python_object_t; expr : string; result : out std_ulogic_vector);
   procedure eval_signed(object : python_object_t; expr : string; result : out signed);
   procedure eval_unsigned(object : python_object_t; expr : string; result : out unsigned);
+
+  -- Like the procedures, the length given or that of size_res, like to_unsigned
+  impure function call_std_ulogic_vector(
+    object : python_object_t; method : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic_vector;
+  impure function call_std_ulogic_vector(
+    object : python_object_t; method : string; size_res : std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic_vector;
+  impure function eval_std_ulogic_vector(
+    object : python_object_t; expr : string; length : natural
+  ) return std_ulogic_vector;
+  impure function eval_std_ulogic_vector(
+    object : python_object_t; expr : string; size_res : std_ulogic_vector
+  ) return std_ulogic_vector;
+  impure function call_signed(
+    object : python_object_t; method : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return signed;
+  impure function call_signed(
+    object : python_object_t; method : string; size_res : signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return signed;
+  impure function eval_signed(
+    object : python_object_t; expr : string; length : natural
+  ) return signed;
+  impure function eval_signed(
+    object : python_object_t; expr : string; size_res : signed
+  ) return signed;
+  impure function call_unsigned(
+    object : python_object_t; method : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return unsigned;
+  impure function call_unsigned(
+    object : python_object_t; method : string; size_res : unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return unsigned;
+  impure function eval_unsigned(
+    object : python_object_t; expr : string; length : natural
+  ) return unsigned;
+  impure function eval_unsigned(
+    object : python_object_t; expr : string; size_res : unsigned
+  ) return unsigned;
 end package;
 
 package body python_object_pkg is
@@ -718,5 +762,131 @@ package body python_object_pkg is
       return;
     end if;
     eval_unsigned(expr, result, session => get_session(object));
+  end;
+
+  impure function call_std_ulogic_vector(
+    object : python_object_t; method : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic_vector is
+    variable result : std_ulogic_vector(length - 1 downto 0);
+  begin
+    call_std_ulogic_vector(
+      object, method, result, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+    );
+    return result;
+  end;
+
+  impure function call_std_ulogic_vector(
+    object : python_object_t; method : string; size_res : std_ulogic_vector;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return std_ulogic_vector is
+  begin
+    return call_std_ulogic_vector(
+      object, method, size_res'length, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+    );
+  end;
+
+  impure function eval_std_ulogic_vector(
+    object : python_object_t; expr : string; length : natural
+  ) return std_ulogic_vector is
+    variable result : std_ulogic_vector(length - 1 downto 0);
+  begin
+    eval_std_ulogic_vector(
+      object, expr, result
+    );
+    return result;
+  end;
+
+  impure function eval_std_ulogic_vector(
+    object : python_object_t; expr : string; size_res : std_ulogic_vector
+  ) return std_ulogic_vector is
+  begin
+    return eval_std_ulogic_vector(
+      object, expr, size_res'length
+    );
+  end;
+
+  impure function call_signed(
+    object : python_object_t; method : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return signed is
+    variable result : signed(length - 1 downto 0);
+  begin
+    call_signed(
+      object, method, result, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+    );
+    return result;
+  end;
+
+  impure function call_signed(
+    object : python_object_t; method : string; size_res : signed;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return signed is
+  begin
+    return call_signed(
+      object, method, size_res'length, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+    );
+  end;
+
+  impure function eval_signed(
+    object : python_object_t; expr : string; length : natural
+  ) return signed is
+    variable result : signed(length - 1 downto 0);
+  begin
+    eval_signed(
+      object, expr, result
+    );
+    return result;
+  end;
+
+  impure function eval_signed(
+    object : python_object_t; expr : string; size_res : signed
+  ) return signed is
+  begin
+    return eval_signed(
+      object, expr, size_res'length
+    );
+  end;
+
+  impure function call_unsigned(
+    object : python_object_t; method : string; length : natural;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return unsigned is
+    variable result : unsigned(length - 1 downto 0);
+  begin
+    call_unsigned(
+      object, method, result, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+    );
+    return result;
+  end;
+
+  impure function call_unsigned(
+    object : python_object_t; method : string; size_res : unsigned;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return unsigned is
+  begin
+    return call_unsigned(
+      object, method, size_res'length, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10
+    );
+  end;
+
+  impure function eval_unsigned(
+    object : python_object_t; expr : string; length : natural
+  ) return unsigned is
+    variable result : unsigned(length - 1 downto 0);
+  begin
+    eval_unsigned(
+      object, expr, result
+    );
+    return result;
+  end;
+
+  impure function eval_unsigned(
+    object : python_object_t; expr : string; size_res : unsigned
+  ) return unsigned is
+  begin
+    return eval_unsigned(
+      object, expr, size_res'length
+    );
   end;
 end package body;
