@@ -229,16 +229,22 @@ def _python_library() -> Path:
 
     Regular --enable-shared builds name it in LDLIBRARY (libpython3.X.so, .dylib); macOS
     framework builds name the framework binary instead (Python.framework/Versions/3.X/Python).
+    conda-forge links its python executable statically but ships the shared library in LIBDIR too.
     """
     ldlibrary = sysconfig.get_config_var("LDLIBRARY") or ""
     framework = sysconfig.get_config_var("PYTHONFRAMEWORK") or ""
     version = f"{sys.version_info[0]}.{sys.version_info[1]}{getattr(sys, 'abiflags', '')}"
     shared = bool(sysconfig.get_config_var("Py_ENABLE_SHARED")) or bool(framework)
     if not shared or not (framework or ldlibrary.endswith((".so", ".dylib")) or ".so." in ldlibrary):
+        suffix = ".dylib" if sys.platform == "darwin" else ".so"
+        shared_library = Path(sysconfig.get_config_var("LIBDIR") or "") / f"libpython{version}{suffix}"
+        if shared_library.is_file():
+            return shared_library.resolve()
         raise PythonBridgeError(
             f"VHDL Python support requires a CPython built with a shared Python library (--enable-shared). "
             f"{sys.executable} links Python statically "
-            f"(LDLIBRARY={ldlibrary!r}, Py_ENABLE_SHARED={sysconfig.get_config_var('Py_ENABLE_SHARED')!r})."
+            f"(LDLIBRARY={ldlibrary!r}, Py_ENABLE_SHARED={sysconfig.get_config_var('Py_ENABLE_SHARED')!r}) "
+            f"and there is no {shared_library}."
         )
     prefix = Path(sys.base_prefix)
     candidates = [Path(sysconfig.get_config_var("LIBDIR") or "") / ldlibrary]
