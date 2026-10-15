@@ -825,6 +825,8 @@ class TestPosixBuildAndCache(unittest.TestCase):
                 exported.add(fields[-1][1:] if darwin and fields[-1].startswith("_") else fields[-1])
         # -fvisibility=hidden plus VPY_EXPORT: only the contract is exported,
         # no bridge internals (vpy_initialize, vpy_set_error, ...) leak out.
+        # Older binutils (EL8) also list the symbols the linker defines in every library.
+        exported -= {"_edata", "_end", "__bss_start"}
         self.assertEqual(exported, set(EXPECTED_EXPORTS))
 
     def _fake_simulator_prefix(self):
