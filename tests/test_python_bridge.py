@@ -725,7 +725,10 @@ class TestPosixBuildAndCache(unittest.TestCase):
             with self.assertRaisesRegex(RuntimeError, "Python.h"):
                 self._setup()
 
-    def test_static_only_python_raises(self):
+    def _static_python(self, libdir):
+        """
+        sysconfig of a statically linked Python with libdir as LIBDIR
+        """
         real_get_config_var = native_library.sysconfig.get_config_var
 
         def fake_get_config_var(name):
@@ -734,11 +737,28 @@ class TestPosixBuildAndCache(unittest.TestCase):
                 return 0
             if name == "PYTHONFRAMEWORK":
                 return ""
+            if name == "LIBDIR":
+                return str(libdir)
             return real_get_config_var(name)
 
-        with mock.patch("vunit_python_bridge.native_library.sysconfig.get_config_var", side_effect=fake_get_config_var):
-            with self.assertRaisesRegex(RuntimeError, "shared Python library"):
-                self._setup()
+        return mock.patch.object(native_library.sysconfig, "get_config_var", side_effect=fake_get_config_var)
+
+    def test_static_only_python_raises(self):
+        libdir = self.tempdir / "static lib"
+        libdir.mkdir()
+        with self._static_python(libdir):
+            with self.assertRaisesRegex(RuntimeError, f"shared Python library.*no {re.escape(str(libdir))}"):
+                native_library._python_library()
+
+    def test_static_python_with_a_shared_library_uses_it(self):
+        # conda-forge: the python executable is static, LIBDIR has libpython3.X.so too
+        libdir = self.tempdir / "conda lib"
+        libdir.mkdir()
+        version = f"{sys.version_info[0]}.{sys.version_info[1]}{getattr(sys, 'abiflags', '')}"
+        library = libdir / f"libpython{version}{'.dylib' if sys.platform == 'darwin' else '.so'}"
+        library.write_bytes(b"")
+        with self._static_python(libdir):
+            self.assertEqual(native_library._python_library(), library.resolve())
 
     def test_free_threaded_python_raises(self):
         real_get_config_var = native_library.sysconfig.get_config_var
