@@ -147,11 +147,13 @@ class TestManifest(unittest.TestCase):
         self.assertEqual(module_name, vunit_python_bridge.__name__)
         self.assertIs(getattr(vunit_python_bridge, function_name), vunit_python_bridge.setup)
 
-    def test_requires_vhdl_2008(self):
-        self.assertEqual(self.package["requires-vhdl"], ">=2008")
-
-    def test_requires_a_vunit_version(self):
-        self.assertTrue(self.package["requires-vunit"].startswith(">="))
+    def test_requires_vhdl_2008_and_the_vunit_of_pyproject(self):
+        with (Path(__file__).parents[1] / "pyproject.toml").open("rb") as fptr:
+            dependencies = tomllib.load(fptr)["project"]["dependencies"]
+        vunit = next(item for item in dependencies if item.startswith("vunit_hdl>="))
+        self.assertEqual(
+            self.package["requires"], f'vunit >= "{vunit.removeprefix("vunit_hdl>=")}" and vhdl >= "2008"'
+        )
 
     def test_sources_are_the_simulator_independent_vhdl(self):
         includes = [item for source in self.package["sources"] for item in source["include"]]
