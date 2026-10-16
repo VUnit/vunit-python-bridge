@@ -973,116 +973,48 @@ package body python_pkg is
     return result;
   end;
 
-  -- The integers of a comma separated list
-  function p_split_integers(text : string) return integer_vector is
-    alias items : string(1 to text'length) is text;
-    variable count : natural := 0;
-    variable first : natural := 1;
-    variable result : integer_vector(0 to text'length);
+  -- The dict_t of a dict result. Python keeps the converted entries of the dict
+  -- under the handle, see dict_kinds, dict_key and dict_item of runtime.py, and
+  -- VHDL fetches them one at a time with the eval of the type of each value.
+  impure function p_to_dict(handle : integer; session : python_session_t) return dict_t;
+
+  procedure p_add_dict_item(dict : dict_t; handle, index, kind : integer; session : python_session_t) is
+    constant entry : string := "(" & integer'image(handle) & ", " & integer'image(index) & ")";
+    constant key : string := eval_string("__vunit__.dict_key" & entry, session);
+    constant item : string := "__vunit__.dict_item" & entry;
+    variable ptr : integer_vector_ptr_t;
+    variable arr : integer_array_t;
+    variable nested : dict_t;
   begin
-    if items'length = 0 then
-      return result(1 to 0);
-    end if;
-    for idx in items'range loop
-      if items(idx) = ',' then
-        result(count) := integer'value(items(first to idx - 1));
-        count := count + 1;
-        first := idx + 1;
-      end if;
-    end loop;
-    result(count) := integer'value(items(first to items'length));
-    return result(0 to count);
+    case kind is
+      when p_kind_integer => set_integer(dict, key, eval_integer(item, session));
+      when p_kind_real => set_real(dict, key, eval_real(item, session));
+      when p_kind_boolean => set_boolean(dict, key, eval_boolean(item, session));
+      when p_kind_string => set_string(dict, key, eval_string(item, session));
+      when p_kind_integer_vector =>
+        ptr := eval_integer_vector_ptr(item, session);
+        set_integer_vector_ptr_t_ref(dict, key, ptr);
+      when p_kind_integer_array =>
+        arr := eval_integer_array(item, session);
+        set_integer_array_t_ref(dict, key, arr);
+      when others =>
+        -- A nested dict, whose result is its handle
+        if p_eval(item, p_kind_dict, -1, p_eval_operation(item, session), session) then
+          nested := p_to_dict(p_result_integer, session);
+          set_dict_t_ref(dict, key, nested);
+        end if;
+    end case;
   end;
 
-  impure function p_to_integer_vector_ptr(text : string) return integer_vector_ptr_t is
-    constant items : integer_vector := p_split_integers(text);
-    constant result : integer_vector_ptr_t := new_integer_vector_ptr(items'length);
-  begin
-    for idx in items'range loop
-      set(result, idx - items'left, items(idx));
-    end loop;
-    return result;
-  end;
-
-  -- The integer_array_t of "width,height,depth,bit_width,is_signed" followed by the values in storage order
-  impure function p_to_integer_array(text : string) return integer_array_t is
-    constant items : integer_vector := p_split_integers(text);
-    variable result : integer_array_t := new_3d(
-      width => items(0), height => items(1), depth => items(2), bit_width => items(3), is_signed => items(4) /= 0
+  impure function p_to_dict(handle : integer; session : python_session_t) return dict_t is
+    constant kinds : integer_vector := eval_integer_vector(
+      "__vunit__.dict_kinds(" & integer'image(handle) & ")", session
     );
-  begin
-    for idx in 5 to items'high loop
-      set(result, idx - 5, items(idx));
-    end loop;
-    return result;
-  end;
-
-  -- The real of "hi,lo,exponent,sign", which is sign * (hi * 2**26 + lo) * 2**exponent. The 53 bit
-  -- integer is exact and the scaling by a power of two is split in two to avoid underflowing 2**exponent.
-  function p_to_real(text : string) return real is
-    constant parts : integer_vector := p_split_integers(text);
-    constant mantissa : real := real(parts(0)) * 67108864.0 + real(parts(1));
-    constant half : integer := parts(2) / 2;
-  begin
-    return real(parts(3)) * mantissa * 2.0 ** half * 2.0 ** (parts(2) - half);
-  end;
-
-  -- The dict_t of the records the dict_t result of the bridge is made of, see
-  -- _dict_entries of runtime.py
-  impure function p_to_dict(text : string) return dict_t is
-    alias records : string(1 to text'length) is text;
     constant result : dict_t := new_dict;
-    variable pos : natural := 1;
-    variable tag : character;
-    variable key_start, key_length, payload_start, payload_length : natural;
-
-    -- The length in front of a colon, leaving pos after the colon
-    procedure read_length(length : out natural) is
-      variable colon : natural := pos;
-    begin
-      while records(colon) /= ':' loop
-        colon := colon + 1;
-      end loop;
-      length := natural'value(records(pos to colon - 1));
-      pos := colon + 1;
-    end;
-
-    procedure add(key, payload : string) is
-      alias value : string(1 to payload'length) is payload;
-      variable ints : integer_vector_ptr_t;
-      variable nested : dict_t;
-      variable arr : integer_array_t;
-    begin
-      case tag is
-        when 'i' => set_integer(result, key, integer'value(value));
-        when 'r' => set_real(result, key, p_to_real(value));
-        when 'b' => set_boolean(result, key, value = "1");
-        when 's' => set_string(result, key, value);
-        when 'd' =>
-          nested := p_to_dict(value);
-          set_dict_t_ref(result, key, nested);
-        when 'a' =>
-          arr := p_to_integer_array(value);
-          set_integer_array_t_ref(result, key, arr);
-        when others =>
-          ints := p_to_integer_vector_ptr(value);
-          set_integer_vector_ptr_t_ref(result, key, ints);
-      end case;
-    end;
   begin
-    while pos <= records'length loop
-      tag := records(pos);
-      pos := pos + 1;
-      read_length(key_length);
-      key_start := pos;
-      pos := pos + key_length;
-      read_length(payload_length);
-      payload_start := pos;
-      pos := pos + payload_length;
-      add(records(key_start to key_start + key_length - 1),
-          records(payload_start to payload_start + payload_length - 1));
+    for idx in kinds'range loop
+      p_add_dict_item(result, handle, idx - kinds'low, kinds(idx), session);
     end loop;
-
     return result;
   end;
 
@@ -1199,7 +1131,7 @@ package body python_pkg is
   ) return dict_t is
   begin
     if p_eval(expr, p_kind_dict, -1, p_eval_operation(expr, session), session) then
-      return p_to_dict(p_result_string);
+      return p_to_dict(p_result_integer, session);
     end if;
     return new_dict;
   end;

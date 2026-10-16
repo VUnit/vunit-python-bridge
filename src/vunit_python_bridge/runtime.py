@@ -71,6 +71,19 @@ HANDLE_NAME = "__vunit__"
 _NO_VALUE = object()
 
 
+class _Converted:  # pylint: disable=too-few-public-methods
+    """
+    A dict value converted together with its dict, returned by dict_item and
+    passed on as it is by convert_result.
+    """
+
+    __slots__ = ("kind", "result")
+
+    def __init__(self, kind, result):
+        self.kind = kind
+        self.result = result
+
+
 def _type_name(value):
     return type(value).__qualname__
 
@@ -127,6 +140,24 @@ class BridgeHandle:
         """
         return self._runtime.staged(staged_id)
 
+    def dict_kinds(self, handle):
+        """
+        The result kinds of the entries of a dict result, see Runtime.dict_kinds.
+        """
+        return self._runtime.dict_kinds(handle)
+
+    def dict_key(self, handle, index):
+        """
+        The key of an entry of a dict result.
+        """
+        return self._runtime.dict_key(handle, index)
+
+    def dict_item(self, handle, index):
+        """
+        The converted value of an entry of a dict result.
+        """
+        return self._runtime.dict_item(handle, index)
+
     @staticmethod
     def error(message):
         """
@@ -168,6 +199,9 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         # releases them early, so that one VHDL constant can be used in
         # several calls.
         self._staged = {}
+        # The entries of the last dict result and its nested dicts, indexed by
+        # handle: (key, kind, converted value). VHDL fetches them one at a time.
+        self._dicts = []
 
         self._check_environment(prefix)
 
@@ -417,6 +451,27 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self._array_meta[id(array)] = (array, bit_width, bool(is_signed))
         return array
 
+    def dict_kinds(self, handle):
+        """
+        The result kinds of the entries of a dict result, used from VHDL as
+        __vunit__.dict_kinds(handle).
+        """
+        return [kind for _, kind, _ in self._dicts[handle]]
+
+    def dict_key(self, handle, index):
+        """
+        The key of an entry of a dict result, __vunit__.dict_key(handle, index).
+        """
+        return self._dicts[handle][index][0]
+
+    def dict_item(self, handle, index):
+        """
+        The value of an entry of a dict result, __vunit__.dict_item(handle,
+        index), already converted to its result kind.
+        """
+        _, kind, result = self._dicts[handle][index]
+        return _Converted(kind, result)
+
     # ------------------------------------------------------------------
     # Results
     # ------------------------------------------------------------------
@@ -434,6 +489,10 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self._array_meta = {}
         if value is _NO_VALUE:
             raise RuntimeError("Internal error: no Python result available")
+        if isinstance(value, _Converted):
+            if value.kind != kind:
+                raise RuntimeError(f"Internal error: a {VHDL_TYPE_NAMES[value.kind]} dict value read as {kind}")
+            return value.result
 
         if kind == KIND_INTEGER_ARRAY:
             return self._array_result(value, array_meta)
@@ -586,55 +645,54 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
 
     def _dict_result(self, value, array_meta):
         """
-        Convert a dict with str keys to text records, see _dict_entries.
+        Convert a dict and keep its entries for VHDL to fetch, see dict_kinds.
+        The result is the handle of the dict.
         """
-        data = _encode(self._dict_entries(value, array_meta))
-        return (0, 0.0, data, (len(data),))
+        self._dicts = []
+        return (self._convert_dict(value, array_meta), 0.0, b"", ())
 
-    def _dict_entries(self, value, array_meta):
+    def _convert_dict(self, value, array_meta):
         """
-        The entries of a dict as <tag><key bytes>:<key><payload bytes>:<payload>
-        records, with the tags i, r, s, b, v (int list), a (NumPy array) and d (nested dict).
-        An a payload is width,height,depth,bit_width,is_signed followed by the values in
-        the storage order of integer_array_t.
+        Convert the entries of a dict, and of its nested dicts, and return its handle.
         """
         if not isinstance(value, dict):
             raise _type_error(KIND_DICT, value, "a dict")
-        records = []
+        entries = []
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError(f"Cannot convert the dict key {key!r:.100}, a {_type_name(key)}; expected str")
-            if _is_bool(item):
-                tag, payload = "b", str(int(bool(item)))
-            elif _is_integer(item):
-                tag, payload = "i", str(self._dict_integer(key, item))
-            elif _is_float(item):
-                tag, payload = "r", self._dict_real(key, item)
-            elif isinstance(item, str):
-                tag, payload = "s", item
-            elif isinstance(item, dict):
-                tag, payload = "d", self._dict_entries(item, array_meta)
-            elif isinstance(item, numpy.ndarray):
-                tag, payload = "a", self._dict_array(key, item, array_meta)
-            elif isinstance(item, list) and all(_is_integer(element) for element in item):
-                tag, payload = "v", ",".join(str(self._dict_integer(key, element)) for element in item)
-            else:
-                raise TypeError(
-                    f"Cannot convert the value of dict key {key!r:.100}, a {_type_name(item)} ({item!r:.100}); "
-                    "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict"
-                )
-            records.append(f"{tag}{len(_encode(key))}:{key}{len(_encode(payload))}:{payload}")
-        return "".join(records)
+            entries.append((key,) + self._dict_value(key, item, array_meta))
+        self._dicts.append(entries)
+        return len(self._dicts) - 1
 
-    def _dict_array(self, key, value, array_meta):
+    def _dict_value(self, key, item, array_meta):
         """
-        The payload of a NumPy array, converted like an integer_array_t result.
+        The result kind and the converted value of a dict entry.
         """
-        try:
-            storage, shape = self._array_storage(value, array_meta)
-        except (TypeError, ValueError, OverflowError) as error:
-            raise type(error)(f"dict key {key!r:.100}: {error}") from None
-        return ",".join(str(number) for number in shape + tuple(storage.tolist()))
+        if _is_bool(item):
+            return KIND_BOOLEAN, (int(bool(item)), 0.0, b"", ())
+        if _is_integer(item):
+            return KIND_INTEGER, (self._dict_integer(key, item), 0.0, b"", ())
+        if _is_float(item):
+            if not math.isfinite(item):
+                raise ValueError(f"{item} of dict key {key!r:.100} cannot be represented as VHDL real")
+            return KIND_REAL, (0, float(item), b"", ())
+        if isinstance(item, str):
+            return KIND_STRING, self._string_result(KIND_STRING, item, -1)
+        if isinstance(item, dict):
+            return KIND_DICT, (self._convert_dict(item, array_meta), 0.0, b"", ())
+        if isinstance(item, numpy.ndarray):
+            try:
+                return KIND_INTEGER_ARRAY, self._array_result(item, array_meta)
+            except (TypeError, ValueError, OverflowError) as error:
+                raise type(error)(f"dict key {key!r:.100}: {error}") from None
+        if isinstance(item, list) and all(_is_integer(element) for element in item):
+            integers = [self._dict_integer(key, element) for element in item]
+            return KIND_INTEGER_VECTOR, (0, 0.0, struct.pack(f"={len(integers)}i", *integers), (len(integers),))
+        raise TypeError(
+            f"Cannot convert the value of dict key {key!r:.100}, a {_type_name(item)} ({item!r:.100}); "
+            "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict"
+        )
 
     @staticmethod
     def _dict_integer(key, value):
@@ -645,15 +703,6 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
                 f"({INTEGER_LOW} to {INTEGER_HIGH})"
             )
         return value
-
-    @staticmethod
-    def _dict_real(key, value):
-        if not math.isfinite(value):
-            raise ValueError(f"{value} of dict key {key!r:.100} cannot be represented as VHDL real")
-        # hi,lo,exponent,sign of an exact 53 bit mantissa, which VHDL cannot parse from decimal text exactly
-        mantissa, exponent = math.frexp(abs(float(value)))
-        high, low = divmod(int(mantissa * 2**53), 2**26)
-        return f"{high},{low},{exponent - 53},{int(math.copysign(1, value))}"
 
     _DTYPE_WORD_SIZE = {
         # dtype.str without byte order: (bit_width, is_signed)
