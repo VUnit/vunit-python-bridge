@@ -36,8 +36,10 @@ a Python ``dict``. As an argument, ``arg(dict)`` and ``kwarg("name", dict)``
 write the ``dict`` as the Python literal ``{"key": value, ...}``, which works
 on all simulators. The values are ``integer``, ``real``, ``string``,
 ``boolean``, ``std_ulogic``, ``integer_vector``, ``real_vector``,
-``integer_vector_ptr_t`` and nested ``dict_t``. Any other value type is
-reported like any other argument that cannot be converted. The keys are
+``integer_vector_ptr_t``, ``integer_array_t`` and nested ``dict_t``. Any
+other value type is reported like any other argument that cannot be
+converted. An ``integer_array_t`` value becomes a NumPy array as described in
+:ref:`python_bridge:integer_array`, which needs the Python bridge. The keys are
 visited in the order of ``get_key``, which VUnit does not specify.
 
 .. code-block:: vhdl
@@ -51,9 +53,12 @@ visited in the order of ``get_key``, which VUnit does not specify.
 Python ``dict`` with ``str`` keys to a new ``dict_t`` that the caller owns and
 deallocates. The values are converted strictly: ``int`` to ``integer``,
 ``float`` to ``real``, ``str`` to ``string``, ``bool`` to ``boolean``, a
-``list`` of ``int`` to ``integer_vector_ptr_t`` and a ``dict`` to a nested
-``dict_t``, the last two stored with ``set_integer_vector_ptr_t_ref`` and
-``set_dict_t_ref``. ``None``, an ``int`` outside the VHDL integer range, a key
+``list`` of ``int`` to ``integer_vector_ptr_t``, a NumPy array of integers to
+``integer_array_t`` and a ``dict`` to a nested ``dict_t``, the last three
+stored with ``set_integer_vector_ptr_t_ref``, ``set_integer_array_t_ref`` and
+``set_dict_t_ref``. The bit width and signedness of an ``integer_array_t``
+follow the dtype of the array like for ``eval_integer_array``, see
+:ref:`python_bridge:integer_array`. ``None``, an ``int`` outside the VHDL integer range, a key
 that is not a ``str`` or any other value is an error, and ``eval_dict`` then
 returns an empty ``dict_t`` after reporting it. ``eval_dict`` and ``call_dict``
 are implemented by the Python bridge: Riviera-PRO/Active-HDL reports that they require NVC, GHDL or

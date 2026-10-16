@@ -437,10 +437,11 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
 
         if kind == KIND_INTEGER_ARRAY:
             return self._array_result(value, array_meta)
+        if kind == KIND_DICT:
+            return self._dict_result(value, array_meta)
         if kind not in VHDL_TYPE_NAMES:
             raise RuntimeError(f"Internal error: unknown result kind {kind}")
         converter = "bits" if kind in (KIND_SIGNED, KIND_UNSIGNED) else VHDL_TYPE_NAMES[kind]
-        converter = "dict" if kind == KIND_DICT else converter
         return getattr(self, f"_{converter}_result")(kind, value, width)
 
     @staticmethod
@@ -583,20 +584,22 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         data = struct.pack(f"={len(reals)}d", *reals)
         return (0, 0.0, data, (len(reals),))
 
-    def _dict_result(self, kind, value, _width):
+    def _dict_result(self, value, array_meta):
         """
         Convert a dict with str keys to text records, see _dict_entries.
         """
-        data = _encode(self._dict_entries(kind, value))
+        data = _encode(self._dict_entries(value, array_meta))
         return (0, 0.0, data, (len(data),))
 
-    def _dict_entries(self, kind, value):
+    def _dict_entries(self, value, array_meta):
         """
         The entries of a dict as <tag><key bytes>:<key><payload bytes>:<payload>
-        records, with the tags i, r, s, b, v (int list) and d (nested dict).
+        records, with the tags i, r, s, b, v (int list), a (NumPy array) and d (nested dict).
+        An a payload is width,height,depth,bit_width,is_signed followed by the values in
+        the storage order of integer_array_t.
         """
         if not isinstance(value, dict):
-            raise _type_error(kind, value, "a dict")
+            raise _type_error(KIND_DICT, value, "a dict")
         records = []
         for key, item in value.items():
             if not isinstance(key, str):
@@ -610,16 +613,28 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             elif isinstance(item, str):
                 tag, payload = "s", item
             elif isinstance(item, dict):
-                tag, payload = "d", self._dict_entries(kind, item)
+                tag, payload = "d", self._dict_entries(item, array_meta)
+            elif isinstance(item, numpy.ndarray):
+                tag, payload = "a", self._dict_array(key, item, array_meta)
             elif isinstance(item, list) and all(_is_integer(element) for element in item):
                 tag, payload = "v", ",".join(str(self._dict_integer(key, element)) for element in item)
             else:
                 raise TypeError(
                     f"Cannot convert the value of dict key {key!r:.100}, a {_type_name(item)} ({item!r:.100}); "
-                    "expected int, float, str, bool, a list of int or a dict"
+                    "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict"
                 )
             records.append(f"{tag}{len(_encode(key))}:{key}{len(_encode(payload))}:{payload}")
         return "".join(records)
+
+    def _dict_array(self, key, value, array_meta):
+        """
+        The payload of a NumPy array, converted like an integer_array_t result.
+        """
+        try:
+            storage, shape = self._array_storage(value, array_meta)
+        except (TypeError, ValueError, OverflowError) as error:
+            raise type(error)(f"dict key {key!r:.100}: {error}") from None
+        return ",".join(str(number) for number in shape + tuple(storage.tolist()))
 
     @staticmethod
     def _dict_integer(key, value):
@@ -654,6 +669,14 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         """
         Convert a NumPy array (or nested int sequence) to integer_array_t data.
         """
+        storage, shape = self._array_storage(value, array_meta)
+        return (0, 0.0, storage.tobytes(), (storage.size,) + shape)
+
+    def _array_storage(self, value, array_meta):
+        """
+        The int32 values of an integer_array_t in its storage order, and its
+        (width, height, depth, bit_width, is_signed).
+        """
         original = value
         value = self._integer_ndarray(value)
         bit_width, is_signed = self._word_size(original, value, array_meta)
@@ -673,8 +696,8 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         if value.ndim > 1:
             value = value.swapaxes(0, 1)
 
-        data = numpy.ascontiguousarray(value, dtype=numpy.int32).tobytes()
-        return (0, 0.0, data, (value.size, width, height, depth, bit_width, int(is_signed)))
+        storage = numpy.ascontiguousarray(value, dtype=numpy.int32).reshape(-1)
+        return storage, (width, height, depth, bit_width, int(is_signed))
 
     @staticmethod
     def _integer_ndarray(value):

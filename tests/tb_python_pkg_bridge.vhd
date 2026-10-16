@@ -1174,7 +1174,7 @@ begin
           default_logger,
           "eval(""{'a': None}"") failed:" & LF &
           "TypeError: Cannot convert the value of dict key 'a', a NoneType (None); " &
-          "expected int, float, str, bool, a list of int or a dict",
+          "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict",
           failure
         );
 
@@ -1192,7 +1192,26 @@ begin
           default_logger,
           "eval(""{'a': {'b': [1, 'x']}}"") failed:" & LF &
           "TypeError: Cannot convert the value of dict key 'b', a list ([1, 'x']); " &
-          "expected int, float, str, bool, a list of int or a dict",
+          "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict",
+          failure
+        );
+
+        exec("import numpy as np");
+        dict := eval_dict("{'a': np.array([2**31])}");
+        check_log(
+          default_logger,
+          "eval(""{'a': np.array([2**31])}"") failed:" & LF &
+          "OverflowError: dict key 'a': The array values (2147483648 to 2147483648) do not fit in " &
+          "the integer_array_t word size (32 bit signed, -2147483648 to 2147483647)",
+          failure
+        );
+
+        dict := eval_dict("{'a': np.array([0.5])}");
+        check_log(
+          default_logger,
+          "eval(""{'a': np.array([0.5])}"") failed:" & LF &
+          "TypeError: dict key 'a': Cannot convert a NumPy array of dtype float64 to a VHDL integer_array_t; " &
+          "expected an integer or boolean dtype",
           failure
         );
 
@@ -1200,6 +1219,69 @@ begin
         check_equal(get_real(dict, "a"), 1.5);
         check_no_log;
         unmock(default_logger);
+
+      elsif run("Test eval of dict with NumPy arrays") then
+        exec("import numpy as np");
+        dict := eval_dict(
+          "{'u8': np.array([[1, 2, 3], [4, 5, 255]], dtype=np.uint8), 'b': np.array([True, False]), " &
+          "'i64': np.array([-5, 7]), 'e': np.array([], dtype=np.int16)}"
+        );
+        result := get_integer_array_t_ref(dict, "u8");
+        check_equal(width(result), 2);
+        check_equal(height(result), 3);
+        check_equal(bit_width(result), 8);
+        check_false(is_signed(result));
+        check_equal(get(result, 0, 1), 2);
+        check_equal(get(result, 1, 2), 255);
+        result := get_integer_array_t_ref(dict, "b");
+        check_equal(length(result), 2);
+        check_equal(bit_width(result), 1);
+        check_false(is_signed(result));
+        check_equal(get(result, 0), 1);
+        check_equal(get(result, 1), 0);
+        result := get_integer_array_t_ref(dict, "i64");
+        check_equal(bit_width(result), 32);
+        check_true(is_signed(result));
+        check_equal(get(result, 0), -5);
+        check_equal(get(result, 1), 7);
+        result := get_integer_array_t_ref(dict, "e");
+        check_equal(length(result), 0);
+        check_equal(bit_width(result), 16);
+
+      elsif run("Test integer_array_t values of a dict_t argument") then
+        exec(
+          "def describe_arrays(d, **kwargs):" +
+          "    return ' '.join(f'{k}:{v.shape}:{v.sum()}' for k, v in list(d.items()) + list(kwargs['k'].items()))"
+        );
+        arr := new_2d(width => 3, height => 2, bit_width => 16, is_signed => false);
+        for y in 0 to 1 loop
+          for x in 0 to 2 loop
+            set(arr, x, y, y * 10 + x);
+          end loop;
+        end loop;
+        dict := new_dict;
+        set_integer_array_t_ref(dict, "a", arr);
+        inner := new_dict;
+        arr_b := new_1d(length => 2, bit_width => 8, is_signed => false);
+        set(arr_b, 0, 4);
+        set(arr_b, 1, 5);
+        set_integer_array_t_ref(inner, "b", arr_b);
+        check_equal(call_string("describe_arrays", arg(dict), kwarg("k", inner)), "a:(3, 2):36 b:(2,):9");
+
+      elsif run("Test integer_array_t values of a dict_t round trip through Python") then
+        exec("def identity(**kwargs):" + "    return kwargs['d']");
+        arr := new_1d(length => 3, bit_width => 12, is_signed => true);
+        set(arr, 0, -2048);
+        set(arr, 1, 0);
+        set(arr, 2, 2047);
+        dict := new_dict;
+        set_integer_array_t_ref(dict, "a", arr);
+        inner := call_dict("identity", kwarg("d", dict));
+        result := get_integer_array_t_ref(inner, "a");
+        check_equal(bit_width(result), 12);
+        check_true(is_signed(result));
+        check_equal(get(result, 0), -2048);
+        check_equal(get(result, 2), 2047);
 
       elsif run("Test arg and kwarg of dict_t values") then
         define_describe;
