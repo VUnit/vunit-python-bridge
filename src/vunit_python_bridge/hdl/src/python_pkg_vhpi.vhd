@@ -105,6 +105,7 @@ package python_ffi_pkg is
   constant p_kind_integer_array : integer := 8;
   constant p_kind_integer_vector : integer := 9;
   constant p_kind_real_vector : integer := 10;
+  constant p_kind_dict : integer := 11;
 
   -- Names of the operations, used in the error messages
   impure function p_exec_file_operation(

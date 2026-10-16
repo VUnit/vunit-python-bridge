@@ -38,6 +38,7 @@ KIND_UNSIGNED = 7
 KIND_INTEGER_ARRAY = 8
 KIND_INTEGER_VECTOR = 9
 KIND_REAL_VECTOR = 10
+KIND_DICT = 11
 
 VHDL_TYPE_NAMES = {
     KIND_INTEGER: "integer",
@@ -51,6 +52,7 @@ VHDL_TYPE_NAMES = {
     KIND_INTEGER_ARRAY: "integer_array_t",
     KIND_INTEGER_VECTOR: "integer_vector",
     KIND_REAL_VECTOR: "real_vector",
+    KIND_DICT: "dict_t",
 }
 
 STD_ULOGIC_VALUES = frozenset("UX01ZWLH-")
@@ -67,6 +69,19 @@ DEFAULT_SESSION = "python_bridge:python:default"
 HANDLE_NAME = "__vunit__"
 
 _NO_VALUE = object()
+
+
+class _Converted:  # pylint: disable=too-few-public-methods
+    """
+    A dict value converted together with its dict, returned by dict_item and
+    passed on as it is by convert_result.
+    """
+
+    __slots__ = ("kind", "result")
+
+    def __init__(self, kind, result):
+        self.kind = kind
+        self.result = result
 
 
 def _type_name(value):
@@ -125,6 +140,24 @@ class BridgeHandle:
         """
         return self._runtime.staged(staged_id)
 
+    def dict_kinds(self, handle):
+        """
+        The result kinds of the entries of a dict result, see Runtime.dict_kinds.
+        """
+        return self._runtime.dict_kinds(handle)
+
+    def dict_key(self, handle, index):
+        """
+        The key of an entry of a dict result.
+        """
+        return self._runtime.dict_key(handle, index)
+
+    def dict_item(self, handle, index):
+        """
+        The converted value of an entry of a dict result.
+        """
+        return self._runtime.dict_item(handle, index)
+
     @staticmethod
     def error(message):
         """
@@ -166,6 +199,9 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         # releases them early, so that one VHDL constant can be used in
         # several calls.
         self._staged = {}
+        # The entries of the last dict result and its nested dicts, indexed by
+        # handle: (key, kind, converted value). VHDL fetches them one at a time.
+        self._dicts = []
 
         self._check_environment(prefix)
 
@@ -415,6 +451,27 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self._array_meta[id(array)] = (array, bit_width, bool(is_signed))
         return array
 
+    def dict_kinds(self, handle):
+        """
+        The result kinds of the entries of a dict result, used from VHDL as
+        __vunit__.dict_kinds(handle).
+        """
+        return [kind for _, kind, _ in self._dicts[handle]]
+
+    def dict_key(self, handle, index):
+        """
+        The key of an entry of a dict result, __vunit__.dict_key(handle, index).
+        """
+        return self._dicts[handle][index][0]
+
+    def dict_item(self, handle, index):
+        """
+        The value of an entry of a dict result, __vunit__.dict_item(handle,
+        index), already converted to its result kind.
+        """
+        _, kind, result = self._dicts[handle][index]
+        return _Converted(kind, result)
+
     # ------------------------------------------------------------------
     # Results
     # ------------------------------------------------------------------
@@ -432,9 +489,15 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         self._array_meta = {}
         if value is _NO_VALUE:
             raise RuntimeError("Internal error: no Python result available")
+        if isinstance(value, _Converted):
+            if value.kind != kind:
+                raise RuntimeError(f"Internal error: a {VHDL_TYPE_NAMES[value.kind]} dict value read as {kind}")
+            return value.result
 
         if kind == KIND_INTEGER_ARRAY:
             return self._array_result(value, array_meta)
+        if kind == KIND_DICT:
+            return self._dict_result(value, array_meta)
         if kind not in VHDL_TYPE_NAMES:
             raise RuntimeError(f"Internal error: unknown result kind {kind}")
         converter = "bits" if kind in (KIND_SIGNED, KIND_UNSIGNED) else VHDL_TYPE_NAMES[kind]
@@ -580,6 +643,67 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         data = struct.pack(f"={len(reals)}d", *reals)
         return (0, 0.0, data, (len(reals),))
 
+    def _dict_result(self, value, array_meta):
+        """
+        Convert a dict and keep its entries for VHDL to fetch, see dict_kinds.
+        The result is the handle of the dict.
+        """
+        self._dicts = []
+        return (self._convert_dict(value, array_meta), 0.0, b"", ())
+
+    def _convert_dict(self, value, array_meta):
+        """
+        Convert the entries of a dict, and of its nested dicts, and return its handle.
+        """
+        if not isinstance(value, dict):
+            raise _type_error(KIND_DICT, value, "a dict")
+        entries = []
+        for key, item in value.items():
+            if not isinstance(key, str):
+                raise TypeError(f"Cannot convert the dict key {key!r:.100}, a {_type_name(key)}; expected str")
+            entries.append((key,) + self._dict_value(key, item, array_meta))
+        self._dicts.append(entries)
+        return len(self._dicts) - 1
+
+    def _dict_value(self, key, item, array_meta):
+        """
+        The result kind and the converted value of a dict entry.
+        """
+        if _is_bool(item):
+            return KIND_BOOLEAN, (int(bool(item)), 0.0, b"", ())
+        if _is_integer(item):
+            return KIND_INTEGER, (self._dict_integer(key, item), 0.0, b"", ())
+        if _is_float(item):
+            if not math.isfinite(item):
+                raise ValueError(f"{item} of dict key {key!r:.100} cannot be represented as VHDL real")
+            return KIND_REAL, (0, float(item), b"", ())
+        if isinstance(item, str):
+            return KIND_STRING, self._string_result(KIND_STRING, item, -1)
+        if isinstance(item, dict):
+            return KIND_DICT, (self._convert_dict(item, array_meta), 0.0, b"", ())
+        if isinstance(item, numpy.ndarray):
+            try:
+                return KIND_INTEGER_ARRAY, self._array_result(item, array_meta)
+            except (TypeError, ValueError, OverflowError) as error:
+                raise type(error)(f"dict key {key!r:.100}: {error}") from None
+        if isinstance(item, list) and all(_is_integer(element) for element in item):
+            integers = [self._dict_integer(key, element) for element in item]
+            return KIND_INTEGER_VECTOR, (0, 0.0, struct.pack(f"={len(integers)}i", *integers), (len(integers),))
+        raise TypeError(
+            f"Cannot convert the value of dict key {key!r:.100}, a {_type_name(item)} ({item!r:.100}); "
+            "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict"
+        )
+
+    @staticmethod
+    def _dict_integer(key, value):
+        value = int(value)
+        if not INTEGER_LOW <= value <= INTEGER_HIGH:
+            raise OverflowError(
+                f"{value} of dict key {key!r:.100} is outside the range of VHDL integer "
+                f"({INTEGER_LOW} to {INTEGER_HIGH})"
+            )
+        return value
+
     _DTYPE_WORD_SIZE = {
         # dtype.str without byte order: (bit_width, is_signed)
         "b1": (1, False),
@@ -593,6 +717,14 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
     def _array_result(self, value, array_meta):
         """
         Convert a NumPy array (or nested int sequence) to integer_array_t data.
+        """
+        storage, shape = self._array_storage(value, array_meta)
+        return (0, 0.0, storage.tobytes(), (storage.size,) + shape)
+
+    def _array_storage(self, value, array_meta):
+        """
+        The int32 values of an integer_array_t in its storage order, and its
+        (width, height, depth, bit_width, is_signed).
         """
         original = value
         value = self._integer_ndarray(value)
@@ -613,8 +745,8 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         if value.ndim > 1:
             value = value.swapaxes(0, 1)
 
-        data = numpy.ascontiguousarray(value, dtype=numpy.int32).tobytes()
-        return (0, 0.0, data, (value.size, width, height, depth, bit_width, int(is_signed)))
+        storage = numpy.ascontiguousarray(value, dtype=numpy.int32).reshape(-1)
+        return storage, (width, height, depth, bit_width, int(is_signed))
 
     @staticmethod
     def _integer_ndarray(value):

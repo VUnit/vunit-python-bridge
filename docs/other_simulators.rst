@@ -16,8 +16,8 @@ simulator installation change, so a run script needs nothing beyond
 
 This application differs from the Python bridge in a few ways: only the
 default session exists, the operations implemented by the bridge
-(``integer_array_t`` values, the ``boolean``, ``std_ulogic``, vector and
-``integer_array_t`` results, ``exec_file``) report that they require NVC, GHDL
+(``integer_array_t`` values, the ``boolean``, ``std_ulogic``, vector,
+``integer_array_t`` and ``dict_t`` results, ``exec_file``) report that they require NVC, GHDL
 or Questa, a Python error stops the simulation with the message printed by the
 application rather than through the logger of the session, and ``real`` values
 outside the single precision float range are rejected.

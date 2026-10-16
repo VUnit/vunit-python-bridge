@@ -24,7 +24,7 @@ classifiers = [
 dependencies = [
   "numpy",
   # The first VUnit with packages and simulator hooks, VUnit/vunit#1221
-  "vunit_hdl>=5.0.0.dev12",
+  "vunit_hdl>=5.0.0.dev15",
 ]
 
 [tool.setuptools]
