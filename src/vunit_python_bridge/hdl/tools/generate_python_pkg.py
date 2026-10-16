@@ -5,15 +5,16 @@
 # Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 
 """
-Generate python_pkg.vhd from python_pkg.vhd.in in this directory.
+Generate python_pkg.vhd and python_object_pkg.vhd from the templates in this directory.
 
-The template holds the parts of python_pkg that are written by hand. The
-generated parts are the argument value types of call, the result types of eval
-and call and the execution of Python files. They are mostly one overload per
-type, which is why they are generated. The operations that are implemented by
-the Python bridge (NVC, GHDL and Questa) are built on the p_ prefixed
-primitives of python_ffi_pkg, which the VHPI variant of that package
-implements by reporting a failure.
+Each template holds the parts of its package that are written by hand. The
+generated parts of python_pkg are the argument value types of call, the result
+types of eval and call and the execution of Python files. Those of
+python_object_pkg are the call and eval overloads of a python_object_t, from the
+same result tables. They are mostly one overload per type, which is why they are
+generated. The operations that are implemented by the Python bridge (NVC, GHDL
+and Questa) are built on the p_ prefixed primitives of python_ffi_pkg, which the
+VHPI variant of that package implements by reporting a failure.
 """
 
 from pathlib import Path
@@ -75,6 +76,8 @@ RESULTS = [
         name="integer",
         vhdl="integer",
         kind="p_kind_integer",
+        value="p_result_integer",
+        default="integer'low",
         hand_written_eval=True,
         hand_written_call=True,
     ),
@@ -82,6 +85,8 @@ RESULTS = [
         name="real",
         vhdl="real",
         kind="p_kind_real",
+        value="p_result_real",
+        default="0.0",
         hand_written_eval=True,
         hand_written_call=True,
     ),
@@ -89,6 +94,8 @@ RESULTS = [
         name="integer_vector",
         vhdl="integer_vector",
         kind="p_kind_integer_vector",
+        value="p_result_integer_vector",
+        default="p_no_integers",
         hand_written_eval=True,
         hand_written_call=True,
     ),
@@ -96,6 +103,8 @@ RESULTS = [
         name="real_vector",
         vhdl="real_vector",
         kind="p_kind_real_vector",
+        value="p_result_real_vector",
+        default="p_no_reals",
         hand_written_eval=True,
         hand_written_call=False,
     ),
@@ -103,6 +112,8 @@ RESULTS = [
         name="string",
         vhdl="string",
         kind="p_kind_string",
+        value="p_result_string",
+        default='""',
         hand_written_eval=True,
         hand_written_call=False,
     ),
@@ -110,6 +121,8 @@ RESULTS = [
         name="integer_vector_ptr",
         vhdl="integer_vector_ptr_t",
         kind="p_kind_integer_vector",
+        value="p_to_integer_vector_ptr(p_result_integer_vector)",
+        default="null_ptr",
         hand_written_eval=True,
         hand_written_call=False,
     ),
@@ -181,12 +194,64 @@ PROCEDURE_RESULTS = [
 ]
 
 
+def sized_declarations(prefix, name, vhdl, extra=""):
+    """
+    Declarations of the sized function forms of a procedure result, like to_unsigned:
+    the length given, or the length of size_res.
+    """
+    return [
+        f"  impure function {name}(",
+        f"    {prefix}length : natural{extra}",
+        f"  ) return {vhdl};",
+        f"  impure function {name}(",
+        f"    {prefix}size_res : {vhdl}{extra}",
+        f"  ) return {vhdl};",
+    ]
+
+
+def sized_bodies(prefix, name, vhdl, procedure_actuals, size_res_actuals, extra=""):
+    """
+    Bodies of the sized function forms of a procedure result. They call the
+    procedure, so a failure returns the vector of the length with 'U' elements.
+    """
+    return f"""\
+  impure function {name}(
+    {prefix}length : natural{extra}
+  ) return {vhdl} is
+    variable result : {vhdl}(length - 1 downto 0);
+  begin
+    {name}(
+      {procedure_actuals}
+    );
+    return result;
+  end;
+
+  impure function {name}(
+    {prefix}size_res : {vhdl}{extra}
+  ) return {vhdl} is
+  begin
+    return {name}(
+      {size_res_actuals}
+    );
+  end;
+"""
+
+
 def call_name(result):
     """
     Name of the call function of a result type. The integer one is named
     call_integer_w_arg by python_pkg.
     """
     return "call_integer_w_arg" if result["name"] == "integer" else f"call_{result['name']}"
+
+
+def call_aliases(result):
+    """
+    Aliases of the call function of a result type: call, and call_integer for
+    call_integer_w_arg, named like the other results, as in python_pkg.vhd.in.
+    """
+    aliases = ["call"] if result.get("alias_call", True) else []
+    return aliases + (["call_integer"] if result["name"] == "integer" else [])
 
 
 # -------------------------------------------------------------------------
@@ -253,6 +318,9 @@ def eval_declarations():
         lines.append(f"  procedure eval_{result['name']}(")
         lines.append(f"    expr : string; result : out {result['vhdl']}; {SESSION}")
         lines.append("  );")
+    lines += ["", "  -- Like the procedures, the length given or that of size_res, like to_unsigned"]
+    for result in PROCEDURE_RESULTS:
+        lines += sized_declarations("expr : string; ", f"eval_{result['name']}", result["vhdl"], f"; {SESSION}")
     return "\n".join(lines)
 
 
@@ -290,6 +358,13 @@ def eval_subprograms():
   end;
 """
         )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            sized_bodies(
+                "expr : string; ", f"eval_{result['name']}", result["vhdl"],
+                "expr, result, session", "expr, size_res'length, session", f"; {SESSION}",
+            )
+        )
     return "\n".join(parts).rstrip("\n")
 
 
@@ -309,8 +384,8 @@ def call_declarations():
         lines.append(f"    identifier : string; {ARG_PARAMETERS};")
         lines.append(f"    {SESSION}")
         lines.append(f"  ) return {result['vhdl']};")
-        if result.get("alias_call", True):
-            lines.append(f"  alias call is {name}[")
+        for alias in call_aliases(result):
+            lines.append(f"  alias {alias} is {name}[")
             lines.append(f"    {ARG_SIGNATURE} return {result['vhdl']}];")
         lines.append("")
     for result in PROCEDURE_RESULTS:
@@ -319,6 +394,14 @@ def call_declarations():
         lines.append(f"    {ARG_PARAMETERS};")
         lines.append(f"    {SESSION}")
         lines.append("  );")
+    lines += ["", "  -- Like the procedures, the length given or that of size_res, like to_unsigned"]
+    for result in PROCEDURE_RESULTS:
+        lines += sized_declarations(
+            "identifier : string; ",
+            f"call_{result['name']}",
+            result["vhdl"],
+            f";\n    {ARG_PARAMETERS};\n    {SESSION}",
+        )
     return "\n".join(lines)
 
 
@@ -360,7 +443,192 @@ def call_subprograms():
   end;
 """
         )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            sized_bodies(
+                "identifier : string; ", f"call_{result['name']}", result["vhdl"],
+                f"identifier, result, {ARG_ACTUALS}, session",
+                f"identifier, size_res'length, {ARG_ACTUALS}, session",
+                f";\n    {ARG_PARAMETERS};\n    {SESSION}",
+            )
+        )
     return "\n".join(parts).rstrip("\n")
+
+
+# -------------------------------------------------------------------------
+# call and eval of an object
+# -------------------------------------------------------------------------
+OBJECT = "object : python_object_t"
+OBJECT_ARG_SIGNATURE = ", ".join(["python_object_t", "string"] + ["arg_t"] * len(ARGS))
+
+
+def object_declarations():
+    """
+    Declarations of the call and eval overloads of an object: those of
+    python_pkg with the object first, the method or expression second.
+    """
+    lines = [
+        "  -- Call a method of the object",
+        "  procedure call(",
+        f"    {OBJECT}; method : string;",
+        f"    {ARG_PARAMETERS}",
+        "  );",
+        "",
+    ]
+    for result in RESULTS:
+        name = call_name(result)
+        lines.append(f"  impure function {name}(")
+        lines.append(f"    {OBJECT}; method : string;")
+        lines.append(f"    {ARG_PARAMETERS}")
+        lines.append(f"  ) return {result['vhdl']};")
+        for alias in call_aliases(result):
+            # The signature over two lines, to keep them short
+            signature = OBJECT_ARG_SIGNATURE.split(", ")
+            lines.append(f"  alias {alias} is {name}[")
+            lines.append(f"    {', '.join(signature[:7])},")
+            lines.append(f"    {', '.join(signature[7:])} return {result['vhdl']}];")
+        lines.append("")
+    for result in PROCEDURE_RESULTS:
+        lines.append(f"  procedure call_{result['name']}(")
+        lines.append(f"    {OBJECT}; method : string; result : out {result['vhdl']};")
+        lines.append(f"    {ARG_PARAMETERS}")
+        lines.append("  );")
+    lines += ["", "  -- Evaluate an expression in the session of the object, where it is obj, like eval"]
+    for result in RESULTS:
+        lines.append(f"  impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']};")
+        if result.get("alias_eval", True):
+            lines.append(f"  alias eval is eval_{result['name']}[python_object_t, string return {result['vhdl']}];")
+    for result in PROCEDURE_RESULTS:
+        lines.append(f"  procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']});")
+    lines += ["", "  -- Like the procedures, the length given or that of size_res, like to_unsigned"]
+    for result in PROCEDURE_RESULTS:
+        lines += sized_declarations(
+            f"{OBJECT}; method : string; ", f"call_{result['name']}", result["vhdl"], f";\n    {ARG_PARAMETERS}"
+        )
+        lines += sized_declarations(f"{OBJECT}; expr : string; ", f"eval_{result['name']}", result["vhdl"])
+    return "\n".join(lines)
+
+
+def object_subprograms():
+    """
+    Bodies of the call and eval overloads of an object. Each creates the object
+    if needed and performs the operation in the session of the object. The call
+    overloads report their errors as call("<method>") rather than as the code
+    they evaluate, like the call procedure.
+    """
+    session = "session => get_session(object)"
+    parts = [
+        f"""\
+  procedure call(
+    {OBJECT}; method : string;
+    {ARG_PARAMETERS}
+  ) is
+    variable ok : boolean;
+  begin
+    if not p_created(object) then
+      return;
+    end if;
+    -- An error is reported as that of the method rather than of the code executed
+    ok := p_exec(
+      to_call_str("obj." & method, {ARG_ACTUALS}),
+      0, p_call_operation(method), get_session(object)
+    );
+  end;
+"""
+    ]
+    for result in RESULTS:
+        name = call_name(result)
+        parts.append(
+            f"""\
+  impure function {name}(
+    {OBJECT}; method : string;
+    {ARG_PARAMETERS}
+  ) return {result['vhdl']} is
+  begin
+    if not p_created(object) then
+      return {result['default']};
+    end if;
+    if p_eval(
+      to_call_str("obj." & method, {ARG_ACTUALS}),
+      {result['kind']}, -1, p_call_operation(method), get_session(object)
+    ) then
+      return {result['value']};
+    end if;
+    return {result['default']};
+  end;
+"""
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            f"""\
+  procedure call_{result['name']}(
+    {OBJECT}; method : string; result : out {result['vhdl']};
+    {ARG_PARAMETERS}
+  ) is
+  begin
+    if not p_created(object) then
+      return;
+    end if;
+    if p_eval(
+      to_call_str("obj." & method, {ARG_ACTUALS}),
+      {result['kind']}, result'length, p_call_operation(method), get_session(object)
+    ) then
+      result := {result['value']};
+    end if;
+  end;
+"""
+        )
+    for result in RESULTS:
+        parts.append(
+            f"""\
+  impure function eval_{result['name']}({OBJECT}; expr : string) return {result['vhdl']} is
+  begin
+    if not p_created(object) then
+      return {result['default']};
+    end if;
+    return eval_{result['name']}(expr, {session});
+  end;
+"""
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            f"""\
+  procedure eval_{result['name']}({OBJECT}; expr : string; result : out {result['vhdl']}) is
+  begin
+    if not p_created(object) then
+      return;
+    end if;
+    eval_{result['name']}(expr, result, {session});
+  end;
+"""
+        )
+    for result in PROCEDURE_RESULTS:
+        parts.append(
+            sized_bodies(
+                f"{OBJECT}; method : string; ", f"call_{result['name']}", result["vhdl"],
+                f"object, method, result, {ARG_ACTUALS}",
+                f"object, method, size_res'length, {ARG_ACTUALS}",
+                f";\n    {ARG_PARAMETERS}",
+            )
+        )
+        parts.append(
+            sized_bodies(
+                f"{OBJECT}; expr : string; ", f"eval_{result['name']}", result["vhdl"],
+                "object, expr, result", "object, expr, size_res'length",
+            )
+        )
+    return "\n".join(parts).rstrip("\n")
+
+
+def generate_object_package():
+    """
+    Generate python_object_pkg from its template and the generated overloads.
+    """
+    template = (TEMPLATE_PATH / "python_object_pkg.vhd.in").read_text(encoding="utf-8")
+    return Template(template).substitute(
+        object_declarations=object_declarations(),
+        object_subprograms=object_subprograms(),
+    )
 
 
 def generate_package():
@@ -380,6 +648,7 @@ def generate_package():
 
 def main():
     (SRC_PATH / "python_pkg.vhd").write_text(generate_package(), encoding="utf-8", newline="\n")
+    (SRC_PATH / "python_object_pkg.vhd").write_text(generate_object_package(), encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

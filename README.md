@@ -19,7 +19,9 @@ the selected simulator by a foreign language interface the package builds itself
 called through VHPIDIRECT (NVC, GHDL) or the FLI (Questa/ModelSim), or a VHPI application built with
 the simulator's own compiler driver (Riviera-PRO/Active-HDL). Values cross the interface with their
 VHDL types: `integer`, `real`, `string`, `boolean`, `std_ulogic`, `unsigned`/`signed`, the vector
-types, and `integer_array_t` as a NumPy array.
+types, and `integer_array_t` as a NumPy array. A `python_object_t` is an instance of a Python class
+owned by VHDL, for example the backend of a verification component, with a namespace of its own for
+every instance.
 
 ## Installation
 

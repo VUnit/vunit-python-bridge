@@ -128,7 +128,7 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 
 .. code-block:: vhdl
 
-    import_module_from_file(join(tb_path(runner_cfg), "accumulator.py"), "accumulator", session);
+    import_module_from_file(model_file, "accumulator", session);
     exec("model = accumulator.Accumulator()", session);
 
     y <= call("model.accumulate", arg(x), session => session);
@@ -136,6 +136,9 @@ session, keeping the mutable model state on ``self`` rather than in globals:
 The module, and so the class, is shared by all sessions (see the caveats
 below), while every session has a ``model`` object of its own. Like all
 non-default sessions, this needs the Python bridge: NVC, GHDL or Questa.
+:ref:`Python objects <python_bridge:objects>` package this pattern: an object
+is an instance of a class in a session of its own, with no module loading or
+session handling left to the component.
 
 Caveats
 ~~~~~~~

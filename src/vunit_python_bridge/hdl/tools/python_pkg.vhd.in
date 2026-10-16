@@ -101,6 +101,8 @@ $arg_declarations
   ) return integer;
   alias call is call_integer_w_arg[
     string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer];
+  alias call_integer is call_integer_w_arg[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer];
 
   procedure call(
     identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
@@ -160,8 +162,9 @@ $arg_declarations
   -- std_ulogic_vector and integer_array_t results are only available under
   -- their explicit names, not as eval overloads, which keeps
   -- check_equal(eval("17"), 17) and length(eval("[1, 2]")) unambiguous.
-  -- signed and unsigned results are only available in the procedure form
-  -- since a function cannot know the width of the result.
+  -- signed and unsigned results, like std_ulogic_vector ones of a given width,
+  -- are procedures writing the result, or functions given the width as a
+  -- length or as size_res, like to_unsigned.
 $eval_declarations
 
   -----------------------------------------------------------------------------
@@ -182,6 +185,10 @@ $call_declarations
   -- or VUNIT_PYTHON_BRIDGE_FILE_BASE. Without one, a failure is reported on
   -- python_logger and "" is returned.
   impure function base_path return string;
+
+  -- Private, the conversions of the results of std_ulogic types, shared with python_object_pkg
+  function p_to_std_ulogic(value : character) return std_ulogic;
+  function p_to_std_ulogic_vector(value : string) return std_ulogic_vector;
 end package;
 
 package body python_pkg is

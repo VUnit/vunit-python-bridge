@@ -38,6 +38,8 @@ Key features
   ``boolean``, ``std_ulogic``, ``unsigned``/``signed``, the vector types, and ``integer_array_t``
   as a NumPy array.
 * :doc:`Sessions <sessions>` give models and component instances Python namespaces of their own.
+* :doc:`Python objects <python_objects>` are instances of Python classes owned by VHDL, for example
+  the backends of verification components.
 * :doc:`Python files and modules <python_files>`, including the run script itself, are executed or
   imported from VHDL, with :doc:`file paths <file_paths>` that work for testbenches and
   verification components alike.
@@ -111,6 +113,7 @@ become available through ``python_context``:
    types
    errors
    sessions
+   python_objects
    python_files
    file_paths
 
@@ -121,6 +124,7 @@ become available through ``python_context``:
    api/python_context
    api/python_ffi_pkg
    api/python_pkg
+   api/python_object_pkg
 
 .. toctree::
    :caption: Simulators
