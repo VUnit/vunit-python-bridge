@@ -39,8 +39,8 @@ package python_object_pkg is
   -- An instance of class_name, a dotted name like "package.module.Class" or the
   -- name of a class defined in the default session, constructed with args on first use.
   -- The identity names the object and its session. Without one, objects are
-  -- enumerated per class like VUnit's verification components, the class name
-  -- giving the hierarchy: python_bridge:python:object:package:module:Class:<n>.
+  -- enumerated per class like VUnit's verification components:
+  -- python_object:package.module.Class:<n>.
   -- An identity already used by an object or a session is reported as a failure
   -- on the logger of the identity, and null_python_object is returned.
   impure function new_python_object(class_name : string; args : arg_t := null_arg; id : id_t := null_id)
@@ -246,7 +246,7 @@ package body python_object_pkg is
   constant created_idx : natural := 2;
   constant operation_idx : natural := 3;
   -- The parent of the identities of the objects created without one
-  constant anonymous_id : id_t := get_id("object", parent => p_python_id);
+  constant anonymous_id : id_t := get_id("python_object");
 
   -- The defaults of the call results of a failed call
   constant p_no_integers : integer_vector(0 downto 1) := (others => 0);
@@ -265,17 +265,6 @@ package body python_object_pkg is
   -- The objects by the full names of their identities, as integers of their p_data
   constant p_objects : dict_t := new_dict;
 
-  function p_dots_to_colons(name : string) return string is
-    variable result : string(1 to name'length) := name;
-  begin
-    for idx in result'range loop
-      if result(idx) = '.' then
-        result(idx) := ':';
-      end if;
-    end loop;
-    return result;
-  end;
-
   -- new_python_object and create_python_object, operation naming the one called
   impure function p_new_python_object(class_name : string; args : arg_t; id : id_t; operation : string)
     return python_object_t is
@@ -285,7 +274,7 @@ package body python_object_pkg is
   begin
     if object_id = null_id then
       -- Like enumerate of vc_pkg, which is only there with the verification components
-      class_id := get_id(p_dots_to_colons(class_name), parent => anonymous_id);
+      class_id := get_id(class_name, parent => anonymous_id);
       object_id := get_id(to_string(num_children(class_id) + 1), parent => class_id);
     end if;
     -- The session of the object is that of its identity, which must be its own
