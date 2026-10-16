@@ -16,7 +16,7 @@ Type mapping
 * ``signed``/``unsigned`` ↔ ``int`` (procedure results only, Python bridge).
 * ``integer_array_t`` ↔ ``numpy.ndarray`` (Python bridge), see
   :ref:`python_bridge:integer_array`.
-* ``dict_t`` ↔ ``dict`` (results need the Python bridge), see
+* ``dict_t`` ↔ ``dict``, see
   :ref:`python_bridge:dict`.
 
 The types marked as needing the Python bridge are available on NVC, GHDL and
@@ -33,13 +33,13 @@ dict_t and dict
 
 A ``dict_t`` from VUnit's ``dict_pkg`` (string keys, values of mixed types) is
 a Python ``dict``. As an argument, ``arg(dict)`` and ``kwarg("name", dict)``
-write the ``dict`` as the Python literal ``{"key": value, ...}``, which works
-on all simulators. The values are ``integer``, ``real``, ``string``,
-``boolean``, ``std_ulogic``, ``integer_vector``, ``real_vector``,
+write the ``dict`` as the Python literal ``{"key": value, ...}``. The values
+are ``integer``, ``real``, ``string``, ``boolean``, ``std_ulogic``,
+``integer_vector``, ``real_vector``,
 ``integer_vector_ptr_t``, ``integer_array_t`` and nested ``dict_t``. Any
 other value type is reported like any other argument that cannot be
 converted. An ``integer_array_t`` value becomes a NumPy array as described in
-:ref:`python_bridge:integer_array`, which needs the Python bridge. The keys are
+:ref:`python_bridge:integer_array`. The keys are
 visited in the order of ``get_key``, which VUnit does not specify.
 
 .. code-block:: vhdl
@@ -60,9 +60,7 @@ stored with ``set_integer_vector_ptr_t_ref``, ``set_integer_array_t_ref`` and
 follow the dtype of the array like for ``eval_integer_array``, see
 :ref:`python_bridge:integer_array`. ``None``, an ``int`` outside the VHDL integer range, a key
 that is not a ``str`` or any other value is an error, and ``eval_dict`` then
-returns an empty ``dict_t`` after reporting it. ``eval_dict`` and ``call_dict``
-are implemented by the Python bridge: Riviera-PRO/Active-HDL reports that they require NVC, GHDL or
-Questa.
+returns an empty ``dict_t`` after reporting it.
 
 .. code-block:: vhdl
 
