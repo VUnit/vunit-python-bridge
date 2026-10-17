@@ -830,7 +830,7 @@ begin
       ---------------------------------------------------------------------
       -- integer_array_t
       ---------------------------------------------------------------------
-      elsif run("Test that a 2D array is indexed like VUnit, get(a, x, y) is a[x, y]") then
+      elsif run("Test that a 2D array is indexed like VUnit, get(a, x, y) is NumPy a(x, y)") then
         arr := new_2d(width => 3, height => 2, bit_width => 16, is_signed => false);
         for y in 0 to 1 loop
           for x in 0 to 2 loop
@@ -843,7 +843,7 @@ begin
         );
         check_true(call_boolean("orientation_ok", arg(arr)));
 
-      elsif run("Test that a 3D array is indexed like VUnit, get(a, x, y, z) is a[x, y, z]") then
+      elsif run("Test that a 3D array is indexed like VUnit, get(a, x, y, z) is NumPy a(x, y, z)") then
         arr := new_3d(width => 3, height => 2, depth => 4, bit_width => 16, is_signed => false);
         for y in 0 to 1 loop
           for x in 0 to 2 loop
@@ -1143,12 +1143,13 @@ begin
         end loop;
 
       elsif run("Test that eval of dict gives exact reals") then
-        dict := eval_dict("{'a': 0.1, 'b': -2.5e-100, 'c': 1e300, 'e': 0.0, 'f': 1.7976931348623157e308}");
+        -- 1e308, not the largest double: real'high is 1.0e308 in Questa
+        dict := eval_dict("{'a': 0.1, 'b': -2.5e-100, 'c': 1e300, 'e': 0.0, 'f': 1e308}");
         check_equal(get_real(dict, "a"), 0.1, max_diff => 0.0);
         check_equal(get_real(dict, "b"), -2.5e-100, max_diff => 0.0);
         check_equal(get_real(dict, "c"), 1.0e300, max_diff => 0.0);
         check_equal(get_real(dict, "e"), 0.0, max_diff => 0.0);
-        check_equal(get_real(dict, "f"), 1.7976931348623157e308, max_diff => 0.0);
+        check_equal(get_real(dict, "f"), 1.0e308, max_diff => 0.0);
 
       elsif run("Test that eval of dict is strict about keys and values") then
         mock(default_logger, failure);
