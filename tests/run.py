@@ -90,12 +90,16 @@ def main():
     os.environ.pop(FILE_BASE_VARIABLE, None)
     vu = VUnit.from_args(args)
     vu.add_vhdl_builtins()
+    # For create_std_cfg in the tests of Python objects as backends of verification components
+    vu.add_verification_components()
     vu.add_package("vunit-python-bridge", allow_setup=True)
 
     lib = vu.add_library("lib")
     lib.add_source_file(ROOT / "tb_python_pkg.vhd")
     lib.add_source_file(ROOT / "tb_python_pkg_bridge.vhd")
     lib.add_source_file(ROOT / "tb_elaboration_array.vhd")
+    objects = ("tb_python_objects.vhd", "counter_vc_pkg.vhd", "counter_vc.vhd", "path_counter_vc.vhd")
+    lib.add_source_files([ROOT / name for name in objects])
 
     vu.set_compile_option("rivierapro.vcom_flags", ["-dbg"])
     vu.set_sim_option("rivierapro.vsim_flags", ["-interceptcoutput"])

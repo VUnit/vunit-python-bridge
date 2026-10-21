@@ -115,8 +115,8 @@ since that would make ``check_equal(eval("17"), 17)`` and
 as the procedures ``eval_std_ulogic_vector``, ``eval_signed`` and
 ``eval_unsigned``, that take the result as an ``out`` parameter. The width is
 given by the actual, and a Python value that does not fit that width is an
-error. ``signed`` and ``unsigned`` results are only available in the
-procedure form, since a function cannot know the width of the result.
+error. Functions of the same names take the width like ``to_unsigned`` does,
+as a length or as the length of ``size_res``.
 
 .. code-block:: vhdl
 
@@ -125,6 +125,8 @@ procedure form, since a function cannot know the width of the result.
   begin
     eval_std_ulogic_vector("format(value, '08b')", byte);
     eval_signed("model.level()", level);
+    level := eval_signed("model.level()", 16);
+    level := eval_signed("model.level()", level);  -- size_res
 
 call, arg, kwarg and to_call_str
 ---------------------------------
@@ -205,8 +207,11 @@ passed as a number or as the string of its characters:
 ``call_integer_array``, ``call_dict``, ``call_string``, ``call_real_vector`` and
 ``call_integer_vector_ptr``, plus the procedures ``call_std_ulogic_vector``,
 ``call_signed`` and ``call_unsigned`` taking the result as an ``out``
-parameter. All of the functions but ``call_std_ulogic_vector`` are aliased
-``call``.
+parameter, and the functions of the same names taking a length or
+``size_res`` after the identifier, like ``eval``. The functions without a
+width but ``call_std_ulogic_vector`` are aliased ``call``. The ``integer``
+one, ``call_integer_w_arg``, is also aliased ``call_integer``, like
+``eval_integer``.
 
 ``to_call_str`` builds the Python call expression itself, as a string, which
 is useful to embed a call inside a larger ``exec``/``eval`` string:
@@ -280,8 +285,9 @@ arguments, a 20 register status dump, wide
 ``call``, Python files executed with ``exec_file`` or imported with
 ``import_module_from_file``, two models loaded into a session each, and a
 Python model failing with the logger of the default session mocked. Its last
-test case drives ``python_model``, a verification component whose behaviour is
-the Python function in ``python_model.py`` rather than VHDL. The component finds
-that file by joining its name to ``base_path``, the directory of the run script, which
+test cases drive ``python_model``, a verification component whose behaviour is
+the Python function in ``python_model.py`` rather than VHDL, and ``filter_vc``,
+whose instances have Python objects as backends. ``python_model`` finds its file
+by joining its name to ``base_path``, the directory of the run script, which
 ``run.py`` sets as the base directory, while the testbench gives the files it
 loads itself relative to its own directory. See :ref:`python_bridge:file_paths`.

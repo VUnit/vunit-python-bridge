@@ -10,4 +10,5 @@ context python_context is
   library python_bridge;
   use python_bridge.python_pkg.all;
   use python_bridge.python_ffi_pkg.all;
+  use python_bridge.python_object_pkg.all;
 end context;

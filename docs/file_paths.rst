@@ -36,12 +36,9 @@ How a file name is resolved
        ``pathlib.Path`` and so on
      - The current working directory of Python, which is the working
        directory of the simulator. See the warning below.
-   * - Python module imported by name, ``import model``
-     - ``sys.path``, which holds the directory of the run script first, like
-       ``python run.py`` does, the directories of ``PYTHONPATH`` (the
-       simulator inherits the environment of VUnit, so a ``PYTHONPATH`` set
-       in the run script before ``vu.main()`` is seen), and, while
-       ``exec_file`` executes a file, the directory of that file.
+   * - Python module imported by name, ``import model``, and the class of a
+       :ref:`Python object <python_bridge:objects>`
+     - ``sys.path``: see :ref:`python_bridge:finding_code` below.
 
 .. warning::
 
@@ -52,6 +49,34 @@ How a file name is resolved
    directory. Never rely on a relative file name in Python code: build it from
    ``Path(__file__).parent`` in the model, or pass an absolute name from VHDL,
    built with ``base_path`` or ``tb_path``.
+
+.. _python_bridge:finding_code:
+
+Python modules
+~~~~~~~~~~~~~~
+
+The interpreter in the simulator imports modules the way Python started on the
+run script does. Without any setup it finds:
+
+* modules in the directory of the run script, the first entry of ``sys.path``.
+  This is also how ``import_run_script`` imports the run script;
+* the packages of the Python environment VUnit runs in, for example an active
+  virtual environment, including packages installed with ``pip install -e``;
+* while ``exec_file`` executes a file, the modules next to that file.
+
+Python code anywhere else is found once its directory is on ``PYTHONPATH``,
+set in the run script before ``vu.main()``: the simulations inherit the
+environment of VUnit (see the recipes below). A verification component used by
+many testbenches can so keep its model in a directory of its own and name its
+class, for example ``"my_vc_model.Model"`` for a :ref:`Python object
+<python_bridge:objects>`. Installing the model as a package, for example with
+``pip install -e``, has the same effect without changing the run script.
+
+There is one ``sys.path`` and one ``sys.modules`` per simulation, shared by all
+:ref:`sessions <python_bridge:sessions>`. Two modules with the same name are
+therefore the same module, so a package is best named after the component it
+belongs to, and state kept at module level is shared by everything that
+imports the module.
 
 Recipes
 ~~~~~~~

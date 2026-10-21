@@ -18,7 +18,9 @@ plot of what the design just produced — without leaving the simulation. The VH
 the selected simulator by a small C library the package builds itself, called through VHPIDIRECT
 (NVC, GHDL), the FLI (Questa/ModelSim) or VHPI (Riviera-PRO). Values cross the interface with their
 VHDL types: `integer`, `real`, `string`, `boolean`, `std_ulogic`, `unsigned`/`signed`, the vector
-types, `integer_array_t` as a NumPy array, and VUnit's `dict_t` as a Python `dict`.
+types, `integer_array_t` as a NumPy array, and VUnit's `dict_t` as a Python `dict`. A
+`python_object_t` is an instance of a Python class owned by VHDL, for example the backend of a
+verification component, with a namespace of its own for every instance.
 
 ## Installation
 

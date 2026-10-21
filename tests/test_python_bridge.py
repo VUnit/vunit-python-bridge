@@ -11,12 +11,14 @@ These tests must never invoke an HDL simulator. Compiling the small C bridge
 library with the system C compiler, and reading/writing files, is fine.
 """
 
+import importlib.util
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
 from contextlib import contextmanager
 from glob import glob
@@ -159,7 +161,7 @@ class TestManifest(unittest.TestCase):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         self.assertEqual(
             sorted(includes),
-            ["hdl/src/python_context.vhd", "hdl/src/python_pkg.vhd"],
+            ["hdl/src/python_context.vhd", "hdl/src/python_object_pkg.vhd", "hdl/src/python_pkg.vhd"],
         )
         for include in includes:
             self.assertTrue((PACKAGE_ROOT / include).is_file(), include)
@@ -167,6 +169,92 @@ class TestManifest(unittest.TestCase):
     def test_the_simulator_dependent_vhdl_is_not_listed(self):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         self.assertNotIn("hdl/src/python_ffi_pkg_bridge.vhd", includes)
+
+
+class TestObjectCreation(unittest.TestCase):
+    """
+    __vunit__.instantiate_as_obj, which creates the object of a python_object_t in its session.
+    """
+
+    def setUp(self):
+        from vunit_python_bridge import runtime  # pylint: disable=import-outside-toplevel
+
+        self.namespace = {}
+        self.handle = runtime.BridgeHandle(mock.Mock(namespace=self.namespace))
+
+    def test_binds_an_instance_of_a_class_of_a_module_to_self(self):
+        self.handle.instantiate_as_obj("collections.OrderedDict", a=1)
+        self.assertEqual(self.namespace["obj"], {"a": 1})
+
+    def test_a_dotted_name_can_name_a_class_in_a_class(self):
+        module = types.ModuleType("models_under_test")
+        module.Outer = type("Outer", (), {"Inner": type("Inner", (), {})})
+        with mock.patch.dict(sys.modules, {"models_under_test": module}):
+            self.handle.instantiate_as_obj("models_under_test.Outer.Inner")
+        self.assertIsInstance(self.namespace["obj"], module.Outer.Inner)
+
+    def test_a_bare_name_is_a_class_of_the_default_session(self):
+        class Model:  # pylint: disable=too-few-public-methods
+            pass
+
+        with mock.patch.dict("__main__.__dict__", {"Model": Model}):
+            self.handle.instantiate_as_obj("Model")
+        self.assertIsInstance(self.namespace["obj"], Model)
+
+    def test_a_name_imported_in_the_default_session_is_followed(self):
+        module = types.ModuleType("real_module_name")
+        module.Model = type("Model", (), {})
+        # Like "import real_module_name as alias" in the default session
+        with mock.patch.dict("__main__.__dict__", {"alias": module}):
+            self.handle.instantiate_as_obj("alias.Model")
+        self.assertIsInstance(self.namespace["obj"], module.Model)
+
+    def test_a_missing_bare_name_is_reported_as_not_found(self):
+        with self.assertRaisesRegex(ImportError, "No class named 'NoSuchModel': neither defined in the default"):
+            self.handle.instantiate_as_obj("NoSuchModel")
+
+    def test_a_missing_class_of_a_module_names_the_module(self):
+        with self.assertRaisesRegex(ImportError, "'json.JSONDecoderr': json has no attribute 'JSONDecoderr'"):
+            self.handle.instantiate_as_obj("json.JSONDecoderr")
+
+    def test_a_name_that_is_not_a_class_is_reported(self):
+        with self.assertRaisesRegex(TypeError, "'os.getcwd' is not a class but a builtin_function_or_method"):
+            self.handle.instantiate_as_obj("os.getcwd")
+
+    def test_a_failing_import_inside_the_module_is_not_hidden(self):
+        with create_tempdir() as tempdir:
+            (tempdir / "broken_model.py").write_text("import no_such_dependency\n", encoding="utf-8")
+            with mock.patch.object(sys, "path", [str(tempdir)] + sys.path):
+                with self.assertRaisesRegex(ModuleNotFoundError, "No module named 'no_such_dependency'"):
+                    self.handle.instantiate_as_obj("broken_model.Model")
+
+    def test_an_object_that_cannot_be_created_tells_why_when_used(self):
+        with self.assertRaises(ImportError):
+            self.handle.instantiate_as_obj("no_such_module.Model", 1)
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "The no_such_module.Model object could not be created: ImportError: No class named 'no_such_module.Model'",
+        ):
+            self.namespace["obj"].step()
+        with self.assertRaisesRegex(RuntimeError, "could not be created"):
+            self.namespace["obj"].trace = True
+
+
+class TestGeneratedPackages(unittest.TestCase):
+    """
+    The generated VHDL packages are those the generator gives for the templates.
+    """
+
+    def test_generated_packages_are_up_to_date(self):
+        generator_path = PACKAGE_ROOT / "hdl" / "tools" / "generate_python_pkg.py"
+        spec = importlib.util.spec_from_file_location("generate_python_pkg", generator_path)
+        generator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(generator)
+        for name, text in (
+            ("python_pkg.vhd", generator.generate_package()),
+            ("python_object_pkg.vhd", generator.generate_object_package()),
+        ):
+            self.assertEqual((generator.SRC_PATH / name).read_text(encoding="utf-8"), text, f"regenerate {name}")
 
 
 class TestForeignLanguageInterfaces(unittest.TestCase):

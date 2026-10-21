@@ -31,6 +31,12 @@ PACKAGES = [
         "Arguments, ``call``, the result types implemented by the Python bridge, Python files "
         "and modules, and ``base_path``.",
     ),
+    (
+        "python_object_pkg",
+        "python_object_pkg.vhd",
+        "Python objects: instances of Python classes owned by VHDL, each in a session of its own, "
+        "see :doc:`../python_objects`.",
+    ),
 ]
 
 BANNER = re.compile(r"^\s*-{10,}\s*$")
