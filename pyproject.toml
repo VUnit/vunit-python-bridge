@@ -51,8 +51,6 @@ vunit_python_bridge = [
   "hdl/tools/*.py",
   "native/*.c",
   "native/*.h",
-  "native/vhpi/*.c",
-  "native/vhpi/*.h",
   "bin/*.dll",
 ]
 

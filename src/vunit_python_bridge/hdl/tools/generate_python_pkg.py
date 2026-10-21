@@ -10,10 +10,8 @@ Generate python_pkg.vhd from python_pkg.vhd.in in this directory.
 The template holds the parts of python_pkg that are written by hand. The
 generated parts are the argument value types of call, the result types of eval
 and call and the execution of Python files. They are mostly one overload per
-type, which is why they are generated. The operations that are implemented by
-the Python bridge (NVC, GHDL and Questa) are built on the p_ prefixed
-primitives of python_ffi_pkg, which the VHPI variant of that package
-implements by reporting a failure.
+type, which is why they are generated. They are built on the p_ prefixed
+primitives of python_ffi_pkg.
 """
 
 from pathlib import Path
@@ -41,9 +39,8 @@ ARG_SIGNATURE = ", ".join(["string"] + ["arg_t"] * len(ARGS) + ["python_session_
 #         name of the operation to report the value it cannot convert
 # suffix: appended to the arg and kwarg names, empty for an overload
 #
-# The integer_array_t value is transferred by the Python bridge, which makes it
-# available for NVC, GHDL and Questa only. The other values are built from the
-# Python source text of the value alone and work on any simulator.
+# The integer_array_t value is transferred by the Python bridge. The other
+# values are built from the Python source text of the value alone.
 #
 # The unsigned and signed values are passed to typed names, arg_unsigned and
 # arg_signed, on purpose: plain overloads would make a string literal

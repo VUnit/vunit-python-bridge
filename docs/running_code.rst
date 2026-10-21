@@ -95,8 +95,7 @@ name selects the overload:
 
     info("pi = " & to_string(eval_real("pi")));
 
-On NVC, GHDL and Questa, where the API is implemented by the VUnit Python
-bridge, ``eval`` has more result types:
+``eval`` has more result types:
 
 * ``eval_boolean``, returning ``boolean``. Only ``bool``/``numpy.bool_`` is
   accepted. It also makes the result of ``eval`` usable as a condition:
@@ -164,7 +163,7 @@ VHDL                       Python
 ``std_ulogic``              ``bool``, 1 and H give ``True``, 0 and L give ``False``
 ``unsigned``               ``int``, passed as ``arg_unsigned``/``kwarg_unsigned``
 ``signed``                 ``int``, passed as ``arg_signed``/``kwarg_signed``
-``integer_array_t``        NumPy array, not on Riviera-PRO/Active-HDL
+``integer_array_t``        NumPy array
 ``dict_t``                 ``dict`` with ``str`` keys, see :ref:`python_bridge:dict`
 ========================== ========================================================
 
@@ -201,7 +200,7 @@ passed as a number or as the string of its characters:
     call("model.scale", arg_unsigned(unsigned(gain)));
     call("model.push", arg(to_string(slv)));
 
-On NVC, GHDL and Questa, ``call`` returns the same types as ``eval``:
+``call`` returns the same types as ``eval``:
 ``call_boolean``, ``call_std_ulogic``, ``call_std_ulogic_vector``,
 ``call_integer_array``, ``call_dict``, ``call_string``, ``call_real_vector`` and
 ``call_integer_vector_ptr``, plus the procedures ``call_std_ulogic_vector``,
@@ -264,3 +263,25 @@ rather than by assigning to a variable in a loop:
     ...
 
     call("model.configure", registers(0));
+
+The example
+~~~~~~~~~~~
+
+The ``embedded_python`` example of this repository,
+`examples/embedded_python
+<https://github.com/VUnit/vunit-python-bridge/tree/main/examples/embedded_python>`__,
+is a complete example that runs on every supported simulator.
+
+Its ``tb_example.vhd`` has a test case for each part of the API: ``exec`` and
+``eval`` with the types they convert, calls with positional, keyword and group
+arguments, a 20 register status dump, wide
+``arg_unsigned``/``arg_signed`` and ``std_ulogic`` argument values, a 2-D
+``integer_array_t`` image transposed by NumPy, the result types of ``eval`` and
+``call``, Python files executed with ``exec_file`` or imported with
+``import_module_from_file``, two models loaded into a session each, and a
+Python model failing with the logger of the default session mocked. Its last
+test case drives ``python_model``, a verification component whose behaviour is
+the Python function in ``python_model.py`` rather than VHDL. The component finds
+that file by joining its name to ``base_path``, the directory of the run script, which
+``run.py`` sets as the base directory, while the testbench gives the files it
+loads itself relative to its own directory. See :ref:`python_bridge:file_paths`.

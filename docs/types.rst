@@ -12,15 +12,12 @@ Type mapping
 * ``real_vector`` ↔ ``list`` of ``float`` (``call_real_vector`` needs the bridge).
 * ``integer_vector_ptr_t`` ↔ ``list`` of ``int``.
 * ``std_ulogic``/``std_ulogic_vector`` ↔ ``str``, one character per element
-  out of ``U X 0 1 Z W L H -``, left to right (results only, Python bridge).
-* ``signed``/``unsigned`` ↔ ``int`` (procedure results only, Python bridge).
-* ``integer_array_t`` ↔ ``numpy.ndarray`` (Python bridge), see
+  out of ``U X 0 1 Z W L H -``, left to right (results only).
+* ``signed``/``unsigned`` ↔ ``int`` (procedure results only).
+* ``integer_array_t`` ↔ ``numpy.ndarray``, see
   :ref:`python_bridge:integer_array`.
 * ``dict_t`` ↔ ``dict``, see
   :ref:`python_bridge:dict`.
-
-The types marked as needing the Python bridge are available on NVC, GHDL and
-Questa, but not on Riviera-PRO/Active-HDL.
 
 Results are strict: a value that does not fit the VHDL type, or is of the
 wrong Python type, is an error. Values are never silently truncated or
@@ -71,12 +68,6 @@ returns an empty ``dict_t`` after reporting it.
 
 integer_array_t and NumPy
 --------------------------
-
-.. note::
-
-   ``integer_array_t`` values are transferred by the VUnit Python bridge and
-   are therefore available on NVC, GHDL and Questa, but not on
-   Riviera-PRO/Active-HDL.
 
 An ``integer_array_t`` argument is transferred to Python and referred to by
 the expression as a NumPy array of dtype ``int32``, so it can be reused in

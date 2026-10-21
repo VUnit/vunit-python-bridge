@@ -4,9 +4,8 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- Tests of the python_pkg operations that are implemented by the Python
--- bridge and therefore only available for NVC and GHDL. The rest of the
--- package is tested by tb_python_pkg.
+-- Tests of the python_pkg operations beyond exec and the eval and call results
+-- of tb_python_pkg: sessions, typed results, arguments and integer_array_t.
 
 library ieee;
 use ieee.std_logic_1164.all;
