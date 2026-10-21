@@ -18,7 +18,7 @@ plot of what the design just produced — without leaving the simulation. The VH
 the selected simulator by a small C library the package builds itself, called through VHPIDIRECT
 (NVC, GHDL), the FLI (Questa/ModelSim) or VHPI (Riviera-PRO). Values cross the interface with their
 VHDL types: `integer`, `real`, `string`, `boolean`, `std_ulogic`, `unsigned`/`signed`, the vector
-types, and `integer_array_t` as a NumPy array.
+types, `integer_array_t` as a NumPy array, and VUnit's `dict_t` as a Python `dict`.
 
 ## Installation
 
@@ -77,10 +77,10 @@ check(call_integer_vector("gain", arg(integer_vector'(1, 2))) = integer_vector'(
 
 ## Requirements
 
-- VUnit 5.0.0.dev12 or later (`vunit_hdl` on PyPI), which pip installs with the package.
+- VUnit 5.0.0.dev15 or later (`vunit_hdl` on PyPI), which pip installs with the package.
 - VHDL-2008 or later.
 - CPython 3.10 or later, standard (GIL) build, with a shared `libpython` (`--enable-shared`), which
-  is what distribution Pythons, `actions/setup-python`, `uv` and `pyenv` provide by default.
+  is what distribution Pythons, `actions/setup-python`, `uv`, `pyenv` and conda-forge provide by default.
 - Linux and macOS: a C compiler (`cc`, `gcc` or `clang`, or `CC`) and the Python development headers
   (for example the `python3-dev` package). The bridge library is compiled on first use and cached.
 - Windows: a 64-bit CPython from python.org (or compatible). The package ships prebuilt DLLs

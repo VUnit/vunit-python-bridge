@@ -14,6 +14,8 @@ Requirements
   :ref:`python_bridge:native`. Python must provide a shared ``libpython``
   (``--enable-shared``), which is the case for distribution Pythons,
   ``actions/setup-python``, ``uv`` and ``pyenv`` builds with default settings.
+  conda-forge Pythons link the ``python`` executable statically but also
+  ship the shared library, which the bridge uses.
 * Windows: a 64-bit CPython from python.org (or compatible, such as
   ``actions/setup-python`` and ``uv``). No compiler is needed for NVC and GHDL
   when the package includes the prebuilt DLLs. Otherwise, and always for

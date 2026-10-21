@@ -20,12 +20,42 @@ from vunit_python_bridge import FILE_BASE_VARIABLE
 
 ROOT = Path(__file__).parent
 
+# Fails during elaboration, with this error rather than a crash, see #17
+ELABORATION_ARRAY_TEST = "lib.tb_elaboration_array.all"
+ELABORATION_ARRAY_ERROR = "An integer_array_t argument cannot be made before test_runner_setup"
+
+
 def remote_test():
     """
     Called from VHDL to verify that the run script can be imported into the
     embedded Python interpreter.
     """
     return 2
+
+
+def verify(results, expected_failures):
+    """
+    Accept the expected failures, and nothing else.
+    """
+    tests = results.get_report().tests
+    expected = [name for name in expected_failures if name in tests]
+    failed = sorted(name for name, test in tests.items() if test.status == "failed")
+
+    unexpected = [name for name in failed if name not in expected]
+    if unexpected:
+        raise RuntimeError("Unexpected test failures:\n" + "\n".join(unexpected))
+
+    missing = [name for name in expected if name not in failed]
+    if missing:
+        raise RuntimeError("Tests expected to fail but did not:\n" + "\n".join(missing))
+
+    if ELABORATION_ARRAY_TEST in expected and ELABORATION_ARRAY_ERROR not in (
+        tests[ELABORATION_ARRAY_TEST].path / "output.txt"
+    ).read_text(encoding="utf-8"):
+        raise RuntimeError(f"{ELABORATION_ARRAY_TEST} failed without the error: {ELABORATION_ARRAY_ERROR}")
+
+    if expected:
+        print(f"Verified {len(expected)} expected failures: {', '.join(name.split('.')[-1] for name in expected)}")
 
 
 def run_file_base_tests(args):
@@ -54,6 +84,8 @@ def run_file_base_tests(args):
 
 def main():
     args = VUnitCLI().parse_args()
+    # The expected failure must not make the run script fail
+    args.exit_0 = True
     # The tests of base_path without a base directory need the variable unset
     os.environ.pop(FILE_BASE_VARIABLE, None)
     vu = VUnit.from_args(args)
@@ -63,11 +95,13 @@ def main():
     lib = vu.add_library("lib")
     lib.add_source_file(ROOT / "tb_python_pkg.vhd")
     lib.add_source_file(ROOT / "tb_python_pkg_bridge.vhd")
+    lib.add_source_file(ROOT / "tb_elaboration_array.vhd")
 
     vu.set_compile_option("rivierapro.vcom_flags", ["-dbg"])
     vu.set_sim_option("rivierapro.vsim_flags", ["-interceptcoutput"])
 
-    def post_run(results):  # pylint: disable=unused-argument
+    def post_run(results):
+        verify(results, [ELABORATION_ARRAY_TEST])
         run_file_base_tests(args)
 
     vu.main(post_run=post_run)
