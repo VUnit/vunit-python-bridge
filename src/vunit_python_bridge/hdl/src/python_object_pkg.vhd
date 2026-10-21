@@ -159,6 +159,14 @@ package python_object_pkg is
     python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t,
     arg_t, arg_t, arg_t, arg_t, arg_t return integer_array_t];
 
+  impure function call_dict(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return dict_t;
+  alias call is call_dict[
+    python_object_t, string, arg_t, arg_t, arg_t, arg_t, arg_t,
+    arg_t, arg_t, arg_t, arg_t, arg_t return dict_t];
+
   procedure call_std_ulogic_vector(
     object : python_object_t; method : string; result : out std_ulogic_vector;
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
@@ -191,6 +199,8 @@ package python_object_pkg is
   alias eval is eval_std_ulogic[python_object_t, string return std_ulogic];
   impure function eval_std_ulogic_vector(object : python_object_t; expr : string) return std_ulogic_vector;
   impure function eval_integer_array(object : python_object_t; expr : string) return integer_array_t;
+  impure function eval_dict(object : python_object_t; expr : string) return dict_t;
+  alias eval is eval_dict[python_object_t, string return dict_t];
   procedure eval_std_ulogic_vector(object : python_object_t; expr : string; result : out std_ulogic_vector);
   procedure eval_signed(object : python_object_t; expr : string; result : out signed);
   procedure eval_unsigned(object : python_object_t; expr : string; result : out unsigned);
@@ -601,6 +611,23 @@ package body python_object_pkg is
     return null_integer_array;
   end;
 
+  impure function call_dict(
+    object : python_object_t; method : string;
+    arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
+  ) return dict_t is
+  begin
+    if not p_created(object) then
+      return new_dict;
+    end if;
+    if p_eval(
+      to_call_str("obj." & method, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10),
+      p_kind_dict, -1, p_call_operation(method), get_session(object)
+    ) then
+      return p_to_dict(p_result_integer, get_session(object));
+    end if;
+    return new_dict;
+  end;
+
   procedure call_std_ulogic_vector(
     object : python_object_t; method : string; result : out std_ulogic_vector;
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg
@@ -727,6 +754,14 @@ package body python_object_pkg is
       return null_integer_array;
     end if;
     return eval_integer_array(expr, session => get_session(object));
+  end;
+
+  impure function eval_dict(object : python_object_t; expr : string) return dict_t is
+  begin
+    if not p_created(object) then
+      return new_dict;
+    end if;
+    return eval_dict(expr, session => get_session(object));
   end;
 
   procedure eval_std_ulogic_vector(object : python_object_t; expr : string; result : out std_ulogic_vector) is

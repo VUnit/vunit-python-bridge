@@ -117,8 +117,7 @@ def main():
     vunit_python_bridge.set_relative_file_base(root)
     vu.add_package("vunit-python-bridge", allow_setup=True)
     vu.add_random()
-    # The setup function of the package builds the foreign language application of the simulator
-    # (the Python bridge, or the VHPI application) under the output path.
+    # The setup function of the package builds the Python bridge for the simulator.
 
     lib = vu.add_library("lib")
     lib.add_source_files(root / "*.vhd")

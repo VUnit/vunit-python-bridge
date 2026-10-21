@@ -22,10 +22,8 @@ PACKAGES = [
     (
         "python_ffi_pkg",
         "python_ffi_pkg_bridge.vhd",
-        "Sessions, ``exec`` and the basic ``eval`` result types. The package is implemented for "
-        "the selected simulator: by the Python bridge for NVC, GHDL and Questa and by a VHPI "
-        "application for Riviera-PRO/Active-HDL, which declares the same API, see "
-        ":doc:`../other_simulators`.",
+        "Sessions, ``exec`` and the basic ``eval`` result types, implemented by the Python bridge, "
+        "see :doc:`../how_it_works`.",
     ),
     (
         "python_pkg",

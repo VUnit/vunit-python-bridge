@@ -14,6 +14,9 @@ use vunit_lib.run_pkg.all;
 use vunit_lib.runner_pkg.all;
 use vunit_lib.integer_vector_ptr_pkg.all;
 use vunit_lib.string_ops.all;
+use vunit_lib.dict_pkg.all;
+use vunit_lib.dict_2008p_pkg.all;
+use vunit_lib.data_types_private_pkg.all;
 
 use std.textio.all;
 
@@ -82,8 +85,13 @@ package python_pkg is
   --
   -- H and L are read as 1 and 0. Any other metavalue is an error.
   --
-  -- An integer_array_t value is transferred to Python by the Python bridge,
-  -- which is only available for NVC, GHDL and Questa, and is referred to by
+  -- A dict_t value becomes a Python dict, {"key": value, ...}, whose values
+  -- are written the same way: integer, real, string, boolean, std_ulogic,
+  -- integer_vector, real_vector, integer_vector_ptr_t, integer_array_t and
+  -- dict_t values. Any other value type is an error. An integer_array_t value
+  -- is transferred as described below.
+  --
+  -- An integer_array_t value is transferred to Python and is referred to by
   -- the expression, which means that it can be used in several calls.
   function arg(value : real_vector) return arg_t;
   function kwarg(kw : string; value : real_vector) return arg_t;
@@ -97,6 +105,8 @@ package python_pkg is
   impure function kwarg_signed(kw : string; value : signed) return arg_t;
   impure function arg(value : integer_array_t) return arg_t;
   impure function kwarg(kw : string; value : integer_array_t) return arg_t;
+  impure function arg(value : dict_t) return arg_t;
+  impure function kwarg(kw : string; value : dict_t) return arg_t;
 
   -- The Python expression calling identifier with the given arguments, for
   -- example to embed a call in a larger exec or eval string:
@@ -159,17 +169,19 @@ package python_pkg is
   impure function "&"(l, r : arg_t) return arg_t;
 
   -----------------------------------------------------------------------------
-  -- Operations implemented by the Python bridge (NVC, GHDL and Questa)
+  -- Operations built on the primitives of python_ffi_pkg
   -----------------------------------------------------------------------------
-  -- The operations below are implemented by the VUnit Python bridge and are
-  -- therefore only available for NVC, GHDL and Questa; the other simulators
-  -- report a failure when they are used. Like the other operations, every one
-  -- of them takes the session it is performed in as its last parameter,
-  -- defaulting to the default session.
+  -- Like the other operations, every one of them takes the session it is
+  -- performed in as its last parameter, defaulting to the default session.
 
   -----------------------------------------------------------------------------
   -- Results of eval: boolean, std_ulogic, vectors and arrays
   -----------------------------------------------------------------------------
+  -- The result of eval_dict and call_dict is a new dict_t that the caller owns
+  -- and deallocates. Its values are integer, real, string, boolean,
+  -- integer_vector_ptr_t (a list of int), integer_array_t (a NumPy array, with
+  -- the word size of an eval_integer_array result) and dict_t (a nested dict).
+  --
   -- std_ulogic_vector and integer_array_t results are only available under
   -- their explicit names, not as eval overloads, which keeps
   -- check_equal(eval("17"), 17) and length(eval("[1, 2]")) unambiguous.
@@ -193,6 +205,11 @@ package python_pkg is
   impure function eval_integer_array(
     expr : string; session : python_session_t := default_session
   ) return integer_array_t;
+
+  impure function eval_dict(
+    expr : string; session : python_session_t := default_session
+  ) return dict_t;
+  alias eval is eval_dict[string, python_session_t return dict_t];
 
   procedure eval_std_ulogic_vector(
     expr : string; result : out std_ulogic_vector; session : python_session_t := default_session
@@ -274,6 +291,13 @@ package python_pkg is
   alias call is call_integer_array[
     string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return integer_array_t];
 
+  impure function call_dict(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return dict_t;
+  alias call is call_dict[
+    string, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, arg_t, python_session_t return dict_t];
+
   procedure call_std_ulogic_vector(
     identifier : string; result : out std_ulogic_vector;
     arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
@@ -336,9 +360,13 @@ package python_pkg is
   -- python_logger and "" is returned.
   impure function base_path return string;
 
-  -- Private, the conversions of the results of std_ulogic types, shared with python_object_pkg
+  -- Private, the conversions of the results of std_ulogic and dict_t types, shared with python_object_pkg
   function p_to_std_ulogic(value : character) return std_ulogic;
   function p_to_std_ulogic_vector(value : string) return std_ulogic_vector;
+  -- The dict_t of a dict result. Python keeps the converted entries of the dict
+  -- under the handle, see dict_kinds, dict_key and dict_item of runtime.py, and
+  -- VHDL fetches them one at a time with the eval of the type of each value.
+  impure function p_to_dict(handle : integer; session : python_session_t) return dict_t;
 end package;
 
 package body python_pkg is
@@ -681,6 +709,45 @@ package body python_pkg is
     return "__vunit__.staged(" & integer'image(staged_id) & ")";
   end;
 
+  impure function p_arg_value(value : dict_t; operation : string) return string;
+
+  -- The Python source text of the value stored for a key of a dict
+  impure function p_dict_item(value : dict_t; key, operation : string) return string is
+  begin
+    case get_value_type(value, key) is
+      when vhdl_integer => return to_string(get_integer(value, key));
+      when vhdl_real => return to_string(get_real(value, key), "%.16e");
+      when vhdl_string => return p_quoted(get_string(value, key));
+      when vhdl_boolean => return arg(get_boolean(value, key)).value;
+      when ieee_std_ulogic => return p_arg_value(get_std_ulogic(value, key), operation);
+      when vhdl_integer_vector => return to_py_list_str(get_integer_vector(value, key));
+      when vhdl_real_vector => return to_py_list_str(get_real_vector(value, key));
+      when vunit_integer_vector_ptr_t => return p_arg_value(get_integer_vector_ptr_t_ref(value, key));
+      when vunit_integer_array_t => return p_arg_value(get_integer_array_t_ref(value, key), operation);
+      when vunit_dict_t => return p_arg_value(get_dict_t_ref(value, key), operation);
+      when others =>
+        return p_failed_value(
+          operation & " cannot convert the " & to_string(get_value_type(value, key)) &
+          " value of the dict key """ & key & """"
+        );
+    end case;
+  end;
+
+  impure function p_arg_value(value : dict_t; operation : string) return string is
+    variable result : line;
+  begin
+    swrite(result, "{");
+    for idx in 0 to num_keys(value) - 1 loop
+      if idx > 0 then
+        swrite(result, ", ");
+      end if;
+      swrite(result, p_quoted(get_key(value, idx)) & ": " & p_dict_item(value, get_key(value, idx), operation));
+    end loop;
+    swrite(result, "}");
+
+    return result.all;
+  end;
+
   function arg(value : real_vector) return arg_t is
   begin
     return (p_positional_arg, p_arg_value(value));
@@ -737,6 +804,16 @@ package body python_pkg is
   end;
 
   impure function kwarg(kw : string; value : integer_array_t) return arg_t is
+  begin
+    return (kw, p_arg_value(value, "kwarg"));
+  end;
+
+  impure function arg(value : dict_t) return arg_t is
+  begin
+    return (p_positional_arg, p_arg_value(value, "arg"));
+  end;
+
+  impure function kwarg(kw : string; value : dict_t) return arg_t is
   begin
     return (kw, p_arg_value(value, "kwarg"));
   end;
@@ -928,7 +1005,7 @@ package body python_pkg is
   end;
 
   -----------------------------------------------------------------------------
-  -- Operations implemented by the Python bridge (NVC, GHDL and Questa)
+  -- Operations built on the primitives of python_ffi_pkg
   -----------------------------------------------------------------------------
   -- Python represents std_ulogic values by these characters
   constant p_std_ulogic_characters : string(1 to 9) := "UX01ZWLH-";
@@ -951,6 +1028,46 @@ package body python_pkg is
   begin
     for idx in normalized'range loop
       result(value'length - idx) := p_to_std_ulogic(normalized(idx));
+    end loop;
+    return result;
+  end;
+
+  procedure p_add_dict_item(dict : dict_t; handle, index, kind : integer; session : python_session_t) is
+    constant entry : string := "(" & integer'image(handle) & ", " & integer'image(index) & ")";
+    constant key : string := eval_string("__vunit__.dict_key" & entry, session);
+    constant item : string := "__vunit__.dict_item" & entry;
+    variable ptr : integer_vector_ptr_t;
+    variable arr : integer_array_t;
+    variable nested : dict_t;
+  begin
+    case kind is
+      when p_kind_integer => set_integer(dict, key, eval_integer(item, session));
+      when p_kind_real => set_real(dict, key, eval_real(item, session));
+      when p_kind_boolean => set_boolean(dict, key, eval_boolean(item, session));
+      when p_kind_string => set_string(dict, key, eval_string(item, session));
+      when p_kind_integer_vector =>
+        ptr := eval_integer_vector_ptr(item, session);
+        set_integer_vector_ptr_t_ref(dict, key, ptr);
+      when p_kind_integer_array =>
+        arr := eval_integer_array(item, session);
+        set_integer_array_t_ref(dict, key, arr);
+      when others =>
+        -- A nested dict, whose result is its handle
+        if p_eval(item, p_kind_dict, -1, p_eval_operation(item, session), session) then
+          nested := p_to_dict(p_result_integer, session);
+          set_dict_t_ref(dict, key, nested);
+        end if;
+    end case;
+  end;
+
+  impure function p_to_dict(handle : integer; session : python_session_t) return dict_t is
+    constant kinds : integer_vector := eval_integer_vector(
+      "__vunit__.dict_kinds(" & integer'image(handle) & ")", session
+    );
+    constant result : dict_t := new_dict;
+  begin
+    for idx in kinds'range loop
+      p_add_dict_item(result, handle, idx - kinds'low, kinds(idx), session);
     end loop;
     return result;
   end;
@@ -1061,6 +1178,16 @@ package body python_pkg is
       return p_result_integer_array;
     end if;
     return null_integer_array;
+  end;
+
+  impure function eval_dict(
+    expr : string; session : python_session_t := default_session
+  ) return dict_t is
+  begin
+    if p_eval(expr, p_kind_dict, -1, p_eval_operation(expr, session), session) then
+      return p_to_dict(p_result_integer, session);
+    end if;
+    return new_dict;
   end;
 
   procedure eval_std_ulogic_vector(
@@ -1219,6 +1346,16 @@ package body python_pkg is
   ) return integer_array_t is
   begin
     return eval_integer_array(
+      to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
+    );
+  end;
+
+  impure function call_dict(
+    identifier : string; arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10 : arg_t := null_arg;
+    session : python_session_t := default_session
+  ) return dict_t is
+  begin
+    return eval_dict(
       to_call_str(identifier, arg1, arg2, arg3, arg4, arg5, arg6, arg7, arg8, arg9, arg10), session
     );
   end;

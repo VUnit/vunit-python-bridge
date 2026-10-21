@@ -12,9 +12,7 @@ generated parts of python_pkg are the argument value types of call, the result
 types of eval and call and the execution of Python files. Those of
 python_object_pkg are the call and eval overloads of a python_object_t, from the
 same result tables. They are mostly one overload per type, which is why they are
-generated. The operations that are implemented by the Python bridge (NVC, GHDL
-and Questa) are built on the p_ prefixed primitives of python_ffi_pkg, which the
-VHPI variant of that package implements by reporting a failure.
+generated. They are built on the p_ prefixed primitives of python_ffi_pkg.
 """
 
 from pathlib import Path
@@ -42,9 +40,8 @@ ARG_SIGNATURE = ", ".join(["string"] + ["arg_t"] * len(ARGS) + ["python_session_
 #         name of the operation to report the value it cannot convert
 # suffix: appended to the arg and kwarg names, empty for an overload
 #
-# The integer_array_t value is transferred by the Python bridge, which makes it
-# available for NVC, GHDL and Questa only. The other values are built from the
-# Python source text of the value alone and work on any simulator.
+# The integer_array_t value is transferred by the Python bridge. The other
+# values are built from the Python source text of the value alone.
 #
 # The unsigned and signed values are passed to typed names, arg_unsigned and
 # arg_signed, on purpose: plain overloads would make a string literal
@@ -59,6 +56,7 @@ ARG_VALUES = [
     dict(vhdl="unsigned", impure=True, fails=True, suffix="_unsigned"),
     dict(vhdl="signed", impure=True, fails=True, suffix="_signed"),
     dict(vhdl="integer_array_t", impure=True, fails=True, suffix=""),
+    dict(vhdl="dict_t", impure=True, fails=True, suffix=""),
 ]
 
 # Result types of eval and call.
@@ -168,6 +166,17 @@ RESULTS = [
         # No eval alias: length(eval(...)) would otherwise be ambiguous between
         # the integer_array_t and integer_vector_ptr_t results. Use eval_integer_array.
         alias_eval=False,
+    ),
+    dict(
+        name="dict",
+        vhdl="dict_t",
+        kind="p_kind_dict",
+        value="p_to_dict(p_result_integer, session)",
+        # python_object_pkg converts the result in the session of the object
+        object_value="p_to_dict(p_result_integer, get_session(object))",
+        default="new_dict",
+        hand_written_eval=False,
+        hand_written_call=False,
     ),
 ]
 
@@ -552,7 +561,7 @@ def object_subprograms():
       to_call_str("obj." & method, {ARG_ACTUALS}),
       {result['kind']}, -1, p_call_operation(method), get_session(object)
     ) then
-      return {result['value']};
+      return {result.get('object_value', result['value'])};
     end if;
     return {result['default']};
   end;

@@ -4,22 +4,15 @@
 --
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
--- The foreign language interface of the Python package for NVC and GHDL,
--- implemented with the VUnit Python bridge (src/vunit_python_bridge). It provides
--- the same subprograms as the FLI and VHPI variants but over the private
--- python_bridge_pkg, which the setup function of the package generates.
---
--- Deviations from the other variants:
---   * The subprograms are impure since they call impure foreign subprograms.
---   * Errors are reported as failures on the logger of the session they were
---     performed in rather than aborting the simulation directly, which makes
---     them observable from VHDL.
---   * Sessions other than the default one are supported.
+-- The foreign language interface of the Python package for every simulator,
+-- implemented with the VUnit Python bridge (src/vunit_python_bridge) over the
+-- private python_bridge_pkg, which the setup function of the package generates.
+-- The subprograms are impure since they call impure foreign subprograms. Errors
+-- are reported as failures on the logger of the session they were performed in,
+-- which makes them observable from VHDL.
 --
 -- The p_ prefixed declarations are the private primitives the bridge
--- operations of python_pkg are built on. They are not part of the API. The FLI and VHPI
--- variants of this package declare the same primitives and implement them by
--- reporting a failure.
+-- operations of python_pkg are built on. They are not part of the API.
 
 library vunit_lib;
 use vunit_lib.dict_pkg.all;
@@ -127,6 +120,7 @@ package python_ffi_pkg is
   constant p_kind_integer_array : integer := 8;
   constant p_kind_integer_vector : integer := 9;
   constant p_kind_real_vector : integer := 10;
+  constant p_kind_dict : integer := 11;
 
   -- Names of the operations, used in the error messages
   impure function p_exec_operation(session : python_session_t := default_session) return string;

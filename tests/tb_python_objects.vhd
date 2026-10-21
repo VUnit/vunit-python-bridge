@@ -41,6 +41,7 @@ begin
     variable std_cfg, other_std_cfg : std_cfg_t;
     variable byte : unsigned(7 downto 0);
     variable bits : std_ulogic_vector(7 downto 0);
+    variable state : dict_t;
   begin
     test_runner_setup(runner, runner_cfg);
 
@@ -69,6 +70,13 @@ begin
         check(call_integer_vector(object, "history") = (0, 1, 2, 3, 4, 5, 6));
         check_equal(length(call_integer_array(object, "history")), 7);
         check_true(eval_boolean(object, "obj.count == 6"));
+        state := call_dict(object, "state");
+        check_equal(get_integer(state, "count"), 6);
+        check_equal(get_integer(state, "step"), 1);
+        deallocate(state);
+        state := eval_dict(object, "{'twice': obj.count * 2}");
+        check_equal(get_integer(state, "twice"), 12);
+        deallocate(state);
         -- The eval procedures of an object
         eval_unsigned(object, "obj.count + 1", byte);
         check(byte = 7, "eval_unsigned");

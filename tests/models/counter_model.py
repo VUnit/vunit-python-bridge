@@ -28,5 +28,8 @@ class Counter:
     def ratio(self):
         return self.count / 4
 
+    def state(self):
+        return {"count": self.count, "step": self.step}
+
     def name(self):
         return "counter"

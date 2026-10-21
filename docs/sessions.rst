@@ -65,9 +65,6 @@ included:
 
     mock(golden_logger, failure);
 
-On Riviera-PRO/Active-HDL (VHPI), only the default session is supported:
-passing any other session fails with a clear error.
-
 .. _python_bridge:instance_sessions:
 
 Independent models of component instances
@@ -134,8 +131,7 @@ session, keeping the mutable model state on ``self`` rather than in globals:
     y <= call("model.accumulate", arg(x), session => session);
 
 The module, and so the class, is shared by all sessions (see the caveats
-below), while every session has a ``model`` object of its own. Like all
-non-default sessions, this needs the Python bridge: NVC, GHDL or Questa.
+below), while every session has a ``model`` object of its own.
 :ref:`Python objects <python_bridge:objects>` package this pattern: an object
 is an instance of a class in a session of its own, with no module loading or
 session handling left to the component.

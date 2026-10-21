@@ -15,13 +15,12 @@ vunit-python-bridge embeds a Python interpreter in the simulator process so that
 can execute Python code and call Python functions — a NumPy reference model, a constraint solver, a
 plot of what the design just produced — without leaving the simulation. The VHDL API,
 `python_pkg`/`python_context`, is compiled into the `python_bridge` library and is implemented for
-the selected simulator by a foreign language interface the package builds itself: a small C library
-called through VHPIDIRECT (NVC, GHDL) or the FLI (Questa/ModelSim), or a VHPI application built with
-the simulator's own compiler driver (Riviera-PRO/Active-HDL). Values cross the interface with their
+the selected simulator by a small C library the package builds itself, called through VHPIDIRECT
+(NVC, GHDL), the FLI (Questa/ModelSim) or VHPI (Riviera-PRO). Values cross the interface with their
 VHDL types: `integer`, `real`, `string`, `boolean`, `std_ulogic`, `unsigned`/`signed`, the vector
-types, and `integer_array_t` as a NumPy array. A `python_object_t` is an instance of a Python class
-owned by VHDL, for example the backend of a verification component, with a namespace of its own for
-every instance.
+types, `integer_array_t` as a NumPy array, and VUnit's `dict_t` as a Python `dict`. A
+`python_object_t` is an instance of a Python class owned by VHDL, for example the backend of a
+verification component, with a namespace of its own for every instance.
 
 ## Installation
 
@@ -76,11 +75,11 @@ check(call_integer_vector("gain", arg(integer_vector'(1, 2))) = integer_vector'(
 | NVC | VHPIDIRECT | Tested on Linux, macOS and Windows |
 | GHDL (mcode, llvm-jit, llvm, gcc) | VHPIDIRECT | Tested on Linux, macOS and Windows |
 | Questa/ModelSim | FLI | Tested manually on Linux; the Windows build is untested |
-| Riviera-PRO, Active-HDL | VHPI | Untested; a subset of the API, see the documentation |
+| Riviera-PRO | VHPI | Tested manually on Linux and Windows |
 
 ## Requirements
 
-- VUnit 5.0.0.dev12 or later (`vunit_hdl` on PyPI), which pip installs with the package.
+- VUnit 5.0.0.dev15 or later (`vunit_hdl` on PyPI), which pip installs with the package.
 - VHDL-2008 or later.
 - CPython 3.10 or later, standard (GIL) build, with a shared `libpython` (`--enable-shared`), which
   is what distribution Pythons, `actions/setup-python`, `uv`, `pyenv` and conda-forge provide by default.
