@@ -191,9 +191,11 @@ def check_windows_64bit_simulator(simulator_name: str, simulator_prefix: Optiona
     _check_windows_python()
     if simulator_prefix is None:
         return
-    # NVC and GHDL name their executable, which VUnit lets the NVC and GHDL environment variables
-    # override, the Questa/ModelSim and Aldec interfaces use vsim
-    name = os.environ.get(simulator_name.upper(), simulator_name) if simulator_name in ("nvc", "ghdl") else "vsim"
+    # NVC, GHDL and yavs name their executable, which their VUnit interfaces let the NVC, GHDL and YAVS
+    # environment variables override, the Questa/ModelSim and Aldec interfaces use vsim
+    name = "vsim"
+    if simulator_name in ("nvc", "ghdl", "yavs"):
+        name = os.environ.get(simulator_name.upper(), simulator_name)
     executable = Path(simulator_prefix) / (name if name.lower().endswith(".exe") else f"{name}.exe")
     machine = pe_machine(executable)
     if machine is not None and machine != _PE_MACHINE_X64:

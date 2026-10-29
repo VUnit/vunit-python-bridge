@@ -34,7 +34,7 @@ CONFIG_FILE_NAME = "vunit_python_bridge.cfg"
 # The simulators the bridge serves, reaching it through VHPIDIRECT, the FLI and VHPI.
 FLI_SIMULATORS = ("modelsim",)
 VHPI_SIMULATORS = ("rivierapro",)
-BRIDGE_SIMULATORS = ("nvc", "ghdl") + FLI_SIMULATORS + VHPI_SIMULATORS
+BRIDGE_SIMULATORS = ("nvc", "ghdl", "yavs") + FLI_SIMULATORS + VHPI_SIMULATORS
 
 # GHDL backends that link the design ahead of time. For these the library
 # token in the VHPIDIRECT attribute is passed to the linker instead of being
@@ -77,7 +77,7 @@ def setup(
     """
     if simulator_name is not None and simulator_name not in BRIDGE_SIMULATORS:
         raise PythonBridgeError(
-            f"The vunit-python-bridge package requires NVC, GHDL, Questa/ModelSim or Riviera-PRO, "
+            f"The vunit-python-bridge package requires NVC, GHDL, yavs, Questa/ModelSim or Riviera-PRO, "
             f"it is not supported for {simulator_name}"
         )
 
@@ -105,7 +105,7 @@ def setup(
     # and the library, by absolute path since Questa accepts it, for the FLI; the library by
     # absolute path without its suffix, which Riviera-PRO adds, and the entry point registered
     # by native/vhpi.c for VHPI; the VHPIDIRECT library token and the entry point itself for
-    # NVC and GHDL.
+    # NVC, GHDL and yavs.
     if is_fli:
         foreign = f"fli_{{entry_point}} {library_file!s}"
     elif is_vhpi:

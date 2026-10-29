@@ -16,7 +16,7 @@ can execute Python code and call Python functions — a NumPy reference model, a
 plot of what the design just produced — without leaving the simulation. The VHDL API,
 `python_pkg`/`python_context`, is compiled into the `python_bridge` library and is implemented for
 the selected simulator by a small C library the package builds itself, called through VHPIDIRECT
-(NVC, GHDL), the FLI (Questa/ModelSim) or VHPI (Riviera-PRO). Values cross the interface with their
+(NVC, GHDL, yavs), the FLI (Questa/ModelSim) or VHPI (Riviera-PRO). Values cross the interface with their
 VHDL types: `integer`, `real`, `string`, `boolean`, `std_ulogic`, `unsigned`/`signed`, the vector
 types, `integer_array_t` as a NumPy array, and VUnit's `dict_t` as a Python `dict`. A
 `python_object_t` is an instance of a Python class owned by VHDL, for example the backend of a
@@ -74,6 +74,7 @@ check(call_integer_vector("gain", arg(integer_vector'(1, 2))) = integer_vector'(
 | --- | --- | --- |
 | NVC | VHPIDIRECT | Tested on Linux, macOS and Windows |
 | GHDL (mcode, llvm-jit, llvm, gcc) | VHPIDIRECT | Tested on Linux, macOS and Windows |
+| yavs | VHPIDIRECT | Tested manually on Linux |
 | Questa/ModelSim | FLI | Tested manually on Linux; the Windows build is untested |
 | Riviera-PRO | VHPI | Tested manually on Linux and Windows |
 

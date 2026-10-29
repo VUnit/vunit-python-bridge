@@ -8,7 +8,7 @@
 --
 -- This file is a template. The setup function of the package substitutes every
 -- {foreign:<entry point>} placeholder with the foreign attribute string of the
--- selected simulator -- "VHPIDIRECT <library> <entry point>" for NVC and GHDL,
+-- selected simulator -- "VHPIDIRECT <library> <entry point>" for NVC, GHDL and yavs,
 -- "fli_<entry point> <library>" for the FLI of Questa/ModelSim -- and adds the
 -- result to the python_bridge library, together with a generated package body
 -- whose subprograms are never executed. The public API is

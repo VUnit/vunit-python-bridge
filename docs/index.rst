@@ -58,6 +58,7 @@ Simulator                          Interface   Status
 =================================  ==========  ========================================================
 NVC                                VHPIDIRECT  Tested on Linux, macOS and Windows
 GHDL (mcode, llvm-jit, llvm, gcc)  VHPIDIRECT  Tested on Linux, macOS and Windows
+yavs                               VHPIDIRECT  Tested manually on Linux
 Questa/ModelSim                    FLI         Tested manually on Linux; the Windows build is untested
 Riviera-PRO                        VHPI        Tested manually on Linux and Windows
 =================================  ==========  ========================================================
