@@ -31,10 +31,23 @@ VHDL_SOURCE_PATH = PACKAGE_PATH / "hdl" / "src"
 BRIDGE_PACKAGE_TEMPLATE = VHDL_SOURCE_PATH / "python_bridge_pkg.vhd.in"
 CONFIG_FILE_NAME = "vunit_python_bridge.cfg"
 
-# The simulators the bridge serves, reaching it through VHPIDIRECT, the FLI and VHPI.
-FLI_SIMULATORS = ("modelsim",)
-VHPI_SIMULATORS = ("rivierapro",)
-BRIDGE_SIMULATORS = ("nvc", "ghdl") + FLI_SIMULATORS + VHPI_SIMULATORS
+# The foreign language interface of each built-in VUnit simulator. VHPIDIRECT names the library
+# by file name and the simulator hooks make the simulator load it, which GHDL does in its own way.
+FOREIGN_LANGUAGE_INTERFACES = {
+    "nvc": "VHPIDIRECT",
+    "ghdl": "VHPIDIRECT_GHDL",
+    "modelsim": "FLI",
+    "rivierapro": "VHPI",
+}
+
+# The simulators of the table, named as a user knows them
+SUPPORTED_SIMULATORS = "NVC, GHDL, Questa/ModelSim or Riviera-PRO"
+
+# What the interface class of a simulator from a VUnit package defines instead, see
+# docs/simulator_packages.rst
+INTERFACE_ATTRIBUTE = "foreign_language_interface"
+HOOKS_ATTRIBUTE = "native_library_hooks"
+PACKAGE_INTERFACES = ("VHPIDIRECT", "FLI", "VHPI")
 
 # GHDL backends that link the design ahead of time. For these the library
 # token in the VHPIDIRECT attribute is passed to the linker instead of being
@@ -63,6 +76,7 @@ def setup(
     simulator_name: Optional[str] = None,
     simulator_prefix: Optional[str] = None,
     simulator_backend: Optional[str] = None,
+    interface: Optional[str] = None,
 ) -> PythonBridge:
     """
     Prepare the Python bridge for a project. Called by the package setup function.
@@ -73,19 +87,23 @@ def setup(
     :param simulator_prefix: The path its executables were found in.
     :param simulator_backend: How the installation found there was built, which for GHDL
                               is the code generator deciding how the library is bound.
+    :param interface: The foreign language interface, see foreign_language_interface. None takes it
+                      from the table of built-in simulators by name.
     :returns: The bridge. Its vhdl_files are to be added to the package library.
     """
-    if simulator_name is not None and simulator_name not in BRIDGE_SIMULATORS:
-        raise PythonBridgeError(
-            f"The vunit-python-bridge package requires NVC, GHDL, Questa/ModelSim or Riviera-PRO, "
-            f"it is not supported for {simulator_name}"
-        )
+    if interface is None and simulator_name is not None:
+        interface = FOREIGN_LANGUAGE_INTERFACES.get(simulator_name)
+        if interface is None:
+            raise PythonBridgeError(
+                f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, "
+                f"it is not supported for {simulator_name}"
+            )
 
     check_python_build()
     check_windows_64bit_simulator(simulator_name, simulator_prefix)
 
-    is_fli = simulator_name in FLI_SIMULATORS
-    is_vhpi = simulator_name in VHPI_SIMULATORS
+    is_fli = interface == "FLI"
+    is_vhpi = interface == "VHPI"
     if (is_fli or is_vhpi) and simulator_prefix is None:
         raise PythonBridgeError(
             f"The {'FLI' if is_fli else 'VHPI'} variant of the bridge is built against the {simulator_name} "
@@ -105,13 +123,13 @@ def setup(
     # and the library, by absolute path since Questa accepts it, for the FLI; the library by
     # absolute path without its suffix, which Riviera-PRO adds, and the entry point registered
     # by native/vhpi.c for VHPI; the VHPIDIRECT library token and the entry point itself for
-    # NVC and GHDL.
+    # VHPIDIRECT.
     if is_fli:
         foreign = f"fli_{{entry_point}} {library_file!s}"
     elif is_vhpi:
         foreign = f"VHPI {_vhpi_library_token(library_file)} {{entry_point}}"
     else:
-        foreign = f"VHPIDIRECT {_vhpidirect_token(simulator_name, simulator_backend, library_file)} {{entry_point}}"
+        foreign = f"VHPIDIRECT {_vhpidirect_token(interface, simulator_backend, library_file)} {{entry_point}}"
     bridge_package = root / "vhdl" / "python_bridge_pkg.vhd"
     _write_if_changed(bridge_package, _render_bridge_package(foreign))
 
@@ -123,6 +141,42 @@ def setup(
             VHDL_SOURCE_PATH / "python_ffi_pkg_bridge.vhd",
         ],
     )
+
+
+def foreign_language_interface(simulator_class) -> str:
+    """
+    The foreign language interface serving the selected simulator: the one its interface class
+    names in foreign_language_interface, or else the one of the built-in simulator of its name.
+    """
+    name = simulator_class.name
+    interface = getattr(simulator_class, INTERFACE_ATTRIBUTE, None)
+    hooks = getattr(simulator_class, HOOKS_ATTRIBUTE, None)
+    if interface is None and hooks is None:
+        if name in FOREIGN_LANGUAGE_INTERFACES:
+            return FOREIGN_LANGUAGE_INTERFACES[name]
+        raise PythonBridgeError(
+            f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, or a simulator whose interface "
+            f"class says how it loads a native library, which {name} does not. Its simulator interface class must "
+            f"define {INTERFACE_ATTRIBUTE} ({', '.join(map(repr, PACKAGE_INTERFACES))}) and "
+            f"{HOOKS_ATTRIBUTE}(library_file), see 'Simulator packages' in the vunit-python-bridge documentation."
+        )
+    for defined, missing in ((INTERFACE_ATTRIBUTE, HOOKS_ATTRIBUTE), (HOOKS_ATTRIBUTE, INTERFACE_ATTRIBUTE)):
+        if getattr(simulator_class, missing, None) is None:
+            raise PythonBridgeError(
+                f"The {name} simulator interface defines {defined} but not {missing}, "
+                "the vunit-python-bridge package needs both. Define it in the simulator interface class."
+            )
+    if interface not in PACKAGE_INTERFACES:
+        raise PythonBridgeError(
+            f"{INTERFACE_ATTRIBUTE} of the {name} simulator interface is {interface!r}, "
+            f"the vunit-python-bridge package knows {', '.join(map(repr, PACKAGE_INTERFACES))}"
+        )
+    if not callable(hooks):
+        raise PythonBridgeError(
+            f"{HOOKS_ATTRIBUTE} of the {name} simulator interface is not callable, it must be a static or "
+            "class method taking the library file"
+        )
+    return interface
 
 
 def _prepare_library(simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:
@@ -141,12 +195,12 @@ def _prepare_library(simulator_prefix: Optional[Path], front_end: Optional[str])
         ) from exc
 
 
-def _vhpidirect_token(simulator_name, simulator_backend: Optional[str], library_file: Path) -> str:
+def _vhpidirect_token(interface: Optional[str], simulator_backend: Optional[str], library_file: Path) -> str:
     """
     The library token of the VHPIDIRECT attributes: the file name the simulator dlopen()s,
     or the linker flag of the GHDL backends that link the design ahead of time.
     """
-    if simulator_name == "ghdl" and simulator_backend in GHDL_LINKING_BACKENDS:
+    if interface == "VHPIDIRECT_GHDL" and simulator_backend in GHDL_LINKING_BACKENDS:
         return "-lvunit_python_bridge"
     return library_file.name
 

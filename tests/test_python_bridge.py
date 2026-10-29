@@ -265,24 +265,18 @@ class TestForeignLanguageInterfaces(unittest.TestCase):
 
     def test_every_supported_simulator_has_its_interface(self):
         self.assertEqual(
-            vunit_python_bridge.FOREIGN_LANGUAGE_INTERFACES,
+            bridge_setup.FOREIGN_LANGUAGE_INTERFACES,
             {
-                "nvc": "VHPIDIRECT_NVC",
+                "nvc": "VHPIDIRECT",
                 "ghdl": "VHPIDIRECT_GHDL",
                 "modelsim": "FLI",
                 "rivierapro": "VHPI",
             },
         )
 
-    def test_the_simulators_the_bridge_serves_are_the_ones_it_is_set_up_for(self):
-        # Every simulator is served by the bridge, which has to know the same simulators.
-        self.assertEqual(
-            set(vunit_python_bridge.FOREIGN_LANGUAGE_INTERFACES), set(bridge_setup.BRIDGE_SIMULATORS)
-        )
-
     def test_the_message_names_every_simulator(self):
         for simulator in ("NVC", "GHDL", "Questa/ModelSim", "Riviera-PRO"):
-            self.assertIn(simulator, vunit_python_bridge.SUPPORTED_SIMULATORS)
+            self.assertIn(simulator, bridge_setup.SUPPORTED_SIMULATORS)
 
 
 class TestPackageSetup(unittest.TestCase):
@@ -306,9 +300,7 @@ class TestPackageSetup(unittest.TestCase):
         """
         A simulator interface class as the setup function sees it, that is by name.
         """
-        simulator = mock.Mock()
-        simulator.name = name
-        return simulator
+        return types.SimpleNamespace(name=name)
 
     def _added_names(self, context):
         return {path.name for _, path in context.added_files}
@@ -319,10 +311,12 @@ class TestPackageSetup(unittest.TestCase):
 
     def test_rejects_unsupported_simulator(self):
         context = self._context(self._simulator("some_simulator"))
-        with self.assertRaisesRegex(RuntimeError, "no foreign language interface for some_simulator") as ctx:
+        with self.assertRaisesRegex(RuntimeError, "which some_simulator does not") as ctx:
             vunit_python_bridge.setup(context)
-        # The message names the simulators so a user knows what is supported.
-        self.assertIn(vunit_python_bridge.SUPPORTED_SIMULATORS, str(ctx.exception))
+        # The message names the simulators and what a simulator package has to define.
+        self.assertIn(bridge_setup.SUPPORTED_SIMULATORS, str(ctx.exception))
+        self.assertIn("foreign_language_interface", str(ctx.exception))
+        self.assertIn("native_library_hooks(library_file)", str(ctx.exception))
 
     def _fake_bridge(self):
         return bridge_setup.PythonBridge(
@@ -334,7 +328,7 @@ class TestPackageSetup(unittest.TestCase):
             ],
         )
 
-    def _check_bridge_files_added(self, simulator, backend=None):
+    def _check_bridge_files_added(self, simulator, backend=None, interface=None):
         """
         The generated bridge files are added for a simulator.
         """
@@ -352,6 +346,7 @@ class TestPackageSetup(unittest.TestCase):
             simulator.name,
             context.simulator_prefix,
             context.simulator_backend,
+            bridge_setup.FOREIGN_LANGUAGE_INTERFACES[simulator.name] if interface is None else interface,
         )
 
         for expected in fake_bridge.vhdl_files:
@@ -417,6 +412,129 @@ class TestPackageSetup(unittest.TestCase):
         self.assertEqual(listing(), before)
 
 
+class _PackageSimulator:
+    """
+    The interface class of a simulator provided by a VUnit package, saying how it loads a native library.
+    """
+
+    name = "pkgsim"
+    foreign_language_interface = "VHPIDIRECT"
+
+    @staticmethod
+    def native_library_hooks(library_file):
+        return {
+            "run_flags": lambda simulator_interface: [f"--load={library_file!s}"],
+            "run_env": lambda simulator_interface, env: dict(env, PKGSIM="1"),
+        }
+
+
+def _package_simulator(**attributes):
+    """
+    A _PackageSimulator with some of its attributes replaced, None removing one.
+    """
+    return type("Simulator", (_PackageSimulator,), attributes)
+
+
+class TestSimulatorPackages(unittest.TestCase):
+    """
+    A simulator interface class from a VUnit package says how the bridge is served by
+    foreign_language_interface and native_library_hooks(library_file), instead of the table.
+    """
+
+    library_file = Path("/cache/libvunit_python_bridge.so")
+    config_file = Path("/out/python_bridge/vunit_python_bridge.cfg")
+
+    def _register(self, simulator_class):
+        context = _FakeContext(simulator_class, Path("/out"), Path("/run.py"))
+        bridge = bridge_setup.PythonBridge(self.library_file, self.config_file, [])
+        simulator_hooks.register(context, bridge)
+        return context.hooks
+
+    def test_the_interface_is_taken_from_the_simulator_class(self):
+        for interface in ("VHPIDIRECT", "FLI", "VHPI"):
+            simulator = _package_simulator(foreign_language_interface=interface)
+            self.assertEqual(bridge_setup.foreign_language_interface(simulator), interface)
+
+    def test_the_attributes_take_precedence_over_the_table(self):
+        simulator = _package_simulator(name="nvc", foreign_language_interface="FLI")
+        self.assertEqual(bridge_setup.foreign_language_interface(simulator), "FLI")
+        hooks = self._register(simulator)["nvc"]
+        # The hooks of the simulator replace the built-in ones, so the library is loaded once
+        self.assertEqual(hooks["run_flags"](mock.Mock()), [f"--load={self.library_file!s}"])
+        self.assertEqual(hooks["run_env"](mock.Mock(), {})["PKGSIM"], "1")
+
+    def test_the_built_in_simulators_are_served_by_the_table(self):
+        for name, interface in bridge_setup.FOREIGN_LANGUAGE_INTERFACES.items():
+            simulator = types.SimpleNamespace(name=name)
+            self.assertEqual(bridge_setup.foreign_language_interface(simulator), interface)
+
+    def test_the_hooks_of_the_simulator_are_registered_with_the_configuration(self):
+        hooks = self._register(_PackageSimulator)
+        self.assertEqual(sorted(hooks), ["ghdl", "modelsim", "nvc", "pkgsim"])
+        self.assertEqual(hooks["pkgsim"]["run_flags"](mock.Mock()), [f"--load={self.library_file!s}"])
+        self.assertIsNone(hooks["pkgsim"]["elab_flags"])
+        env = {"KEPT": "1"}
+        result = hooks["pkgsim"]["run_env"](mock.Mock(), env)
+        self.assertEqual(
+            result, {"KEPT": "1", "PKGSIM": "1", simulator_hooks.CONFIG_FILE_VARIABLE: str(self.config_file)}
+        )
+        self.assertEqual(env, {"KEPT": "1"})
+
+    def test_a_simulator_without_a_run_env_hook_is_told_the_configuration(self):
+        simulator = _package_simulator(native_library_hooks=staticmethod(lambda library_file: {}))
+        result = self._register(simulator)["pkgsim"]["run_env"](mock.Mock(), {"KEPT": "1"})
+        self.assertEqual(result, {"KEPT": "1", simulator_hooks.CONFIG_FILE_VARIABLE: str(self.config_file)})
+
+    def test_a_simulator_without_the_attributes_is_rejected_with_what_to_define(self):
+        with self.assertRaisesRegex(
+            RuntimeError, "which xsim does not.*define foreign_language_interface.*native_library_hooks"
+        ):
+            bridge_setup.foreign_language_interface(types.SimpleNamespace(name="xsim"))
+
+    def test_both_attributes_are_needed(self):
+        for missing in ("foreign_language_interface", "native_library_hooks"):
+            with self.assertRaisesRegex(RuntimeError, f"pkgsim simulator interface defines .* but not {missing}"):
+                bridge_setup.foreign_language_interface(_package_simulator(**{missing: None}))
+
+    def test_an_unknown_interface_is_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "foreign_language_interface of the pkgsim .* is 'VHPI_DIRECT'"):
+            bridge_setup.foreign_language_interface(_package_simulator(foreign_language_interface="VHPI_DIRECT"))
+
+    def test_hooks_that_cannot_be_called_are_rejected(self):
+        with self.assertRaisesRegex(RuntimeError, "native_library_hooks of the pkgsim .* is not callable"):
+            bridge_setup.foreign_language_interface(_package_simulator(native_library_hooks="--load"))
+
+    def test_hooks_that_are_not_a_dict_are_rejected(self):
+        simulator = _package_simulator(native_library_hooks=staticmethod(lambda library_file: ["--load"]))
+        with self.assertRaisesRegex(RuntimeError, "returned list, it must return a dict"):
+            self._register(simulator)
+
+    def test_unknown_hook_kinds_are_rejected(self):
+        simulator = _package_simulator(native_library_hooks=staticmethod(lambda library_file: {"sim_flags": list}))
+        with self.assertRaisesRegex(RuntimeError, "unknown keys sim_flags, the keys are elab_flags, run_flags"):
+            self._register(simulator)
+
+    def test_vhpidirect_names_the_library_file(self):
+        with create_tempdir() as tempdir:
+            run_script = _write_run_script(tempdir / "run.py")
+            with mock.patch("vunit_python_bridge.bridge.prepare_library", return_value=self.library_file) as prepare:
+                # A backend that GHDL links ahead of time does not matter to another simulator
+                bridge = bridge_setup.setup(tempdir / "out", run_script, "pkgsim", "/sim/bin", "llvm", "VHPIDIRECT")
+            text = bridge.vhdl_files[0].read_text(encoding="utf-8")
+        self.assertIsNone(prepare.call_args.args[1])
+        self.assertIn('"VHPIDIRECT libvunit_python_bridge.so vpy_begin"', text)
+
+    def test_the_package_setup_serves_the_simulator(self):
+        with create_tempdir() as tempdir:
+            run_script = _write_run_script(tempdir / "run.py")
+            context = _FakeContext(_PackageSimulator, tempdir / "out", run_script, "/sim/bin")
+            fake_bridge = bridge_setup.PythonBridge(self.library_file, self.config_file, [])
+            with mock.patch("vunit_python_bridge.bridge.setup", return_value=fake_bridge) as setup_mock:
+                vunit_python_bridge.setup(context)
+        self.assertEqual(setup_mock.call_args.args[2:], ("pkgsim", "/sim/bin", None, "VHPIDIRECT"))
+        self.assertEqual(context.hooks["pkgsim"]["run_flags"](mock.Mock()), [f"--load={self.library_file!s}"])
+
+
 class TestRelativeFileBase(unittest.TestCase):
     """
     set_relative_file_base() and the python_file_base_pkg generated by setup(), giving
@@ -446,9 +564,7 @@ class TestRelativeFileBase(unittest.TestCase):
         Set the package up for a simulator, with bridge.setup() stubbed,
         and return the context and the generated package.
         """
-        simulator = mock.Mock()
-        simulator.name = name
-        context = _FakeContext(simulator, self.tempdir / "out", self.run_script, "/sim/bin")
+        context = _FakeContext(types.SimpleNamespace(name=name), self.tempdir / "out", self.run_script, "/sim/bin")
         fake_bridge = bridge_setup.PythonBridge(
             library_file=Path("/fake/libvunit_python_bridge.so"),
             config_file=Path("/fake/vunit_python_bridge.cfg"),
@@ -1390,6 +1506,12 @@ class TestWindows64Bit(unittest.TestCase):
             self._write_executable(tempdir / "vsim.exe", 0x014C)
             with self.assertRaisesRegex(native_library.PythonBridgeError, "vsim.exe is 32-bit x86"):
                 self._check("modelsim", str(tempdir))
+
+    def test_the_executable_of_a_simulator_package_is_not_checked(self):
+        with create_tempdir() as tempdir:
+            for name in ("pkgsim.exe", "vsim.exe"):
+                self._write_executable(tempdir / name, 0x014C)
+            self._check("pkgsim", str(tempdir))
 
     def test_not_checked_outside_windows(self):
         with create_tempdir() as tempdir:
