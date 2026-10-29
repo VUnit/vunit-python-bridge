@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .bridge import GHDL_LINKING_BACKENDS, HOOKS_ATTRIBUTE, PythonBridge
+from .bridge import GHDL_LINKING_BACKENDS, HOOKS_ATTRIBUTE, BridgeSimulator, PythonBridge
 from .native_library import PythonBridgeError
 
 # The vsim flag keeping the runtime libraries Questa bundles out of the dynamic library
@@ -36,19 +36,19 @@ CONFIG_FILE_VARIABLE = "VUNIT_PYTHON_BRIDGE_CONFIG"
 HOOK_KINDS = ("elab_flags", "run_flags", "process_flags", "run_env")
 
 
-def register(context, bridge: PythonBridge) -> None:
+def register(context, bridge: PythonBridge, simulators: Dict[str, BridgeSimulator]) -> None:
     """
     Register the hooks of every simulator the bridge serves with the package context. The hooks
-    a selected simulator interface gives by native_library_hooks replace the built-in ones.
+    a simulator interface gives by native_library_hooks replace the built-in ones.
     """
     hooks = {
         "nvc": dict(run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge)),
         "ghdl": dict(elab_flags=_ghdl_elab_flags(bridge), run_env=_ghdl_run_env(bridge)),
         "modelsim": dict(process_flags=_modelsim_process_flags(), run_env=_config_run_env(bridge)),
     }
-    native_library_hooks = getattr(context.simulator_class, HOOKS_ATTRIBUTE, None)
-    if native_library_hooks is not None:
-        hooks[context.simulator_name] = _package_hooks(context.simulator_name, native_library_hooks, bridge)
+    for name, simulator in simulators.items():
+        if simulator.native_library_hooks is not None:
+            hooks[name] = _package_hooks(name, simulator.native_library_hooks, bridge)
     for simulator_name, kinds in hooks.items():
         context.register_simulator_hooks(simulator_name, **kinds)
     if context.simulator_name == "rivierapro":

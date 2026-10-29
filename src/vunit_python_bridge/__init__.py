@@ -15,7 +15,7 @@ language interface implementing them for the selected simulator:
 the VUnit Python bridge, a small C library (native/*.c) embedding CPython in the simulator
 process, called through VHPIDIRECT (NVC, GHDL), the FLI (Questa/ModelSim) or VHPI
 (Riviera-PRO). A simulator provided by a VUnit package names its interface itself, see
-bridge.foreign_language_interface.
+bridge.bridge_simulators.
 
 Modules:
 
@@ -50,17 +50,18 @@ def setup(context):
     foreign language interface of the selected simulator.
     """
     # pylint: disable=import-outside-toplevel
-    from .bridge import SUPPORTED_SIMULATORS, foreign_language_interface, setup as setup_bridge
+    from .bridge import bridge_simulators, select_simulator, setup as setup_bridge
     from . import simulator_hooks
 
+    simulators = bridge_simulators()
     simulator_name = context.simulator_name
     if simulator_name is None:
         raise RuntimeError(
-            f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS} but no simulator was found"
+            f"The vunit-python-bridge package requires {', '.join(simulators)} but no simulator was found"
         )
 
     # Before anything is built, so a simulator the bridge cannot serve fails first
-    interface = foreign_language_interface(context.simulator_class)
+    interface = select_simulator(simulators, simulator_name).interface
 
     add_file_base_package(context)
 
@@ -75,4 +76,4 @@ def setup(context):
 
     context.add_source_files(context.library.name, list(bridge.vhdl_files))
 
-    simulator_hooks.register(context, bridge)
+    simulator_hooks.register(context, bridge, simulators)

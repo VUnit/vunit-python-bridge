@@ -5,8 +5,9 @@ Simulator packages
 
 A simulator can be provided by a VUnit package, whose ``vunit_pkg.toml`` names
 its simulator interface class. The bridge does not list such simulators.
-Instead, the interface class says how the bridge is served, with two
-attributes the bridge reads from the selected simulator class:
+It collects them from VUnit, which knows the simulator interface classes of the
+packages added before the bridge. A class says how the bridge is served with
+two attributes:
 
 ``foreign_language_interface``
   How the simulator calls the bridge library: ``"VHPIDIRECT"``, ``"FLI"`` or
@@ -45,8 +46,9 @@ it runs a test:
        def native_library_hooks(library_file):
            return {"run_flags": lambda simulator_interface: [f"--load={library_file}"]}
 
-The attributes take precedence over what the bridge knows about the built-in
-VUnit simulators. A simulator having neither of them, and not being one of the
-built-in simulators the bridge serves, fails when the package is added, with
-an error naming the two attributes. So do an unknown interface name, only one
-of the two attributes, and hooks that are not a ``dict`` of the keys above.
+The simulators of these classes are added to the built-in ones the bridge
+serves, and take precedence over a built-in simulator of the same ``name``.
+Selecting a simulator that is not among them fails when the package is added,
+with an error naming the simulators the bridge serves and the two attributes.
+So do an unknown interface name, only one of the two attributes, and hooks
+that are not a ``dict`` of the keys above.

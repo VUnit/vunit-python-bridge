@@ -13,7 +13,9 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import List, NamedTuple, Optional
+from typing import Callable, Dict, List, NamedTuple, Optional
+
+from vunit.sim_if.factory import SIMULATOR_FACTORY
 
 from .native_library import (
     LIBRARY_DIR_VARIABLE,
@@ -40,9 +42,6 @@ BUILTIN_SIMULATORS = {
     "rivierapro": "VHPI",
 }
 
-# The simulators of the table, named as a user knows them
-SUPPORTED_SIMULATORS = "NVC, GHDL, Questa/ModelSim or Riviera-PRO"
-
 # What the interface class of a simulator from a VUnit package defines instead, see
 # docs/simulator_packages.rst
 INTERFACE_ATTRIBUTE = "foreign_language_interface"
@@ -58,6 +57,16 @@ GHDL_LINKING_BACKENDS = ("llvm", "gcc")
 FOREIGN_PATTERN = re.compile(r"\{foreign:(\w+)\}")
 # The subprogram declarations of the template, whose bodies are generated
 SUBPROGRAM_PATTERN = re.compile(r"^  (impure function|procedure) (\w+)(\([^)]*\))?( return \w+)?;", re.MULTILINE)
+
+
+class BridgeSimulator(NamedTuple):
+    """
+    How the bridge serves a simulator: its foreign language interface and, for a simulator from a
+    VUnit package, the native_library_hooks that make it load the library (None for a built-in one).
+    """
+
+    interface: str
+    native_library_hooks: Optional[Callable]
 
 
 class PythonBridge(NamedTuple):
@@ -87,17 +96,12 @@ def setup(
     :param simulator_prefix: The path its executables were found in.
     :param simulator_backend: How the installation found there was built, which for GHDL
                               is the code generator deciding how the library is bound.
-    :param interface: The foreign language interface, see foreign_language_interface. None takes it
-                      from the table of built-in simulators by name.
+    :param interface: The foreign language interface, see bridge_simulators. None takes it from
+                      there by simulator name.
     :returns: The bridge. Its vhdl_files are to be added to the package library.
     """
     if interface is None and simulator_name is not None:
-        interface = BUILTIN_SIMULATORS.get(simulator_name)
-        if interface is None:
-            raise PythonBridgeError(
-                f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, "
-                f"it is not supported for {simulator_name}"
-            )
+        interface = select_simulator(bridge_simulators(), simulator_name).interface
 
     check_python_build()
     check_windows_64bit_simulator(simulator_name, simulator_prefix)
@@ -143,25 +147,45 @@ def setup(
     )
 
 
-def foreign_language_interface(simulator_class) -> str:
+def bridge_simulators() -> Dict[str, BridgeSimulator]:
     """
-    The foreign language interface serving the selected simulator: the one its interface class
-    names in foreign_language_interface, or else the one of the built-in simulator of its name.
+    The simulators the bridge serves, by name: the built-in ones and every simulator VUnit knows,
+    from a simulator package, whose interface class defines foreign_language_interface and
+    native_library_hooks. The simulator packages are added to VUnit before the bridge.
     """
-    name = simulator_class.name
-    interface = getattr(simulator_class, INTERFACE_ATTRIBUTE, None)
-    hooks = getattr(simulator_class, HOOKS_ATTRIBUTE, None)
-    if interface is None and hooks is None:
-        if name in BUILTIN_SIMULATORS:
-            return BUILTIN_SIMULATORS[name]
+    simulators = {name: BridgeSimulator(interface, None) for name, interface in BUILTIN_SIMULATORS.items()}
+    for simulator_class in SIMULATOR_FACTORY.supported_simulators():
+        interface = getattr(simulator_class, INTERFACE_ATTRIBUTE, None)
+        hooks = getattr(simulator_class, HOOKS_ATTRIBUTE, None)
+        if interface is not None or hooks is not None:
+            _check_attributes(simulator_class.name, interface, hooks)
+            simulators[simulator_class.name] = BridgeSimulator(interface, hooks)
+    return simulators
+
+
+def select_simulator(simulators: Dict[str, BridgeSimulator], name: str) -> BridgeSimulator:
+    """
+    The simulator of the given name from bridge_simulators.
+    """
+    if name not in simulators:
         raise PythonBridgeError(
-            f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, or a simulator whose interface "
+            f"The vunit-python-bridge package requires {', '.join(simulators)}, or a simulator whose interface "
             f"class says how it loads a native library, which {name} does not. Its simulator interface class must "
             f"define {INTERFACE_ATTRIBUTE} ({', '.join(map(repr, PACKAGE_INTERFACES))}) and "
             f"{HOOKS_ATTRIBUTE}(library_file), see 'Simulator packages' in the vunit-python-bridge documentation."
         )
-    for defined, missing in ((INTERFACE_ATTRIBUTE, HOOKS_ATTRIBUTE), (HOOKS_ATTRIBUTE, INTERFACE_ATTRIBUTE)):
-        if getattr(simulator_class, missing, None) is None:
+    return simulators[name]
+
+
+def _check_attributes(name: str, interface, hooks) -> None:
+    """
+    Check the attributes a simulator interface class defines to be served by the bridge.
+    """
+    for defined, missing, value in (
+        (INTERFACE_ATTRIBUTE, HOOKS_ATTRIBUTE, hooks),
+        (HOOKS_ATTRIBUTE, INTERFACE_ATTRIBUTE, interface),
+    ):
+        if value is None:
             raise PythonBridgeError(
                 f"The {name} simulator interface defines {defined} but not {missing}, "
                 "the vunit-python-bridge package needs both. Define it in the simulator interface class."
@@ -176,7 +200,6 @@ def foreign_language_interface(simulator_class) -> str:
             f"{HOOKS_ATTRIBUTE} of the {name} simulator interface is not callable, it must be a static or "
             "class method taking the library file"
         )
-    return interface
 
 
 def _prepare_library(simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:
