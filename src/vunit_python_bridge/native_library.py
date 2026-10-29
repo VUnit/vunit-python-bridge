@@ -162,6 +162,8 @@ def _check_windows_python() -> None:
 # Machine field values of the PE (Windows executable) header
 _PE_MACHINE_X64 = 0x8664
 _PE_MACHINE_NAMES = {_PE_MACHINE_X64: "64-bit x86 (x64)", 0x014C: "32-bit x86", 0xAA64: "ARM64"}
+# The environment variables VUnit reads for the executable of NVC and GHDL
+EXECUTABLE_VARIABLES = {"nvc": "NVC", "ghdl": "GHDL"}
 
 
 def pe_machine(path: Path) -> Optional[int]:
@@ -194,8 +196,8 @@ def check_windows_64bit_simulator(simulator_name: str, simulator_prefix: Optiona
     # NVC and GHDL name their executable, which VUnit lets the NVC and GHDL environment variables
     # override, the Questa/ModelSim and Aldec interfaces use vsim. The executable of a simulator
     # from a VUnit package is not known here.
-    if simulator_name in ("nvc", "ghdl"):
-        name = os.environ.get(simulator_name.upper(), simulator_name)
+    if simulator_name in EXECUTABLE_VARIABLES:
+        name = os.environ.get(EXECUTABLE_VARIABLES[simulator_name], simulator_name)
     elif simulator_name in ("modelsim", "rivierapro"):
         name = "vsim"
     else:
