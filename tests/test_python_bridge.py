@@ -269,7 +269,6 @@ class TestForeignLanguageInterfaces(unittest.TestCase):
             {
                 "nvc": "VHPIDIRECT_NVC",
                 "ghdl": "VHPIDIRECT_GHDL",
-                "yavs": "VHPIDIRECT_NVC",
                 "modelsim": "FLI",
                 "rivierapro": "VHPI",
             },
@@ -282,7 +281,7 @@ class TestForeignLanguageInterfaces(unittest.TestCase):
         )
 
     def test_the_message_names_every_simulator(self):
-        for simulator in ("NVC", "GHDL", "yavs", "Questa/ModelSim", "Riviera-PRO"):
+        for simulator in ("NVC", "GHDL", "Questa/ModelSim", "Riviera-PRO"):
             self.assertIn(simulator, vunit_python_bridge.SUPPORTED_SIMULATORS)
 
 
@@ -362,7 +361,6 @@ class TestPackageSetup(unittest.TestCase):
     def test_vhpidirect_adds_the_bridge_files(self):
         self._check_bridge_files_added(self._simulator("nvc"))
         self._check_bridge_files_added(self._simulator("ghdl"), backend="mcode")
-        self._check_bridge_files_added(self._simulator("yavs"))
 
     def test_fli_adds_the_bridge_files(self):
         # Questa/ModelSim is served by the bridge too, through native/fli.c.
@@ -384,14 +382,13 @@ class TestPackageSetup(unittest.TestCase):
 
     def test_hooks_are_registered_for_every_simulator_the_bridge_serves(self):
         context = self._check_bridge_files_added(self._simulator("nvc"))
-        self.assertEqual(sorted(context.hooks), ["ghdl", "modelsim", "nvc", "yavs"])
+        self.assertEqual(sorted(context.hooks), ["ghdl", "modelsim", "nvc"])
         self.assertIsNotNone(context.hooks["nvc"]["run_flags"])
-        self.assertIsNotNone(context.hooks["yavs"]["run_flags"])
         self.assertIsNotNone(context.hooks["ghdl"]["elab_flags"])
         self.assertIsNotNone(context.hooks["ghdl"]["run_env"])
         self.assertIsNotNone(context.hooks["modelsim"]["process_flags"])
         # Every simulator is told where the configuration of the project is
-        for simulator in ("nvc", "ghdl", "yavs", "modelsim"):
+        for simulator in ("nvc", "ghdl", "modelsim"):
             self.assertIsNotNone(context.hooks[simulator]["run_env"], simulator)
 
     def test_bridge_setup_failure_is_reported(self):
@@ -605,7 +602,7 @@ class TestRelativeFileBase(unittest.TestCase):
         self.assertIsNone(file_base._relative_file_base)  # pylint: disable=protected-access
 
     def test_bridge_and_vhpi_add_the_package(self):
-        for name in ("nvc", "ghdl", "yavs", "modelsim", "rivierapro"):
+        for name in ("nvc", "ghdl", "modelsim", "rivierapro"):
             self._reset()
             context, package = self._setup(name)
             self.assertIn(("python_bridge", package), context.added_files, name)
@@ -652,7 +649,6 @@ class TestBridgePackageSubstitution(unittest.TestCase):
         # Only the GHDL backends linking ahead of time get the linker flag
         for simulator_name, backend, token in (
             ("nvc", None, "libvunit_python_bridge.so"),
-            ("yavs", None, "libvunit_python_bridge.so"),
             ("ghdl", "mcode", "libvunit_python_bridge.so"),
             ("ghdl", "llvm-jit", "libvunit_python_bridge.so"),
             ("ghdl", "llvm", "-lvunit_python_bridge"),
@@ -1412,7 +1408,7 @@ class TestWindows64Bit(unittest.TestCase):
 
 class TestSimulatorHooks(unittest.TestCase):
     """
-    The hooks registered with the package context: what NVC, GHDL, yavs and Questa/ModelSim
+    The hooks registered with the package context: what NVC, GHDL and Questa/ModelSim
     are given for a simulation of the project.
     """
 
@@ -1420,7 +1416,7 @@ class TestSimulatorHooks(unittest.TestCase):
 
     def test_every_simulator_is_told_where_the_configuration_is(self):
         hooks = self._hooks(Path("/some/dir/libvunit_python_bridge.so"))
-        for simulator in ("nvc", "ghdl", "yavs", "modelsim"):
+        for simulator in ("nvc", "ghdl", "modelsim"):
             env = {"KEPT": "1"}
             result = hooks[simulator]["run_env"](self._ghdl("mcode"), env)
             self.assertEqual(result[simulator_hooks.CONFIG_FILE_VARIABLE], str(self.config_file), simulator)
@@ -1461,12 +1457,6 @@ class TestSimulatorHooks(unittest.TestCase):
         self.assertEqual(hooks["nvc"]["run_flags"](mock.Mock()), [f"--load={library_file!s}"])
         # NVC dlopen()s the library itself, nothing to do at elaboration
         self.assertIsNone(hooks["nvc"]["elab_flags"])
-
-    def test_yavs_loads_the_library_at_run_time(self):
-        library_file = Path("/some/dir/libvunit_python_bridge.so")
-        hooks = self._hooks(library_file)
-        self.assertEqual(hooks["yavs"]["run_flags"](mock.Mock()), [f"--load={library_file!s}"])
-        self.assertIsNone(hooks["yavs"]["elab_flags"])
 
     def test_ghdl_elab_flags_empty_for_mcode_and_jit(self):
         hooks = self._hooks(Path("/some/dir/libvunit_python_bridge.so"))

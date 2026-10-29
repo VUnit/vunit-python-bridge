@@ -3,7 +3,7 @@ Requirements
 
 * A VUnit with support for packages and simulator hooks, see the `README
   <https://github.com/VUnit/vunit-python-bridge#readme>`__.
-* NVC, GHDL, yavs, Questa/ModelSim or Riviera-PRO, see :ref:`python_bridge:native`.
+* NVC, GHDL, Questa/ModelSim or Riviera-PRO, see :ref:`python_bridge:native`.
   Any other simulator raises a ``RuntimeError``.
 * VHDL-2008 or later.
 * CPython 3.10 or later with the standard (GIL) build. Free-threaded builds

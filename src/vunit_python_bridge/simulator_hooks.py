@@ -37,7 +37,6 @@ def register(context, bridge: PythonBridge) -> None:
     Register the hooks of every simulator the bridge serves with the package context.
     """
     context.register_simulator_hooks("nvc", run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge))
-    context.register_simulator_hooks("yavs", run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge))
     context.register_simulator_hooks(
         "ghdl",
         elab_flags=_ghdl_elab_flags(bridge),
@@ -67,7 +66,7 @@ def _config_run_env(bridge: PythonBridge):
 
 def _nvc_run_flags(bridge: PythonBridge):
     """
-    NVC run (-r) and yavs run flags loading the bridge.
+    NVC run (-r) flags loading the bridge.
     """
 
     def hook(simulator_interface) -> List[str]:  # pylint: disable=unused-argument

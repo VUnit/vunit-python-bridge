@@ -6,7 +6,7 @@ How it works
 The interpreter is embedded in the simulator process by a small C library, the
 VUnit Python bridge (`src/vunit_python_bridge/native
 <https://github.com/VUnit/vunit-python-bridge/tree/main/src/vunit_python_bridge/native>`__).
-NVC, GHDL and yavs call it through VHPIDIRECT; Questa/ModelSim calls it through the
+NVC and GHDL call it through VHPIDIRECT; Questa/ModelSim calls it through the
 FLI, using the front end in `native/fli.c
 <https://github.com/VUnit/vunit-python-bridge/blob/main/src/vunit_python_bridge/native/fli.c>`__
 that converts the FLI parameters of one foreign subprogram per entry point.
@@ -75,7 +75,7 @@ requires the ``PyConfig`` initialization API, which is not part of the
 limited API.
 
 The package registers simulator hooks that make the simulator find the
-library automatically. NVC and yavs are given a ``--load`` option. GHDL gets the library
+library automatically. NVC is given a ``--load`` option. GHDL gets the library
 directory in its dynamic library search path, plus a linker search path and an
 rpath for the ahead-of-time compiled llvm and gcc backends, which the hook recognizes
 from the ``backend`` of the GHDL interface it is called with.
@@ -100,15 +100,6 @@ starts, so it has to go on the command line of the process rather than on the
 ``vsim`` listing it in ``vsim -help all``. No simulator options need to be set
 by the user.
 
-yavs is provided by the ``vunit-yavs`` package, which the run script adds before
-the VUnit builtins, ``vu.add_package("vunit-yavs", allow_setup=True)``, so that
-``VUNIT_SIMULATOR=yavs`` can be selected. The bridge takes the characters of a
-VHDL string as UTF-8 bytes, which is what NVC and GHDL make of a UTF-8 source
-file, one character per byte. yavs reads it as one character per code point
-by default, so a non-ASCII character of a string literal fails in Python unless
-the sources are analyzed and run with ``--encoding=latin1``, for example with
-the ``yavs.global_flags`` compile and simulation options.
-
 The VHPI attributes generated for Riviera-PRO name the library by
 absolute path without its suffix, which the simulator adds. The attribute
 separates its parts by spaces, so the setup fails, asking for
@@ -129,7 +120,6 @@ GHDL llvm                  6.0.0, 7.0.0-dev
 GHDL gcc                   6.0.0, 7.0.0-dev
 Questa (FLI)               Altera Starter FPGA Edition 2025.3
 Riviera-PRO (VHPI)         2026.04
-yavs                       0.10.0, tested manually
 ========================== ========================================================
 
 On Windows, CI tests NVC 1.22 and GHDL mcode (nightly) with Python 3.10, 3.12,
