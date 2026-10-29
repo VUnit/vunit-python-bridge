@@ -50,10 +50,3 @@ VUnit simulators. A simulator having neither of them, and not being one of the
 built-in simulators the bridge serves, fails when the package is added, with
 an error naming the two attributes. So do an unknown interface name, only one
 of the two attributes, and hooks that are not a ``dict`` of the keys above.
-
-The bridge passes a VHDL string to Python as UTF-8 bytes, one character per
-byte, which is what NVC and GHDL make of a UTF-8 source file. A simulator that
-reads a source as one character per code point needs an option to read it as
-bytes (Latin-1) for non-ASCII string literals to reach Python unchanged.
-
-yavs is a simulator served this way, by its package ``vunit-yavs``.
