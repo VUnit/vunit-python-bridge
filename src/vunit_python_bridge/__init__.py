@@ -53,8 +53,8 @@ def setup(context):
     from .bridge import bridge_simulators, select_simulator, setup as setup_bridge
     from . import simulator_hooks
 
-    simulators = bridge_simulators()
     simulator_name = context.simulator_name
+    simulators = bridge_simulators(simulator_name)
     if simulator_name is None:
         raise RuntimeError(
             f"The vunit-python-bridge package requires {', '.join(simulators)} but no simulator was found"

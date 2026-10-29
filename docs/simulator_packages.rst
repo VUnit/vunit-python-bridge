@@ -48,7 +48,9 @@ it runs a test:
 
 The simulators of these classes are added to the built-in ones the bridge
 serves, and take precedence over a built-in simulator of the same ``name``.
-Selecting a simulator that is not among them fails when the package is added,
-with an error naming the simulators the bridge serves and the two attributes.
-So do an unknown interface name, only one of the two attributes, and hooks
-that are not a ``dict`` of the keys above.
+Only the selected simulator is checked and has its hooks called. Selecting a
+simulator that is not among them fails when the package is added, with an
+error naming the simulators the bridge serves and the two attributes. So do
+an unknown interface name, only one of the two attributes, and hooks that are
+not a ``dict`` of the keys above. A class defining only one of the attributes
+is ignored when another simulator is selected.

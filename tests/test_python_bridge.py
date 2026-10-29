@@ -446,13 +446,13 @@ def _factory(*simulator_classes):
     return types.SimpleNamespace(supported_simulators=lambda: list(simulator_classes))
 
 
-def _simulators(*simulator_classes):
+def _simulators(*simulator_classes, selected=None):
     """
     The simulators the bridge serves when VUnit knows the given simulator classes, the built-in
     VUnit simulators left out.
     """
     with mock.patch.object(bridge_setup, "SIMULATOR_FACTORY", _factory(*simulator_classes)):
-        return bridge_setup.bridge_simulators()
+        return bridge_setup.bridge_simulators(selected)
 
 
 class TestSimulatorPackages(unittest.TestCase):
@@ -464,10 +464,14 @@ class TestSimulatorPackages(unittest.TestCase):
     library_file = Path("/cache/libvunit_python_bridge.so")
     config_file = Path("/out/python_bridge/vunit_python_bridge.cfg")
 
-    def _register(self, *simulator_classes):
-        context = _FakeContext(None, Path("/out"), Path("/run.py"))
+    def _register(self, simulator_class, *other_classes):
+        """
+        The hooks registered with simulator_class selected.
+        """
+        context = _FakeContext(simulator_class, Path("/out"), Path("/run.py"))
         bridge = bridge_setup.PythonBridge(self.library_file, self.config_file, [])
-        simulator_hooks.register(context, bridge, _simulators(*simulator_classes))
+        simulators = _simulators(simulator_class, *other_classes, selected=simulator_class.name)
+        simulator_hooks.register(context, bridge, simulators)
         return context.hooks
 
     def test_the_simulators_are_collected_from_vunit(self):
@@ -489,12 +493,12 @@ class TestSimulatorPackages(unittest.TestCase):
 
     def test_the_interface_is_taken_from_the_simulator_class(self):
         for interface in ("VHPIDIRECT", "FLI", "VHPI"):
-            simulators = _simulators(_package_simulator(foreign_language_interface=interface))
+            simulators = _simulators(_package_simulator(foreign_language_interface=interface), selected="pkgsim")
             self.assertEqual(bridge_setup.select_simulator(simulators, "pkgsim").interface, interface)
 
     def test_the_simulator_class_takes_precedence_over_the_built_in_simulator(self):
         simulator = _package_simulator(name="nvc", foreign_language_interface="FLI")
-        self.assertEqual(_simulators(simulator)["nvc"].interface, "FLI")
+        self.assertEqual(_simulators(simulator, selected="nvc")["nvc"].interface, "FLI")
         hooks = self._register(simulator)["nvc"]
         # The hooks of the simulator replace the built-in ones, so the library is loaded once
         self.assertEqual(hooks["run_flags"](mock.Mock()), [f"--load={self.library_file!s}"])
@@ -529,15 +533,32 @@ class TestSimulatorPackages(unittest.TestCase):
     def test_both_attributes_are_needed(self):
         for missing in ("foreign_language_interface", "native_library_hooks"):
             with self.assertRaisesRegex(RuntimeError, f"pkgsim simulator interface defines .* but not {missing}"):
-                _simulators(_package_simulator(**{missing: None}))
+                _simulators(_package_simulator(**{missing: None}), selected="pkgsim")
+
+    def test_a_simulator_that_is_not_selected_is_not_checked(self):
+        broken = (
+            _package_simulator(name="half", native_library_hooks=None),
+            _package_simulator(name="unknown", foreign_language_interface="VHPI_DIRECT"),
+            _package_simulator(name="uncallable", native_library_hooks="--load"),
+        )
+        simulators = _simulators(*broken, selected="nvc")
+        self.assertNotIn("half", simulators)
+        # Only the hooks of the selected simulator are called
+        called = []
+        counting = _package_simulator(
+            name="counting", native_library_hooks=staticmethod(lambda library_file: called.append(1) or {})
+        )
+        hooks = self._register(_PackageSimulator, counting, *broken)
+        self.assertEqual(sorted(hooks), ["ghdl", "modelsim", "nvc", "pkgsim"])
+        self.assertEqual(called, [])
 
     def test_an_unknown_interface_is_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "foreign_language_interface of the pkgsim .* is 'VHPI_DIRECT'"):
-            _simulators(_package_simulator(foreign_language_interface="VHPI_DIRECT"))
+            _simulators(_package_simulator(foreign_language_interface="VHPI_DIRECT"), selected="pkgsim")
 
     def test_hooks_that_cannot_be_called_are_rejected(self):
         with self.assertRaisesRegex(RuntimeError, "native_library_hooks of the pkgsim .* is not callable"):
-            _simulators(_package_simulator(native_library_hooks="--load"))
+            _simulators(_package_simulator(native_library_hooks="--load"), selected="pkgsim")
 
     def test_hooks_that_are_not_a_dict_are_rejected(self):
         simulator = _package_simulator(native_library_hooks=staticmethod(lambda library_file: ["--load"]))

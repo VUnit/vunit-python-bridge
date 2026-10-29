@@ -101,7 +101,7 @@ def setup(
     :returns: The bridge. Its vhdl_files are to be added to the package library.
     """
     if interface is None and simulator_name is not None:
-        interface = select_simulator(bridge_simulators(), simulator_name).interface
+        interface = select_simulator(bridge_simulators(simulator_name), simulator_name).interface
 
     check_python_build()
     check_windows_64bit_simulator(simulator_name, simulator_prefix)
@@ -147,19 +147,25 @@ def setup(
     )
 
 
-def bridge_simulators() -> Dict[str, BridgeSimulator]:
+def bridge_simulators(selected: Optional[str] = None) -> Dict[str, BridgeSimulator]:
     """
     The simulators the bridge serves, by name: the built-in ones and every simulator VUnit knows,
     from a simulator package, whose interface class defines foreign_language_interface and
-    native_library_hooks. The simulator packages are added to VUnit before the bridge.
+    native_library_hooks. The simulator packages are added to VUnit before the bridge. Only the
+    attributes of the selected simulator are checked, a class defining just one of them is
+    otherwise not a simulator the bridge serves.
     """
     simulators = {name: BridgeSimulator(interface, None) for name, interface in BUILTIN_SIMULATORS.items()}
     for simulator_class in SIMULATOR_FACTORY.supported_simulators():
         interface = getattr(simulator_class, INTERFACE_ATTRIBUTE, None)
         hooks = getattr(simulator_class, HOOKS_ATTRIBUTE, None)
-        if interface is not None or hooks is not None:
+        if interface is None and hooks is None:
+            continue
+        if simulator_class.name == selected:
             _check_attributes(simulator_class.name, interface, hooks)
-            simulators[simulator_class.name] = BridgeSimulator(interface, hooks)
+        elif interface is None or hooks is None:
+            continue
+        simulators[simulator_class.name] = BridgeSimulator(interface, hooks)
     return simulators
 
 

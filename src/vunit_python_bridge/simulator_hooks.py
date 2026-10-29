@@ -38,17 +38,17 @@ HOOK_KINDS = ("elab_flags", "run_flags", "process_flags", "run_env")
 
 def register(context, bridge: PythonBridge, simulators: Dict[str, BridgeSimulator]) -> None:
     """
-    Register the hooks of every simulator the bridge serves with the package context. The hooks
-    a simulator interface gives by native_library_hooks replace the built-in ones.
+    Register the hooks of every built-in simulator with the package context. The hooks the selected
+    simulator interface gives by native_library_hooks replace the built-in ones.
     """
     hooks = {
         "nvc": dict(run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge)),
         "ghdl": dict(elab_flags=_ghdl_elab_flags(bridge), run_env=_ghdl_run_env(bridge)),
         "modelsim": dict(process_flags=_modelsim_process_flags(), run_env=_config_run_env(bridge)),
     }
-    for name, simulator in simulators.items():
-        if simulator.native_library_hooks is not None:
-            hooks[name] = _package_hooks(name, simulator.native_library_hooks, bridge)
+    selected = simulators.get(context.simulator_name)
+    if selected is not None and selected.native_library_hooks is not None:
+        hooks[context.simulator_name] = _package_hooks(context.simulator_name, selected.native_library_hooks, bridge)
     for simulator_name, kinds in hooks.items():
         context.register_simulator_hooks(simulator_name, **kinds)
     if context.simulator_name == "rivierapro":
