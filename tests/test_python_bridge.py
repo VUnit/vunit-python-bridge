@@ -474,6 +474,7 @@ class TestSimulatorPackages(unittest.TestCase):
         simulator_hooks.register(context, bridge, simulators)
         return context.hooks
 
+    @unittest.skipUnless(hasattr(SimulatorFactory, "register_simulator"), "VUnit has no simulator packages")
     def test_the_simulators_are_collected_from_vunit(self):
         # A simulator registered in a VUnit simulator factory, as a package does
         factory = SimulatorFactory()
