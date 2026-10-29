@@ -62,6 +62,9 @@ Questa/ModelSim                    FLI         Tested manually on Linux; the Win
 Riviera-PRO                        VHPI        Tested manually on Linux and Windows
 =================================  ==========  ========================================================
 
+A simulator provided by a VUnit package says how it loads the bridge itself, see
+:doc:`simulator_packages`.
+
 Getting started
 ---------------
 
@@ -131,6 +134,7 @@ become available through ``python_context``:
    :hidden:
 
    how_it_works
+   simulator_packages
 
 .. toctree::
    :caption: About

@@ -1,0 +1,59 @@
+.. _python_bridge:simulator_packages:
+
+Simulator packages
+------------------
+
+A simulator can be provided by a VUnit package, whose ``vunit_pkg.toml`` names
+its simulator interface class. The bridge does not list such simulators.
+Instead, the interface class says how the bridge is served, with two
+attributes the bridge reads from the selected simulator class:
+
+``foreign_language_interface``
+  How the simulator calls the bridge library: ``"VHPIDIRECT"``, ``"FLI"`` or
+  ``"VHPI"``.
+
+  * ``"VHPIDIRECT"``: the foreign attributes are
+    ``VHPIDIRECT <library file name> <entry point>``, with the file name
+    only, so the simulator has to load the library itself, from the flags or
+    the environment the hooks below give it.
+  * ``"FLI"``: the attributes of the FLI variant of the library, built against
+    the ``mti.h`` of the simulator installation, as for Questa/ModelSim.
+  * ``"VHPI"``: the attributes of the VHPI variant, built against the
+    ``vhpi_user.h`` of the simulator installation, as for Riviera-PRO.
+
+``native_library_hooks(library_file)``
+  A static or class method returning how the simulator loads the given
+  library: a ``dict`` of keyword arguments for
+  ``context.register_simulator_hooks``, that is any of ``elab_flags``,
+  ``run_flags``, ``process_flags`` and ``run_env``, each a function as
+  described under "Simulator Hooks" in the VUnit documentation of packages.
+  The bridge registers them for the simulator, with its own ``run_env`` on top
+  of the one returned, which adds ``VUNIT_PYTHON_BRIDGE_CONFIG`` to the
+  environment. The simulator interface must therefore apply the run
+  environment hooks to the simulation.
+
+For example, for a simulator that loads a library given with ``--load`` when
+it runs a test:
+
+.. code-block:: python
+
+   class MySimulatorInterface(SimulatorInterface):
+       name = "mysim"
+       foreign_language_interface = "VHPIDIRECT"
+
+       @staticmethod
+       def native_library_hooks(library_file):
+           return {"run_flags": lambda simulator_interface: [f"--load={library_file}"]}
+
+The attributes take precedence over what the bridge knows about the built-in
+VUnit simulators. A simulator having neither of them, and not being one of the
+built-in simulators the bridge serves, fails when the package is added, with
+an error naming the two attributes. So do an unknown interface name, only one
+of the two attributes, and hooks that are not a ``dict`` of the keys above.
+
+The bridge passes a VHDL string to Python as UTF-8 bytes, one character per
+byte, which is what NVC and GHDL make of a UTF-8 source file. A simulator that
+reads a source as one character per code point needs an option to read it as
+bytes (Latin-1) for non-ASCII string literals to reach Python unchanged.
+
+yavs is a simulator served this way, by its package ``vunit-yavs``.
