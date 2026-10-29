@@ -150,7 +150,7 @@ jobs:
 
     - name: '⚙️ Setup uv'
       if: matrix.python == 'uv'
-      uses: astral-sh/setup-uv@v10.3.0
+      uses: astral-sh/setup-uv@v10.3.2
 
     # The path of the Python goes to PY
     - name: '🐍 Install Python with ${{ matrix.python }}'
