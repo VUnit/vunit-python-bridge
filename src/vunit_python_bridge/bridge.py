@@ -33,7 +33,7 @@ CONFIG_FILE_NAME = "vunit_python_bridge.cfg"
 
 # The foreign language interface of each built-in VUnit simulator. VHPIDIRECT names the library
 # by file name and the simulator hooks make the simulator load it, which GHDL does in its own way.
-FOREIGN_LANGUAGE_INTERFACES = {
+BUILTIN_SIMULATORS = {
     "nvc": "VHPIDIRECT",
     "ghdl": "VHPIDIRECT_GHDL",
     "modelsim": "FLI",
@@ -92,7 +92,7 @@ def setup(
     :returns: The bridge. Its vhdl_files are to be added to the package library.
     """
     if interface is None and simulator_name is not None:
-        interface = FOREIGN_LANGUAGE_INTERFACES.get(simulator_name)
+        interface = BUILTIN_SIMULATORS.get(simulator_name)
         if interface is None:
             raise PythonBridgeError(
                 f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, "
@@ -152,8 +152,8 @@ def foreign_language_interface(simulator_class) -> str:
     interface = getattr(simulator_class, INTERFACE_ATTRIBUTE, None)
     hooks = getattr(simulator_class, HOOKS_ATTRIBUTE, None)
     if interface is None and hooks is None:
-        if name in FOREIGN_LANGUAGE_INTERFACES:
-            return FOREIGN_LANGUAGE_INTERFACES[name]
+        if name in BUILTIN_SIMULATORS:
+            return BUILTIN_SIMULATORS[name]
         raise PythonBridgeError(
             f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, or a simulator whose interface "
             f"class says how it loads a native library, which {name} does not. Its simulator interface class must "

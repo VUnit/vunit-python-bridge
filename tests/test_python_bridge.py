@@ -265,7 +265,7 @@ class TestForeignLanguageInterfaces(unittest.TestCase):
 
     def test_every_supported_simulator_has_its_interface(self):
         self.assertEqual(
-            bridge_setup.FOREIGN_LANGUAGE_INTERFACES,
+            bridge_setup.BUILTIN_SIMULATORS,
             {
                 "nvc": "VHPIDIRECT",
                 "ghdl": "VHPIDIRECT_GHDL",
@@ -346,7 +346,7 @@ class TestPackageSetup(unittest.TestCase):
             simulator.name,
             context.simulator_prefix,
             context.simulator_backend,
-            bridge_setup.FOREIGN_LANGUAGE_INTERFACES[simulator.name] if interface is None else interface,
+            bridge_setup.BUILTIN_SIMULATORS[simulator.name] if interface is None else interface,
         )
 
         for expected in fake_bridge.vhdl_files:
@@ -464,7 +464,7 @@ class TestSimulatorPackages(unittest.TestCase):
         self.assertEqual(hooks["run_env"](mock.Mock(), {})["PKGSIM"], "1")
 
     def test_the_built_in_simulators_are_served_by_the_table(self):
-        for name, interface in bridge_setup.FOREIGN_LANGUAGE_INTERFACES.items():
+        for name, interface in bridge_setup.BUILTIN_SIMULATORS.items():
             simulator = types.SimpleNamespace(name=name)
             self.assertEqual(bridge_setup.foreign_language_interface(simulator), interface)
 
