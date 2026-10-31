@@ -77,6 +77,10 @@ check(call_integer_vector("gain", arg(integer_vector'(1, 2))) = integer_vector'(
 | Questa/ModelSim | FLI | Tested manually on Linux; the Windows build is untested |
 | Riviera-PRO | VHPI | Tested manually on Linux and Windows |
 
+A simulator provided by a VUnit package says how it loads the bridge
+itself, by two attributes of its simulator interface class: see
+[Simulator packages](https://vunit-python-bridge.readthedocs.io/en/latest/simulator_packages.html).
+
 ## Requirements
 
 - VUnit 5.0.0.dev15 or later (`vunit_hdl` on PyPI), which pip installs with the package.

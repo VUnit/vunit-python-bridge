@@ -14,7 +14,8 @@ language interface implementing them for the selected simulator:
 
 the VUnit Python bridge, a small C library (native/*.c) embedding CPython in the simulator
 process, called through VHPIDIRECT (NVC, GHDL), the FLI (Questa/ModelSim) or VHPI
-(Riviera-PRO).
+(Riviera-PRO). A simulator provided by a VUnit package names its interface itself, see
+bridge.bridge_simulators.
 
 Modules:
 
@@ -40,20 +41,6 @@ from .file_base import set_relative_file_base as set_relative_file_base
 
 VHDL_PATH = Path(__file__).parent.resolve() / "hdl" / "src"
 
-# The foreign language interface implementing the package for a simulator. VUnit says which
-# simulator was selected, the package says how it is served: NVC and GHDL both go through
-# VHPIDIRECT but bind the library differently, Questa/ModelSim goes through the FLI and
-# Riviera-PRO through VHPI.
-FOREIGN_LANGUAGE_INTERFACES = {
-    "nvc": "VHPIDIRECT_NVC",
-    "ghdl": "VHPIDIRECT_GHDL",
-    "modelsim": "FLI",
-    "rivierapro": "VHPI",
-}
-
-# The simulators of the table, named as a user knows them
-SUPPORTED_SIMULATORS = "NVC, GHDL, Questa/ModelSim or Riviera-PRO"
-
 
 def setup(context):
     """
@@ -63,21 +50,18 @@ def setup(context):
     foreign language interface of the selected simulator.
     """
     # pylint: disable=import-outside-toplevel
-    from .bridge import setup as setup_bridge
+    from .bridge import bridge_simulators, select_simulator, setup as setup_bridge
     from . import simulator_hooks
 
     simulator_name = context.simulator_name
+    simulators = bridge_simulators(simulator_name)
     if simulator_name is None:
         raise RuntimeError(
-            f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS} but no simulator was found"
+            f"The vunit-python-bridge package requires {', '.join(simulators)} but no simulator was found"
         )
 
-    interface = FOREIGN_LANGUAGE_INTERFACES.get(simulator_name)
-    if interface is None:
-        raise RuntimeError(
-            f"The vunit-python-bridge package requires {SUPPORTED_SIMULATORS}, "
-            f"it has no foreign language interface for {simulator_name}"
-        )
+    # Before anything is built, so a simulator the bridge cannot serve fails first
+    interface = select_simulator(simulators, simulator_name).interface
 
     add_file_base_package(context)
 
@@ -87,8 +71,9 @@ def setup(context):
         simulator_name,
         context.simulator_prefix,
         context.simulator_backend,
+        interface,
     )
 
     context.add_source_files(context.library.name, list(bridge.vhdl_files))
 
-    simulator_hooks.register(context, bridge)
+    simulator_hooks.register(context, bridge, simulators)

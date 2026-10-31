@@ -21,7 +21,8 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from .bridge import GHDL_LINKING_BACKENDS, PythonBridge
+from .bridge import GHDL_LINKING_BACKENDS, HOOKS_ATTRIBUTE, BridgeSimulator, PythonBridge
+from .native_library import PythonBridgeError
 
 # The vsim flag keeping the runtime libraries Questa bundles out of the dynamic library
 # search path, and the help category listing every vsim flag.
@@ -31,32 +32,60 @@ VSIM_HELP_ARGUMENTS = ("-help", "all")
 # Read by native/config.c, keep in sync
 CONFIG_FILE_VARIABLE = "VUNIT_PYTHON_BRIDGE_CONFIG"
 
+# The keyword arguments of register_simulator_hooks of the VUnit package context
+HOOK_KINDS = ("elab_flags", "run_flags", "process_flags", "run_env")
 
-def register(context, bridge: PythonBridge) -> None:
+
+def register(context, bridge: PythonBridge, simulators: Dict[str, BridgeSimulator]) -> None:
     """
-    Register the hooks of every simulator the bridge serves with the package context.
+    Register the hooks of every built-in simulator with the package context. The hooks the selected
+    simulator interface gives by native_library_hooks replace the built-in ones.
     """
-    context.register_simulator_hooks("nvc", run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge))
-    context.register_simulator_hooks(
-        "ghdl",
-        elab_flags=_ghdl_elab_flags(bridge),
-        run_env=_ghdl_run_env(bridge),
-    )
-    context.register_simulator_hooks(
-        "modelsim", process_flags=_modelsim_process_flags(), run_env=_config_run_env(bridge)
-    )
+    hooks = {
+        "nvc": dict(run_flags=_nvc_run_flags(bridge), run_env=_config_run_env(bridge)),
+        "ghdl": dict(elab_flags=_ghdl_elab_flags(bridge), run_env=_ghdl_run_env(bridge)),
+        "modelsim": dict(process_flags=_modelsim_process_flags(), run_env=_config_run_env(bridge)),
+    }
+    selected = simulators.get(context.simulator_name)
+    if selected is not None and selected.native_library_hooks is not None:
+        hooks[context.simulator_name] = _package_hooks(context.simulator_name, selected.native_library_hooks, bridge)
+    for simulator_name, kinds in hooks.items():
+        context.register_simulator_hooks(simulator_name, **kinds)
     if context.simulator_name == "rivierapro":
         # Its interface has no run environment hook, but starts vsim with the environment of this
         # process, after the setup
         os.environ[CONFIG_FILE_VARIABLE] = str(bridge.config_file)
 
 
-def _config_run_env(bridge: PythonBridge):
+def _package_hooks(simulator_name: str, native_library_hooks, bridge: PythonBridge) -> Dict:
     """
-    Tell the bridge library where the configuration of the project is.
+    The hooks of a simulator interface loading the library, with the configuration added to its
+    run environment.
+    """
+    hooks = native_library_hooks(bridge.library_file)
+    if not isinstance(hooks, dict):
+        raise PythonBridgeError(
+            f"{HOOKS_ATTRIBUTE} of the {simulator_name} simulator interface returned {type(hooks).__name__}, "
+            f"it must return a dict with any of the keys {', '.join(HOOK_KINDS)}"
+        )
+    unknown = sorted(str(kind) for kind in hooks if kind not in HOOK_KINDS)
+    if unknown:
+        raise PythonBridgeError(
+            f"{HOOKS_ATTRIBUTE} of the {simulator_name} simulator interface returned the unknown keys "
+            f"{', '.join(unknown)}, the keys are {', '.join(HOOK_KINDS)}"
+        )
+    return dict(hooks, run_env=_config_run_env(bridge, hooks.get("run_env")))
+
+
+def _config_run_env(bridge: PythonBridge, simulator_run_env=None):
+    """
+    Tell the bridge library where the configuration of the project is, on top of the environment
+    a simulator_run_env hook gives.
     """
 
-    def hook(simulator_interface, env: Dict[str, str]) -> Dict[str, str]:  # pylint: disable=unused-argument
+    def hook(simulator_interface, env: Dict[str, str]) -> Dict[str, str]:
+        if simulator_run_env is not None:
+            env = simulator_run_env(simulator_interface, env)
         env = dict(env)
         env[CONFIG_FILE_VARIABLE] = str(bridge.config_file)
         return env
