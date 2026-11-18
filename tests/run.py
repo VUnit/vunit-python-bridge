@@ -82,6 +82,31 @@ def run_file_base_tests(args):
             raise RuntimeError(f"The tests of tests/file_base/run.py with the base directory set by the {name} failed")
 
 
+def run_integer_width_tests(args, simulator_name):
+    """
+    Run the tests of the width of integer, which is fixed by the VHDL standard of a run
+    and therefore a run of its own, with the same simulator and an output path of its own.
+    It runs with the standard of this run, and with VHDL-2019 for NVC, which gives it a
+    64-bit integer.
+    """
+    standards = [os.environ.get("VUNIT_VHDL_STANDARD", "2008")]
+    if simulator_name == "nvc" and "2019" not in standards:
+        standards.append("2019")
+    for standard in standards:
+        command = [
+            sys.executable,
+            str(ROOT / "integer_width" / "run.py"),
+            "-o",
+            str(Path(args.output_path) / "integer_width" / standard),
+            "-p",
+            str(args.num_threads),
+        ]
+        sys.stdout.flush()
+        env = dict(os.environ, VUNIT_VHDL_STANDARD=standard)
+        if subprocess.run(command, env=env, check=False).returncode != 0:
+            raise RuntimeError(f"The tests of tests/integer_width/run.py with VHDL-{standard} failed")
+
+
 def main():
     args = VUnitCLI().parse_args()
     # The expected failure must not make the run script fail
@@ -107,6 +132,7 @@ def main():
     def post_run(results):
         verify(results, [ELABORATION_ARRAY_TEST])
         run_file_base_tests(args)
+        run_integer_width_tests(args, vu.get_simulator_name())
 
     vu.main(post_run=post_run)
 

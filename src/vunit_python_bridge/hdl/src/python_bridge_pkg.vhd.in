@@ -16,76 +16,80 @@
 --
 -- Only scalars and constrained arrays cross the foreign interface since their
 -- ABI is identical for NVC and GHDL on all platforms and is translated to the
--- FLI parameter passing conventions by native/fli.c.
+-- FLI parameter passing conventions by native/fli.c. The integers are c_int32_t,
+-- which is the int32_t of the native library whatever the width of integer:
+-- integer is 64 bits for NVC with VHDL-2019.
 
 package python_bridge_pkg is
   constant chunk_length : positive := 1024;
   subtype string_chunk_t is string(1 to chunk_length);
-  subtype integer_chunk_t is integer_vector(0 to chunk_length - 1);
+  type c_int32_t is range -2147483647 - 1 to 2147483647;
+  type c_int32_vector_t is array (natural range <>) of c_int32_t;
+  subtype integer_chunk_t is c_int32_vector_t(0 to chunk_length - 1);
   subtype real_chunk_t is real_vector(0 to chunk_length - 1);
 
   -- Start the interpreter. Idempotent.
-  impure function vpy_setup return integer;
+  impure function vpy_setup return c_int32_t;
   attribute foreign of vpy_setup : function is "{foreign:vpy_setup}";
 
   -- Flush Python's streams and drop the last result and the staged values.
   -- The interpreter is not finalized: later operations keep working.
-  impure function vpy_cleanup return integer;
+  impure function vpy_cleanup return c_int32_t;
   attribute foreign of vpy_cleanup : function is "{foreign:vpy_cleanup}";
 
-  impure function vpy_buffer_clear return integer;
+  impure function vpy_buffer_clear return c_int32_t;
   attribute foreign of vpy_buffer_clear : function is "{foreign:vpy_buffer_clear}";
 
-  impure function vpy_buffer_append(chunk : string_chunk_t; length : integer) return integer;
+  impure function vpy_buffer_append(chunk : string_chunk_t; length : c_int32_t) return c_int32_t;
   attribute foreign of vpy_buffer_append : function is "{foreign:vpy_buffer_append}";
 
   -- Start an operation in the session named by the buffer ("default" is __main__).
-  impure function vpy_begin return integer;
+  impure function vpy_begin return c_int32_t;
   attribute foreign of vpy_begin : function is "{foreign:vpy_begin}";
 
   -- Execute the buffer as Python source (is_file = 0) or as a file name (is_file = 1).
-  impure function vpy_execute(is_file : integer) return integer;
+  impure function vpy_execute(is_file : c_int32_t) return c_int32_t;
   attribute foreign of vpy_execute : function is "{foreign:vpy_execute}";
 
   -- Evaluate the buffer as a Python expression and convert the value to the
   -- VHDL type given by kind. width is the length of a std_ulogic_vector,
   -- signed or unsigned result, -1 when it is not known.
-  impure function vpy_eval(kind, width : integer) return integer;
+  impure function vpy_eval(kind, width : c_int32_t) return c_int32_t;
   attribute foreign of vpy_eval : function is "{foreign:vpy_eval}";
 
-  impure function vpy_push_array(length, width, height, depth, bit_width, is_signed : integer) return integer;
+  impure function vpy_push_array(length, width, height, depth, bit_width, is_signed : c_int32_t) return c_int32_t;
   attribute foreign of vpy_push_array : function is "{foreign:vpy_push_array}";
 
-  impure function vpy_array_write(chunk : integer_chunk_t; length : integer) return integer;
+  impure function vpy_array_write(chunk : integer_chunk_t; length : c_int32_t) return c_int32_t;
   attribute foreign of vpy_array_write : function is "{foreign:vpy_array_write}";
 
   -- Stage the pushed array and return its id (>= 1), -1 on error. Python
   -- source code refers to the value as __vunit__.staged(<id>).
-  impure function vpy_stage return integer;
+  impure function vpy_stage return c_int32_t;
   attribute foreign of vpy_stage : function is "{foreign:vpy_stage}";
 
-  impure function vpy_result_integer return integer;
+  impure function vpy_result_integer return c_int32_t;
   attribute foreign of vpy_result_integer : function is "{foreign:vpy_result_integer}";
 
   impure function vpy_result_real return real;
   attribute foreign of vpy_result_real : function is "{foreign:vpy_result_real}";
 
-  impure function vpy_result_meta(idx : integer) return integer;
+  impure function vpy_result_meta(idx : c_int32_t) return c_int32_t;
   attribute foreign of vpy_result_meta : function is "{foreign:vpy_result_meta}";
 
-  impure function vpy_error_length return integer;
+  impure function vpy_error_length return c_int32_t;
   attribute foreign of vpy_error_length : function is "{foreign:vpy_error_length}";
 
-  procedure vpy_result_read_string(chunk : out string_chunk_t; offset, length : integer);
+  procedure vpy_result_read_string(chunk : out string_chunk_t; offset, length : c_int32_t);
   attribute foreign of vpy_result_read_string : procedure is "{foreign:vpy_result_read_string}";
 
-  procedure vpy_result_read_integers(chunk : out integer_chunk_t; offset, length : integer);
+  procedure vpy_result_read_integers(chunk : out integer_chunk_t; offset, length : c_int32_t);
   attribute foreign of vpy_result_read_integers : procedure is "{foreign:vpy_result_read_integers}";
 
-  procedure vpy_result_read_reals(chunk : out real_chunk_t; offset, length : integer);
+  procedure vpy_result_read_reals(chunk : out real_chunk_t; offset, length : c_int32_t);
   attribute foreign of vpy_result_read_reals : procedure is "{foreign:vpy_result_read_reals}";
 
-  procedure vpy_error_read(chunk : out string_chunk_t; offset, length : integer);
+  procedure vpy_error_read(chunk : out string_chunk_t; offset, length : c_int32_t);
   attribute foreign of vpy_error_read : procedure is "{foreign:vpy_error_read}";
 end package;
 

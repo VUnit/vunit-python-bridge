@@ -4,7 +4,10 @@ Types
 Type mapping
 ------------
 
-* ``integer`` ↔ ``int``. Results outside the VHDL integer range fail.
+* ``integer`` ↔ ``int``. Results outside the 32-bit range (-2**31 to
+  2**31 - 1) fail, also when ``integer`` is 64 bits as for NVC with VHDL-2019.
+  Arguments are not limited: the full range of a 64-bit ``integer`` reaches
+  Python.
 * ``real`` ↔ ``float``. Strict: an ``int`` result is not accepted.
 * ``string`` ↔ ``str``. UTF-8.
 * ``boolean`` ↔ ``bool``/``numpy.bool_`` (Python bridge only).

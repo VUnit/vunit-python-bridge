@@ -252,14 +252,14 @@ package body python_ffi_pkg is
   -- Transfers through the bridge
   -----------------------------------------------------------------------------
   impure function p_error_text return string is
-    constant len : natural := vpy_error_length;
+    constant len : natural := integer(vpy_error_length);
     variable result : string(1 to len);
     variable chunk : string_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_error_read(chunk, offset, n);
+      vpy_error_read(chunk, c_int32_t(offset), c_int32_t(n));
       result(offset + 1 to offset + n) := chunk(1 to n);
       offset := offset + n;
     end loop;
@@ -277,17 +277,24 @@ package body python_ffi_pkg is
     return false;
   end;
 
+  impure function p_succeeded(
+    status : c_int32_t; operation : string; logger : logger_t := python_logger
+  ) return boolean is
+  begin
+    return p_succeeded(integer(status), operation, logger);
+  end;
+
   impure function p_send(text : string) return integer is
     alias normalized : string(1 to text'length) is text;
     variable chunk : string_chunk_t;
     variable offset, n : natural := 0;
     variable status : integer;
   begin
-    status := vpy_buffer_clear;
+    status := integer(vpy_buffer_clear);
     while offset < text'length and status = 0 loop
       n := minimum(chunk_length, text'length - offset);
       chunk(1 to n) := normalized(offset + 1 to offset + n);
-      status := vpy_buffer_append(chunk, n);
+      status := integer(vpy_buffer_append(chunk, c_int32_t(n)));
       offset := offset + n;
     end loop;
     return status;
@@ -313,7 +320,7 @@ package body python_ffi_pkg is
   begin
     return p_begin(session, operation)
       and p_succeeded(p_send(text), operation, logger)
-      and p_succeeded(vpy_execute(is_file), operation, logger);
+      and p_succeeded(vpy_execute(c_int32_t(is_file)), operation, logger);
   end;
 
   impure function p_exec_file(
@@ -334,7 +341,7 @@ package body python_ffi_pkg is
   begin
     return p_begin(session, operation)
       and p_succeeded(p_send(expr), operation, logger)
-      and p_succeeded(vpy_eval(kind, width), operation, logger);
+      and p_succeeded(vpy_eval(c_int32_t(kind), c_int32_t(width)), operation, logger);
   end;
 
   -----------------------------------------------------------------------------
@@ -342,7 +349,12 @@ package body python_ffi_pkg is
   -----------------------------------------------------------------------------
   impure function p_result_integer return integer is
   begin
-    return vpy_result_integer;
+    return integer(vpy_result_integer);
+  end;
+
+  impure function p_result_meta(idx : natural) return integer is
+  begin
+    return integer(vpy_result_meta(c_int32_t(idx)));
   end;
 
   impure function p_result_real return real is
@@ -351,14 +363,14 @@ package body python_ffi_pkg is
   end;
 
   impure function p_result_string return string is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : string(1 to len);
     variable chunk : string_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_string(chunk, offset, n);
+      vpy_result_read_string(chunk, c_int32_t(offset), c_int32_t(n));
       result(offset + 1 to offset + n) := chunk(1 to n);
       offset := offset + n;
     end loop;
@@ -366,29 +378,31 @@ package body python_ffi_pkg is
   end;
 
   impure function p_result_integer_vector return integer_vector is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : integer_vector(0 to len - 1);
     variable chunk : integer_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_integers(chunk, offset, n);
-      result(offset to offset + n - 1) := chunk(0 to n - 1);
+      vpy_result_read_integers(chunk, c_int32_t(offset), c_int32_t(n));
+      for idx in 0 to n - 1 loop
+        result(offset + idx) := integer(chunk(idx));
+      end loop;
       offset := offset + n;
     end loop;
     return result;
   end;
 
   impure function p_result_real_vector return real_vector is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : real_vector(0 to len - 1);
     variable chunk : real_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_reals(chunk, offset, n);
+      vpy_result_read_reals(chunk, c_int32_t(offset), c_int32_t(n));
       result(offset to offset + n - 1) := chunk(0 to n - 1);
       offset := offset + n;
     end loop;
@@ -396,22 +410,22 @@ package body python_ffi_pkg is
   end;
 
   impure function p_result_integer_array return integer_array_t is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : integer_array_t := new_3d(
-      width => vpy_result_meta(1),
-      height => vpy_result_meta(2),
-      depth => vpy_result_meta(3),
-      bit_width => vpy_result_meta(4),
-      is_signed => vpy_result_meta(5) /= 0
+      width => p_result_meta(1),
+      height => p_result_meta(2),
+      depth => p_result_meta(3),
+      bit_width => p_result_meta(4),
+      is_signed => p_result_meta(5) /= 0
     );
     variable chunk : integer_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_integers(chunk, offset, n);
+      vpy_result_read_integers(chunk, c_int32_t(offset), c_int32_t(n));
       for idx in 0 to n - 1 loop
-        set(result, offset + idx, chunk(idx));
+        set(result, offset + idx, integer(chunk(idx)));
       end loop;
       offset := offset + n;
     end loop;
@@ -436,7 +450,10 @@ package body python_ffi_pkg is
       return -1;
     end if;
     if not p_succeeded(
-      vpy_push_array(len, width(arr), height(arr), depth(arr), bit_width(arr), boolean'pos(is_signed(arr))),
+      vpy_push_array(
+        c_int32_t(len), c_int32_t(width(arr)), c_int32_t(height(arr)), c_int32_t(depth(arr)),
+        c_int32_t(bit_width(arr)), c_int32_t(boolean'pos(is_signed(arr)))
+      ),
       operation
     ) then
       return -1;
@@ -445,15 +462,15 @@ package body python_ffi_pkg is
     while offset < len loop
       n := minimum(chunk_length, len - offset);
       for idx in 0 to n - 1 loop
-        chunk(idx) := get(arr, offset + idx);
+        chunk(idx) := c_int32_t(get(arr, offset + idx));
       end loop;
-      if not p_succeeded(vpy_array_write(chunk, n), operation) then
+      if not p_succeeded(vpy_array_write(chunk, c_int32_t(n)), operation) then
         return -1;
       end if;
       offset := offset + n;
     end loop;
 
-    staged_id := vpy_stage;
+    staged_id := integer(vpy_stage);
     if staged_id < 1 then
       failure(python_logger, operation & " failed:" & LF & p_error_text);
       return -1;
@@ -485,7 +502,7 @@ package body python_ffi_pkg is
   impure function eval_integer(expr : string; session : python_session_t := default_session) return integer is
   begin
     if p_eval(expr, p_kind_integer, -1, p_eval_operation(expr, session), session) then
-      return vpy_result_integer;
+      return p_result_integer;
     end if;
     return integer'low;
   end;
