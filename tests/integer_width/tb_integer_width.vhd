@@ -129,6 +129,8 @@ begin
         reset_log_count(session_logger, failure);
 
       elsif run("Test boolean results") then
+        -- A boolean result is read as an integer, which takes the high half
+        -- from the metadata with a 64-bit integer
         check(eval_boolean("True"));
         check(not eval_boolean("False"));
 
