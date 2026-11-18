@@ -486,6 +486,22 @@ package body python_ffi_pkg is
       );
       return -1;
     end if;
+    -- The elements cross as 32 bits, which a 64-bit integer, and so an
+    -- integer_array_t with a bit_width of 32, can exceed
+    if p_integer_width = 64 then
+      for idx in 0 to len - 1 loop
+        if get(arr, idx) < integer(c_int32_t'low) or get(arr, idx) > integer(c_int32_t'high) then
+          failure(
+            python_logger,
+            operation & " failed:" & LF &
+            "Element " & integer'image(idx) & " (" & integer'image(get(arr, idx)) & ") of the integer_array_t " &
+            "does not fit in 32 bits (" & integer'image(integer(c_int32_t'low)) & " to " &
+            integer'image(integer(c_int32_t'high)) & ")."
+          );
+          return -1;
+        end if;
+      end loop;
+    end if;
     if not p_succeeded(
       vpy_push_array(
         c_int32_t(len), c_int32_t(width(arr)), c_int32_t(height(arr)), c_int32_t(depth(arr)),

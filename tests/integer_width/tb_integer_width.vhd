@@ -75,6 +75,26 @@ begin
           check_equal(get(result, idx), get(arr, idx));
         end loop;
 
+      elsif run("Test that an integer_array_t element outside 32 bits fails") then
+        -- The elements cross as 32 bits. The failures are counted rather than
+        -- mocked since VHDL-2019 gives a log entry the location of its call
+        -- path, which check_log compares.
+        disable_stop(python_logger, failure, unset_children => true);
+        exec("import numpy");
+        result := eval_integer_array("numpy.array([2**40])");
+        check_equal(get_log_count(session_logger, failure), 1, "failures of a result");
+        if integer'high > int32_high then
+          -- An integer_array_t with a bit_width of 32 holds a 64-bit integer
+          two_32 := 2**16;
+          two_32 := two_32 * two_32;
+          arr := new_1d(length => 3);
+          set(arr, 2, two_32 * 256);
+          exec("def same(a): return a");
+          result := call_integer_array("same", arg(arr));
+          check_equal(get_log_count(python_logger, failure), 1, "failures of an argument");
+        end if;
+        reset_log_count(python_logger, failure);
+
       elsif run("Test integer_vector_ptr_t results") then
         ptr := eval_integer_vector_ptr("[-1, -2**31, 2**31 - 1]");
         check_equal(length(ptr), 3);

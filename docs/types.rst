@@ -39,7 +39,10 @@ Two kinds of integers are 32 bits whatever the width of ``integer``:
 * An ``integer`` value of a ``dict_t``, since VUnit stores it in 32 bits. A
   larger result is an error, while ``set_integer`` truncates a larger argument
   value before the bridge sees it.
-* An element of an ``integer_array_t``, whose ``bit_width`` is at most 32, see
+* An element of an ``integer_array_t``, since the bridge transfers it as 32
+  bits. With a 64-bit ``integer``, VUnit lets an ``integer_array_t`` with a
+  ``bit_width`` of 32 hold a larger value, and such an argument is an error. A
+  larger result does not fit the word size, which is an error too, see
   :ref:`python_bridge:integer_array`.
 
 .. _python_bridge:dict:
@@ -91,7 +94,8 @@ integer_array_t and NumPy
 
 An ``integer_array_t`` argument is transferred to Python and referred to by
 the expression as a NumPy array of dtype ``int32``, so it can be reused in
-several calls. Since it is transferred when the argument is made, the
+several calls. An element that does not fit in 32 bits, which a 64-bit
+``integer`` allows, is reported as a failure. Since it is transferred when the argument is made, the
 argument must be made after ``test_runner_setup``, not during elaboration, for
 example in a constant. Otherwise ``arg`` and ``kwarg`` report a failure, see
 `#17 <https://github.com/VUnit/vunit-python-bridge/issues/17>`__. It is
