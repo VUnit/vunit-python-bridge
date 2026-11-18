@@ -15,6 +15,7 @@ import importlib.util
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
@@ -171,6 +172,66 @@ class TestManifest(unittest.TestCase):
     def test_the_simulator_dependent_vhdl_is_not_listed(self):
         includes = [item for source in self.package["sources"] for item in source["include"]]
         self.assertNotIn("hdl/src/python_ffi_pkg_bridge.vhd", includes)
+
+
+class TestIntegerWidth(unittest.TestCase):
+    """
+    The integer results with the width of VHDL integer: 32 bits, or 64 bits as for NVC with
+    VHDL-2019, when a value crosses the 32-bit foreign interface as two halves.
+    """
+
+    def setUp(self):
+        from vunit_python_bridge import runtime  # pylint: disable=import-outside-toplevel
+
+        self.runtime = runtime
+        # The conversions do not need the session state that __init__ sets up
+        self.converter = runtime.Runtime.__new__(runtime.Runtime)
+
+    def convert(self, kind, value, width):
+        self.converter._result = value  # pylint: disable=protected-access
+        self.converter._array_meta = {}  # pylint: disable=protected-access
+        return self.converter.convert_result(kind, width)
+
+    @staticmethod
+    def from_halves(low, high):
+        return high * 2**32 + (low & 0xFFFFFFFF)
+
+    def test_halves_are_signed_int32_and_give_the_value_back(self):
+        for value in (0, 1, -1, 2**31 - 1, -(2**31), 2**31, 2**32 + 5, -(2**40) - 1, 2**63 - 1, -(2**63)):
+            low, high = self.runtime.Runtime._integer_halves(value)  # pylint: disable=protected-access
+            self.assertTrue(-(2**31) <= low < 2**31 and -(2**31) <= high < 2**31, value)
+            self.assertEqual(self.from_halves(low, high), value)
+
+    def test_a_32_bit_integer_result_is_unchanged(self):
+        for width in (-1, 32):
+            self.assertEqual(self.convert(self.runtime.KIND_INTEGER, -5, width), (-5, 0.0, b"", ()))
+
+    def test_a_64_bit_integer_result_has_the_high_half_as_metadata(self):
+        integer, _, _, meta = self.convert(self.runtime.KIND_INTEGER, -(2**40) - 1, 64)
+        self.assertEqual(self.from_halves(integer, meta[0]), -(2**40) - 1)
+
+    def test_the_range_follows_the_width(self):
+        with self.assertRaisesRegex(OverflowError, r"\(-2147483648 to 2147483647\)"):
+            self.convert(self.runtime.KIND_INTEGER, 2**31, 32)
+        self.convert(self.runtime.KIND_INTEGER, 2**63 - 1, 64)
+        with self.assertRaisesRegex(OverflowError, r"\(-9223372036854775808 to 9223372036854775807\)"):
+            self.convert(self.runtime.KIND_INTEGER, 2**63, 64)
+
+    def test_a_64_bit_integer_vector_is_pairs_of_halves(self):
+        values = [2**63 - 1, -1, -(2**63)]
+        _, _, data, meta = self.convert(self.runtime.KIND_INTEGER_VECTOR, values, 64)
+        halves = struct.unpack(f"={2 * len(values)}i", data)
+        self.assertEqual(meta, (3,))
+        self.assertEqual([self.from_halves(*halves[i : i + 2]) for i in range(0, len(halves), 2)], values)
+
+    def test_a_dict_integer_is_32_bits_with_a_64_bit_integer(self):
+        self.convert(self.runtime.KIND_DICT, {"a": [2**40]}, 64)
+        with self.assertRaisesRegex(OverflowError, "which VUnit stores in 32 bits"):
+            self.convert(self.runtime.KIND_DICT, {"a": 2**40}, 64)
+
+    def test_an_unknown_width_is_an_internal_error(self):
+        with self.assertRaisesRegex(RuntimeError, "Internal error"):
+            self.convert(self.runtime.KIND_INTEGER, 1, 16)
 
 
 class TestObjectCreation(unittest.TestCase):

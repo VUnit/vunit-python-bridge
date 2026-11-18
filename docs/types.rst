@@ -4,10 +4,7 @@ Types
 Type mapping
 ------------
 
-* ``integer`` ↔ ``int``. Results outside the 32-bit range (-2**31 to
-  2**31 - 1) fail, also when ``integer`` is 64 bits as for NVC with VHDL-2019.
-  Arguments are not limited: the full range of a 64-bit ``integer`` reaches
-  Python.
+* ``integer`` ↔ ``int``, see :ref:`python_bridge:integer_range`.
 * ``real`` ↔ ``float``. Strict: an ``int`` result is not accepted.
 * ``string`` ↔ ``str``. UTF-8.
 * ``boolean`` ↔ ``bool``/``numpy.bool_`` (Python bridge only).
@@ -25,6 +22,25 @@ Type mapping
 Results are strict: a value that does not fit the VHDL type, or is of the
 wrong Python type, is an error. Values are never silently truncated or
 wrapped.
+
+.. _python_bridge:integer_range:
+
+Range of integer
+----------------
+
+``integer`` has the range of the simulator: ``-2**31`` to ``2**31 - 1``, or
+``-2**63`` to ``2**63 - 1`` when it is 64 bits, as for NVC with VHDL-2019. The
+arguments and results of type ``integer``, ``integer_vector`` and
+``integer_vector_ptr_t`` have that range, and so do the elements of a list in a
+``dict_t``. A result outside it is an error.
+
+Two kinds of integers are 32 bits whatever the width of ``integer``:
+
+* An ``integer`` value of a ``dict_t``, since VUnit stores it in 32 bits. A
+  larger result is an error, while ``set_integer`` truncates a larger argument
+  value before the bridge sees it.
+* An element of an ``integer_array_t``, whose ``bit_width`` is at most 32, see
+  :ref:`python_bridge:integer_array`.
 
 .. _python_bridge:dict:
 
@@ -58,7 +74,8 @@ deallocates. The values are converted strictly: ``int`` to ``integer``,
 stored with ``set_integer_vector_ptr_t_ref``, ``set_integer_array_t_ref`` and
 ``set_dict_t_ref``. The bit width and signedness of an ``integer_array_t``
 follow the dtype of the array like for ``eval_integer_array``, see
-:ref:`python_bridge:integer_array`. ``None``, an ``int`` outside the VHDL integer range, a key
+:ref:`python_bridge:integer_array`. ``None``, an ``int`` outside its range (see
+:ref:`python_bridge:integer_range`), a key
 that is not a ``str`` or any other value is an error, and ``eval_dict`` then
 returns an empty ``dict_t`` after reporting it.
 

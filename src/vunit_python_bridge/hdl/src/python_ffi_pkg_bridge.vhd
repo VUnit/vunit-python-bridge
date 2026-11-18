@@ -277,6 +277,33 @@ package body python_ffi_pkg is
     return false;
   end;
 
+  -- The width of integer: 64 bits for NVC with VHDL-2019, else 32 bits. The
+  -- foreign interface is 32 bits, so a 64-bit integer result crosses it as two
+  -- halves, see _integer_halves in runtime.py.
+  constant p_integer_width : positive := 32 + 32 * boolean'pos(integer'high > 2147483647);
+
+  -- A 64-bit integer from its halves, low taken as unsigned. Only called with a
+  -- 64-bit integer since 2**32 does not fit in a 32-bit one.
+  function p_from_halves(low, high : c_int32_t) return integer is
+    variable half_range : integer := 2**16;
+  begin
+    half_range := half_range * half_range;
+    if low < 0 then
+      return integer(high) * half_range + (integer(low) + half_range);
+    end if;
+    return integer(high) * half_range + integer(low);
+  end;
+
+  -- The width vpy_eval takes: the width of integer for an integer, integer_vector
+  -- or dict_t result, else the width of the result
+  function p_result_width(kind, width : integer) return integer is
+  begin
+    if kind = p_kind_integer or kind = p_kind_integer_vector or kind = p_kind_dict then
+      return p_integer_width;
+    end if;
+    return width;
+  end;
+
   impure function p_succeeded(
     status : c_int32_t; operation : string; logger : logger_t := python_logger
   ) return boolean is
@@ -341,14 +368,18 @@ package body python_ffi_pkg is
   begin
     return p_begin(session, operation)
       and p_succeeded(p_send(expr), operation, logger)
-      and p_succeeded(vpy_eval(c_int32_t(kind), c_int32_t(width)), operation, logger);
+      and p_succeeded(vpy_eval(c_int32_t(kind), c_int32_t(p_result_width(kind, width))), operation, logger);
   end;
 
   -----------------------------------------------------------------------------
   -- Results
   -----------------------------------------------------------------------------
+  -- With a 64-bit integer, the high half is the first metadata value
   impure function p_result_integer return integer is
   begin
+    if p_integer_width = 64 then
+      return p_from_halves(vpy_result_integer, vpy_result_meta(0));
+    end if;
     return integer(vpy_result_integer);
   end;
 
@@ -377,17 +408,23 @@ package body python_ffi_pkg is
     return result;
   end;
 
+  -- With a 64-bit integer, an element is its low and high halves
   impure function p_result_integer_vector return integer_vector is
     constant len : natural := p_result_meta(0);
+    constant halves : positive := p_integer_width / 32;
     variable result : integer_vector(0 to len - 1);
     variable chunk : integer_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
-      n := minimum(chunk_length, len - offset);
-      vpy_result_read_integers(chunk, c_int32_t(offset), c_int32_t(n));
+      n := minimum(chunk_length / halves, len - offset);
+      vpy_result_read_integers(chunk, c_int32_t(offset * halves), c_int32_t(n * halves));
       for idx in 0 to n - 1 loop
-        result(offset + idx) := integer(chunk(idx));
+        if halves = 2 then
+          result(offset + idx) := p_from_halves(chunk(2 * idx), chunk(2 * idx + 1));
+        else
+          result(offset + idx) := integer(chunk(idx));
+        end if;
       end loop;
       offset := offset + n;
     end loop;
