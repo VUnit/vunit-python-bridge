@@ -88,6 +88,10 @@ def run_integer_width_tests(args, simulator_name):
     and therefore a run of its own, with the same simulator and an output path of its own.
     It runs with the standard of this run, and with VHDL-2019 for the simulators known to
     have a 64-bit integer with it.
+
+    It cannot be a testbench of this run with a VHDL standard of its own: VUnit rejects
+    mixed standards for NVC, and the bridge packages and VUnit must be compiled with the
+    standard too, since it decides the width of integer.
     """
     standards = [os.environ.get("VUNIT_VHDL_STANDARD", "2008")]
     if simulator_name == "nvc" and "2019" not in standards:
