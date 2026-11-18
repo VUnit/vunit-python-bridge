@@ -86,8 +86,8 @@ def run_integer_width_tests(args, simulator_name):
     """
     Run the tests of the width of integer, which is fixed by the VHDL standard of a run
     and therefore a run of its own, with the same simulator and an output path of its own.
-    It runs with the standard of this run, and with VHDL-2019 for NVC, which gives it a
-    64-bit integer.
+    It runs with the standard of this run, and with VHDL-2019 for the simulators known to
+    have a 64-bit integer with it.
     """
     standards = [os.environ.get("VUNIT_VHDL_STANDARD", "2008")]
     if simulator_name == "nvc" and "2019" not in standards:

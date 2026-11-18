@@ -176,7 +176,7 @@ class TestManifest(unittest.TestCase):
 
 class TestIntegerWidth(unittest.TestCase):
     """
-    The integer results with the width of VHDL integer: 32 bits, or 64 bits as for NVC with
+    The integer results with the width of VHDL integer: 32 bits, or 64 bits as with
     VHDL-2019, when a value crosses the 32-bit foreign interface as two halves.
     """
 

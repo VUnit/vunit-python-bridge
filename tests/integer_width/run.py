@@ -8,7 +8,7 @@
 Run script of the tests of the width of integer, see #43. The testbench checks
 that the integer transfers work whatever the width of integer. It is a run of
 its own since the standard is fixed for a run: VUNIT_VHDL_STANDARD selects it,
-2019 gives NVC a 64-bit integer.
+2019 gives a 64-bit integer with some simulators.
 """
 
 from pathlib import Path

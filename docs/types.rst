@@ -29,7 +29,7 @@ Range of integer
 ----------------
 
 ``integer`` has the range of the simulator: ``-2**31`` to ``2**31 - 1``, or
-``-2**63`` to ``2**63 - 1`` when it is 64 bits, as for NVC with VHDL-2019. The
+``-2**63`` to ``2**63 - 1`` when it is 64 bits, as with VHDL-2019. The
 arguments and results of type ``integer``, ``integer_vector`` and
 ``integer_vector_ptr_t`` have that range, and so do the elements of a list in a
 ``dict_t``. A result outside it is an error.

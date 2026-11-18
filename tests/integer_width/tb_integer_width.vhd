@@ -5,7 +5,7 @@
 -- Copyright (c) 2014-2026, Lars Asplund lars.anders.asplund@gmail.com
 --
 -- The transfers of integers with the width of integer, which is 64 bits for
--- NVC with VHDL-2019, see #43. The tests pass with either width.
+-- some simulators with VHDL-2019, see #43. The tests pass with either width.
 
 library vunit_lib;
 context vunit_lib.vunit_context;

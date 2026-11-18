@@ -59,7 +59,7 @@ VHDL_TYPE_NAMES = {
 STD_ULOGIC_VALUES = frozenset("UX01ZWLH-")
 INTEGER_LOW = -(2**31)
 INTEGER_HIGH = 2**31 - 1
-# The width of VHDL integer: 32 bits, or 64 bits as for NVC with VHDL-2019. VHDL
+# The width of VHDL integer: 32 bits, or 64 bits as with VHDL-2019. VHDL
 # gives it as the width of an integer, integer_vector or dict_t result, -1 meaning
 # 32. A 64-bit integer crosses the foreign interface as two int32 halves, see
 # _integer_halves.

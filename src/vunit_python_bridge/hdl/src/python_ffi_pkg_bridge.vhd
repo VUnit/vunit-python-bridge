@@ -277,7 +277,7 @@ package body python_ffi_pkg is
     return false;
   end;
 
-  -- The width of integer: 64 bits for NVC with VHDL-2019, else 32 bits. The
+  -- The width of integer: 32 bits, or 64 bits as with VHDL-2019. The
   -- foreign interface is 32 bits, so a 64-bit integer result crosses it as two
   -- halves, see _integer_halves in runtime.py.
   constant p_integer_width : positive := 32 + 32 * boolean'pos(integer'high > 2147483647);

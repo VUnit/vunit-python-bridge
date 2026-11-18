@@ -18,7 +18,7 @@
 -- ABI is identical for NVC and GHDL on all platforms and is translated to the
 -- FLI parameter passing conventions by native/fli.c. The integers are c_int32_t,
 -- which is the int32_t of the native library whatever the width of integer:
--- integer is 64 bits for NVC with VHDL-2019, and its results then cross as two
+-- integer can be 64 bits with VHDL-2019, and its results then cross as two
 -- halves, see python_ffi_pkg.
 
 package python_bridge_pkg is
