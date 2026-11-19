@@ -118,6 +118,7 @@ def setup(
     front_end = "fli" if is_fli else "vhpi" if is_vhpi else None
     library_file = _prepare_library(Path(simulator_prefix) if front_end else None, front_end)
     run_script_dir = str(Path.cwd() if run_script_path is None else Path(run_script_path).resolve().parent)
+    _make_pythonpath_absolute()
     # The configuration belongs to the project, the library may be shared. The simulator
     # hooks tell the library where the configuration is.
     config_file = root / CONFIG_FILE_NAME
@@ -206,6 +207,18 @@ def _check_attributes(name: str, interface, hooks) -> None:
             f"{HOOKS_ATTRIBUTE} of the {name} simulator interface is not callable, it must be a static or "
             "class method taking the library file"
         )
+
+
+def _make_pythonpath_absolute() -> None:
+    """
+    Resolve relative PYTHONPATH entries against the current directory, as python does. VUnit
+    starts vsim (Questa/ModelSim, Riviera-PRO) in the test output directory, where they would
+    resolve differently.
+    """
+    # Not covered: a relative PYTHONPATH set after add_package, which needs the cwd in the config
+    value = os.environ.get("PYTHONPATH")
+    if value:
+        os.environ["PYTHONPATH"] = os.pathsep.join(os.path.abspath(entry) for entry in value.split(os.pathsep))
 
 
 def _prepare_library(simulator_prefix: Optional[Path], front_end: Optional[str]) -> Path:

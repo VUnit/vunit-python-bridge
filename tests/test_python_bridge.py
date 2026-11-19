@@ -1223,6 +1223,25 @@ def _config_keys(text):
     return dict(line.split("=", 1) for line in text.splitlines())
 
 
+class TestPythonPath(unittest.TestCase):
+    """
+    _make_pythonpath_absolute: vsim runs in the test output directory, not in the current one
+    """
+
+    def test_relative_entries_resolved_against_current_directory(self):
+        value = os.pathsep.join(["models", "", os.path.abspath("/abs")])
+        with mock.patch.dict(os.environ, {"PYTHONPATH": value}):
+            bridge_setup._make_pythonpath_absolute()  # pylint: disable=protected-access
+            entries = os.environ["PYTHONPATH"].split(os.pathsep)
+        self.assertEqual(entries, [os.path.abspath("models"), os.getcwd(), os.path.abspath("/abs")])
+
+    def test_unset_stays_unset(self):
+        with mock.patch.dict(os.environ):
+            os.environ.pop("PYTHONPATH", None)
+            bridge_setup._make_pythonpath_absolute()  # pylint: disable=protected-access
+            self.assertNotIn("PYTHONPATH", os.environ)
+
+
 class TestConfigFile(unittest.TestCase):
     """
     _config_text / _write_if_changed
