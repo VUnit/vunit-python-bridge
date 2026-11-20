@@ -66,7 +66,10 @@ run script does. Without any setup it finds:
 
 Python code anywhere else is found once its directory is on ``PYTHONPATH``,
 set in the run script before ``vu.main()``: the simulations inherit the
-environment of VUnit (see the recipes below). A verification component used by
+environment of VUnit (see the recipes below). Relative entries of a
+``PYTHONPATH`` set before ``add_package`` are made absolute against the current
+directory, since some simulators run in the test output directory; set later
+ones as absolute paths. A verification component used by
 many testbenches can so keep its model in a directory of its own and name its
 class, for example ``"my_vc_model.Model"`` for a :ref:`Python object
 <python_bridge:objects>`. Installing the model as a package, for example with
