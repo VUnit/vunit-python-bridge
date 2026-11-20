@@ -252,14 +252,14 @@ package body python_ffi_pkg is
   -- Transfers through the bridge
   -----------------------------------------------------------------------------
   impure function p_error_text return string is
-    constant len : natural := vpy_error_length;
+    constant len : natural := integer(vpy_error_length);
     variable result : string(1 to len);
     variable chunk : string_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_error_read(chunk, offset, n);
+      vpy_error_read(chunk, c_int32_t(offset), c_int32_t(n));
       result(offset + 1 to offset + n) := chunk(1 to n);
       offset := offset + n;
     end loop;
@@ -277,17 +277,51 @@ package body python_ffi_pkg is
     return false;
   end;
 
+  -- The width of integer: 32 bits, or 64 bits as with VHDL-2019. The
+  -- foreign interface is 32 bits, so a 64-bit integer result crosses it as two
+  -- halves, see _integer_halves in runtime.py.
+  constant p_integer_width : positive := 32 + 32 * boolean'pos(integer'high > 2147483647);
+
+  -- A 64-bit integer from its halves, low taken as unsigned. Only called with a
+  -- 64-bit integer since 2**32 does not fit in a 32-bit one.
+  function p_from_halves(low, high : c_int32_t) return integer is
+    variable half_range : integer := 2**16;
+  begin
+    half_range := half_range * half_range;
+    if low < 0 then
+      return integer(high) * half_range + (integer(low) + half_range);
+    end if;
+    return integer(high) * half_range + integer(low);
+  end;
+
+  -- The width vpy_eval takes: the width of integer for an integer, integer_vector
+  -- or dict_t result, else the width of the result
+  function p_result_width(kind, width : integer) return integer is
+  begin
+    if kind = p_kind_integer or kind = p_kind_integer_vector or kind = p_kind_dict then
+      return p_integer_width;
+    end if;
+    return width;
+  end;
+
+  impure function p_succeeded(
+    status : c_int32_t; operation : string; logger : logger_t := python_logger
+  ) return boolean is
+  begin
+    return p_succeeded(integer(status), operation, logger);
+  end;
+
   impure function p_send(text : string) return integer is
     alias normalized : string(1 to text'length) is text;
     variable chunk : string_chunk_t;
     variable offset, n : natural := 0;
     variable status : integer;
   begin
-    status := vpy_buffer_clear;
+    status := integer(vpy_buffer_clear);
     while offset < text'length and status = 0 loop
       n := minimum(chunk_length, text'length - offset);
       chunk(1 to n) := normalized(offset + 1 to offset + n);
-      status := vpy_buffer_append(chunk, n);
+      status := integer(vpy_buffer_append(chunk, c_int32_t(n)));
       offset := offset + n;
     end loop;
     return status;
@@ -313,7 +347,7 @@ package body python_ffi_pkg is
   begin
     return p_begin(session, operation)
       and p_succeeded(p_send(text), operation, logger)
-      and p_succeeded(vpy_execute(is_file), operation, logger);
+      and p_succeeded(vpy_execute(c_int32_t(is_file)), operation, logger);
   end;
 
   impure function p_exec_file(
@@ -334,15 +368,24 @@ package body python_ffi_pkg is
   begin
     return p_begin(session, operation)
       and p_succeeded(p_send(expr), operation, logger)
-      and p_succeeded(vpy_eval(kind, width), operation, logger);
+      and p_succeeded(vpy_eval(c_int32_t(kind), c_int32_t(p_result_width(kind, width))), operation, logger);
   end;
 
   -----------------------------------------------------------------------------
   -- Results
   -----------------------------------------------------------------------------
+  -- With a 64-bit integer, the high half is the first metadata value
   impure function p_result_integer return integer is
   begin
-    return vpy_result_integer;
+    if p_integer_width = 64 then
+      return p_from_halves(vpy_result_integer, vpy_result_meta(0));
+    end if;
+    return integer(vpy_result_integer);
+  end;
+
+  impure function p_result_meta(idx : natural) return integer is
+  begin
+    return integer(vpy_result_meta(c_int32_t(idx)));
   end;
 
   impure function p_result_real return real is
@@ -351,44 +394,52 @@ package body python_ffi_pkg is
   end;
 
   impure function p_result_string return string is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : string(1 to len);
     variable chunk : string_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_string(chunk, offset, n);
+      vpy_result_read_string(chunk, c_int32_t(offset), c_int32_t(n));
       result(offset + 1 to offset + n) := chunk(1 to n);
       offset := offset + n;
     end loop;
     return result;
   end;
 
+  -- With a 64-bit integer, an element is its low and high halves
   impure function p_result_integer_vector return integer_vector is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
+    constant halves : positive := p_integer_width / 32;
     variable result : integer_vector(0 to len - 1);
     variable chunk : integer_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
-      n := minimum(chunk_length, len - offset);
-      vpy_result_read_integers(chunk, offset, n);
-      result(offset to offset + n - 1) := chunk(0 to n - 1);
+      n := minimum(chunk_length / halves, len - offset);
+      vpy_result_read_integers(chunk, c_int32_t(offset * halves), c_int32_t(n * halves));
+      for idx in 0 to n - 1 loop
+        if halves = 2 then
+          result(offset + idx) := p_from_halves(chunk(2 * idx), chunk(2 * idx + 1));
+        else
+          result(offset + idx) := integer(chunk(idx));
+        end if;
+      end loop;
       offset := offset + n;
     end loop;
     return result;
   end;
 
   impure function p_result_real_vector return real_vector is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : real_vector(0 to len - 1);
     variable chunk : real_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_reals(chunk, offset, n);
+      vpy_result_read_reals(chunk, c_int32_t(offset), c_int32_t(n));
       result(offset to offset + n - 1) := chunk(0 to n - 1);
       offset := offset + n;
     end loop;
@@ -396,22 +447,22 @@ package body python_ffi_pkg is
   end;
 
   impure function p_result_integer_array return integer_array_t is
-    constant len : natural := vpy_result_meta(0);
+    constant len : natural := p_result_meta(0);
     variable result : integer_array_t := new_3d(
-      width => vpy_result_meta(1),
-      height => vpy_result_meta(2),
-      depth => vpy_result_meta(3),
-      bit_width => vpy_result_meta(4),
-      is_signed => vpy_result_meta(5) /= 0
+      width => p_result_meta(1),
+      height => p_result_meta(2),
+      depth => p_result_meta(3),
+      bit_width => p_result_meta(4),
+      is_signed => p_result_meta(5) /= 0
     );
     variable chunk : integer_chunk_t;
     variable offset, n : natural := 0;
   begin
     while offset < len loop
       n := minimum(chunk_length, len - offset);
-      vpy_result_read_integers(chunk, offset, n);
+      vpy_result_read_integers(chunk, c_int32_t(offset), c_int32_t(n));
       for idx in 0 to n - 1 loop
-        set(result, offset + idx, chunk(idx));
+        set(result, offset + idx, integer(chunk(idx)));
       end loop;
       offset := offset + n;
     end loop;
@@ -435,8 +486,27 @@ package body python_ffi_pkg is
       );
       return -1;
     end if;
+    -- The elements cross as 32 bits, which a 64-bit integer, and so an
+    -- integer_array_t with a bit_width of 32, can exceed
+    if p_integer_width = 64 then
+      for idx in 0 to len - 1 loop
+        if get(arr, idx) < integer(c_int32_t'low) or get(arr, idx) > integer(c_int32_t'high) then
+          failure(
+            python_logger,
+            operation & " failed:" & LF &
+            "Element " & integer'image(idx) & " (" & integer'image(get(arr, idx)) & ") of the integer_array_t " &
+            "does not fit in 32 bits (" & integer'image(integer(c_int32_t'low)) & " to " &
+            integer'image(integer(c_int32_t'high)) & ")."
+          );
+          return -1;
+        end if;
+      end loop;
+    end if;
     if not p_succeeded(
-      vpy_push_array(len, width(arr), height(arr), depth(arr), bit_width(arr), boolean'pos(is_signed(arr))),
+      vpy_push_array(
+        c_int32_t(len), c_int32_t(width(arr)), c_int32_t(height(arr)), c_int32_t(depth(arr)),
+        c_int32_t(bit_width(arr)), c_int32_t(boolean'pos(is_signed(arr)))
+      ),
       operation
     ) then
       return -1;
@@ -445,15 +515,15 @@ package body python_ffi_pkg is
     while offset < len loop
       n := minimum(chunk_length, len - offset);
       for idx in 0 to n - 1 loop
-        chunk(idx) := get(arr, offset + idx);
+        chunk(idx) := c_int32_t(get(arr, offset + idx));
       end loop;
-      if not p_succeeded(vpy_array_write(chunk, n), operation) then
+      if not p_succeeded(vpy_array_write(chunk, c_int32_t(n)), operation) then
         return -1;
       end if;
       offset := offset + n;
     end loop;
 
-    staged_id := vpy_stage;
+    staged_id := integer(vpy_stage);
     if staged_id < 1 then
       failure(python_logger, operation & " failed:" & LF & p_error_text);
       return -1;
@@ -485,7 +555,7 @@ package body python_ffi_pkg is
   impure function eval_integer(expr : string; session : python_session_t := default_session) return integer is
   begin
     if p_eval(expr, p_kind_integer, -1, p_eval_operation(expr, session), session) then
-      return vpy_result_integer;
+      return p_result_integer;
     end if;
     return integer'low;
   end;

@@ -73,8 +73,8 @@ begin
     ---------------------------------------------------------------------
       if run("Test eval of integer expression") then
         check_equal(eval("17"), 17);
-        check_equal(eval("2**31 - 1"), integer'high);
-        check_equal(eval("-2**31"), integer'low);
+        check_equal(eval(integer'image(integer'high)), integer'high);
+        check_equal(eval(integer'image(integer'low)), integer'low);
 
       elsif run("Test eval of integer with overflow from Python to C") then
         mock(default_logger, failure);

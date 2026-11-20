@@ -4,7 +4,7 @@ Types
 Type mapping
 ------------
 
-* ``integer`` ↔ ``int``. Results outside the VHDL integer range fail.
+* ``integer`` ↔ ``int``, see :ref:`python_bridge:integer_range`.
 * ``real`` ↔ ``float``. Strict: an ``int`` result is not accepted.
 * ``string`` ↔ ``str``. UTF-8.
 * ``boolean`` ↔ ``bool``/``numpy.bool_`` (Python bridge only).
@@ -22,6 +22,28 @@ Type mapping
 Results are strict: a value that does not fit the VHDL type, or is of the
 wrong Python type, is an error. Values are never silently truncated or
 wrapped.
+
+.. _python_bridge:integer_range:
+
+Range of integer
+----------------
+
+``integer`` has the range of the simulator: ``-2**31`` to ``2**31 - 1``, or
+``-2**63`` to ``2**63 - 1`` when it is 64 bits, as with VHDL-2019. The
+arguments and results of type ``integer``, ``integer_vector`` and
+``integer_vector_ptr_t`` have that range, and so do the elements of a list in a
+``dict_t``. A result outside it is an error.
+
+Two kinds of integers are 32 bits whatever the width of ``integer``:
+
+* An ``integer`` value of a ``dict_t``, since VUnit stores it in 32 bits. A
+  larger result is an error, while ``set_integer`` truncates a larger argument
+  value before the bridge sees it.
+* An element of an ``integer_array_t``, since the bridge transfers it as 32
+  bits. With a 64-bit ``integer``, VUnit lets an ``integer_array_t`` with a
+  ``bit_width`` of 32 hold a larger value, and such an argument is an error. A
+  larger result does not fit the word size, which is an error too, see
+  :ref:`python_bridge:integer_array`.
 
 .. _python_bridge:dict:
 
@@ -46,6 +68,15 @@ visited in the order of ``get_key``, which VUnit does not specify.
     set_real(cfg, "gain", 0.5);
     call("model.configure", arg(cfg));
 
+.. warning::
+
+   VUnit stores an ``integer`` value of a ``dict_t`` in 32 bits. With a 64-bit
+   ``integer``, as with VHDL-2019, ``set_integer`` keeps only the low 32 bits
+   of a value outside ``-2**31`` to ``2**31 - 1``, so Python receives a
+   different number with only a simulator warning. The bridge cannot detect
+   this, since the value is truncated before it is read. Store such a value in
+   an ``integer_vector_ptr_t``, which has the full range.
+
 ``eval_dict`` and ``call_dict`` (aliased ``eval`` and ``call``) convert a
 Python ``dict`` with ``str`` keys to a new ``dict_t`` that the caller owns and
 deallocates. The values are converted strictly: ``int`` to ``integer``,
@@ -55,7 +86,8 @@ deallocates. The values are converted strictly: ``int`` to ``integer``,
 stored with ``set_integer_vector_ptr_t_ref``, ``set_integer_array_t_ref`` and
 ``set_dict_t_ref``. The bit width and signedness of an ``integer_array_t``
 follow the dtype of the array like for ``eval_integer_array``, see
-:ref:`python_bridge:integer_array`. ``None``, an ``int`` outside the VHDL integer range, a key
+:ref:`python_bridge:integer_array`. ``None``, an ``int`` outside its range (see
+:ref:`python_bridge:integer_range`), a key
 that is not a ``str`` or any other value is an error, and ``eval_dict`` then
 returns an empty ``dict_t`` after reporting it.
 
@@ -71,7 +103,8 @@ integer_array_t and NumPy
 
 An ``integer_array_t`` argument is transferred to Python and referred to by
 the expression as a NumPy array of dtype ``int32``, so it can be reused in
-several calls. Since it is transferred when the argument is made, the
+several calls. An element that does not fit in 32 bits, which a 64-bit
+``integer`` allows, is reported as a failure. Since it is transferred when the argument is made, the
 argument must be made after ``test_runner_setup``, not during elaboration, for
 example in a constant. Otherwise ``arg`` and ``kwarg`` report a failure, see
 `#17 <https://github.com/VUnit/vunit-python-bridge/issues/17>`__. It is

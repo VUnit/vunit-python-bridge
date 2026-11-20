@@ -59,6 +59,11 @@ VHDL_TYPE_NAMES = {
 STD_ULOGIC_VALUES = frozenset("UX01ZWLH-")
 INTEGER_LOW = -(2**31)
 INTEGER_HIGH = 2**31 - 1
+# The width of VHDL integer: 32 bits, or 64 bits as with VHDL-2019. VHDL
+# gives it as the width of an integer, integer_vector or dict_t result, -1 meaning
+# 32. A 64-bit integer crosses the foreign interface as two int32 halves, see
+# _integer_halves.
+INTEGER_WIDTHS = (32, 64)
 TEXT_ENCODING = "utf-8"
 TEXT_ERRORS = "surrogateescape"
 
@@ -583,23 +588,67 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         if kind == KIND_INTEGER_ARRAY:
             return self._array_result(value, array_meta)
         if kind == KIND_DICT:
-            return self._dict_result(value, array_meta)
+            return self._dict_result(value, array_meta, width)
         if kind not in VHDL_TYPE_NAMES:
             raise RuntimeError(f"Internal error: unknown result kind {kind}")
         converter = "bits" if kind in (KIND_SIGNED, KIND_UNSIGNED) else VHDL_TYPE_NAMES[kind]
         return getattr(self, f"_{converter}_result")(kind, value, width)
 
     @staticmethod
-    def _integer_result(kind, value, _width):
+    def _integer_width(width):
         """
-        Convert an int result.
+        The width of VHDL integer given by VHDL, see INTEGER_WIDTHS.
+        """
+        if width == -1:
+            return 32
+        if width not in INTEGER_WIDTHS:
+            raise RuntimeError(f"Internal error: unsupported width of VHDL integer {width}")
+        return width
+
+    @staticmethod
+    def _integer_range(width):
+        """
+        The range of VHDL integer of a width.
+        """
+        if width == 64:
+            return -(2**63), 2**63 - 1
+        return INTEGER_LOW, INTEGER_HIGH
+
+    @staticmethod
+    def _integer_halves(value):
+        """
+        The low and high int32 halves of a 64-bit integer, low as a signed int32.
+        VHDL computes the value as high * 2**32 + low, low taken as unsigned.
+        """
+        low = value & 0xFFFFFFFF
+        return low - (1 << 32) if low & 0x80000000 else low, value >> 32
+
+    def _integer_result(self, kind, value, width):
+        """
+        Convert an int result. With a 64-bit integer, the high half is the first
+        metadata value.
         """
         if not _is_integer(value):
             raise _type_error(kind, value, "int")
+        width = self._integer_width(width)
+        low, high = self._integer_range(width)
         value = int(value)
-        if not INTEGER_LOW <= value <= INTEGER_HIGH:
-            raise OverflowError(f"{value} is outside the range of VHDL integer ({INTEGER_LOW} to {INTEGER_HIGH})")
+        if not low <= value <= high:
+            raise OverflowError(f"{value} is outside the range of VHDL integer ({low} to {high})")
+        if width == 64:
+            value, high_half = self._integer_halves(value)
+            return (value, 0.0, b"", (high_half,))
         return (value, 0.0, b"", ())
+
+    def _integer_vector_data(self, integers, width):
+        """
+        integer_vector data: native int32, or with a 64-bit integer the low and
+        high int32 halves of each element.
+        """
+        if width == 64:
+            halves = [half for value in integers for half in self._integer_halves(value)]
+            return struct.pack(f"={len(halves)}i", *halves)
+        return struct.pack(f"={len(integers)}i", *integers)
 
     @staticmethod
     def _real_result(kind, value, _width):
@@ -688,11 +737,13 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
             raise _type_error(kind, value, "a list or tuple")
         return value
 
-    def _integer_vector_result(self, kind, value, _width):
+    def _integer_vector_result(self, kind, value, width):
         """
-        Convert a list/tuple of int to integer_vector data (native int32).
+        Convert a list/tuple of int to integer_vector data, see _integer_vector_data.
         """
         values = self._sequence(kind, value)
+        width = self._integer_width(width)
+        integer_low, integer_high = self._integer_range(width)
         integers = []
         for index, element in enumerate(values):
             if not _is_integer(element):
@@ -701,14 +752,13 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
                     f"a {_type_name(element)} ({element!r:.100}), to a VHDL integer; expected int"
                 )
             element = int(element)
-            if not INTEGER_LOW <= element <= INTEGER_HIGH:
+            if not integer_low <= element <= integer_high:
                 raise OverflowError(
                     f"Element {index} ({element}) is outside the range of VHDL integer "
-                    f"({INTEGER_LOW} to {INTEGER_HIGH})"
+                    f"({integer_low} to {integer_high})"
                 )
             integers.append(element)
-        data = struct.pack(f"={len(integers)}i", *integers)
-        return (0, 0.0, data, (len(integers),))
+        return (0, 0.0, self._integer_vector_data(integers, width), (len(integers),))
 
     def _real_vector_result(self, kind, value, _width):
         """
@@ -729,15 +779,15 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         data = struct.pack(f"={len(reals)}d", *reals)
         return (0, 0.0, data, (len(reals),))
 
-    def _dict_result(self, value, array_meta):
+    def _dict_result(self, value, array_meta, width):
         """
         Convert a dict and keep its entries for VHDL to fetch, see dict_kinds.
-        The result is the handle of the dict.
+        The result is the handle of the dict. width is the width of VHDL integer.
         """
         self._dicts = []
-        return (self._convert_dict(value, array_meta), 0.0, b"", ())
+        return (self._convert_dict(value, array_meta, self._integer_width(width)), 0.0, b"", ())
 
-    def _convert_dict(self, value, array_meta):
+    def _convert_dict(self, value, array_meta, width):
         """
         Convert the entries of a dict, and of its nested dicts, and return its handle.
         """
@@ -747,18 +797,28 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         for key, item in value.items():
             if not isinstance(key, str):
                 raise TypeError(f"Cannot convert the dict key {key!r:.100}, a {_type_name(key)}; expected str")
-            entries.append((key,) + self._dict_value(key, item, array_meta))
+            entries.append((key,) + self._dict_value(key, item, array_meta, width))
         self._dicts.append(entries)
         return len(self._dicts) - 1
 
-    def _dict_value(self, key, item, array_meta):
+    def _dict_value(self, key, item, array_meta, width):
         """
         The result kind and the converted value of a dict entry.
         """
         if _is_bool(item):
             return KIND_BOOLEAN, (int(bool(item)), 0.0, b"", ())
         if _is_integer(item):
-            return KIND_INTEGER, (self._dict_integer(key, item), 0.0, b"", ())
+            value = self._dict_integer(key, item, width)
+            if not INTEGER_LOW <= value <= INTEGER_HIGH:
+                # set_integer encodes the value in 32 bits whatever the width of integer
+                raise OverflowError(
+                    f"{value} of dict key {key!r:.100} is outside the range of a dict_t integer, which VUnit "
+                    f"stores in 32 bits ({INTEGER_LOW} to {INTEGER_HIGH})"
+                )
+            if width == 64:
+                low, high = self._integer_halves(value)
+                return KIND_INTEGER, (low, 0.0, b"", (high,))
+            return KIND_INTEGER, (value, 0.0, b"", ())
         if _is_float(item):
             if not math.isfinite(item):
                 raise ValueError(f"{item} of dict key {key!r:.100} cannot be represented as VHDL real")
@@ -766,27 +826,26 @@ class Runtime:  # pylint: disable=too-many-instance-attributes
         if isinstance(item, str):
             return KIND_STRING, self._string_result(KIND_STRING, item, -1)
         if isinstance(item, dict):
-            return KIND_DICT, (self._convert_dict(item, array_meta), 0.0, b"", ())
+            return KIND_DICT, (self._convert_dict(item, array_meta, width), 0.0, b"", ())
         if isinstance(item, numpy.ndarray):
             try:
                 return KIND_INTEGER_ARRAY, self._array_result(item, array_meta)
             except (TypeError, ValueError, OverflowError) as error:
                 raise type(error)(f"dict key {key!r:.100}: {error}") from None
         if isinstance(item, list) and all(_is_integer(element) for element in item):
-            integers = [self._dict_integer(key, element) for element in item]
-            return KIND_INTEGER_VECTOR, (0, 0.0, struct.pack(f"={len(integers)}i", *integers), (len(integers),))
+            integers = [self._dict_integer(key, element, width) for element in item]
+            return KIND_INTEGER_VECTOR, (0, 0.0, self._integer_vector_data(integers, width), (len(integers),))
         raise TypeError(
             f"Cannot convert the value of dict key {key!r:.100}, a {_type_name(item)} ({item!r:.100}); "
             "expected int, float, str, bool, a list of int, a NumPy array of integers or a dict"
         )
 
-    @staticmethod
-    def _dict_integer(key, value):
+    def _dict_integer(self, key, value, width):
+        low, high = self._integer_range(width)
         value = int(value)
-        if not INTEGER_LOW <= value <= INTEGER_HIGH:
+        if not low <= value <= high:
             raise OverflowError(
-                f"{value} of dict key {key!r:.100} is outside the range of VHDL integer "
-                f"({INTEGER_LOW} to {INTEGER_HIGH})"
+                f"{value} of dict key {key!r:.100} is outside the range of VHDL integer ({low} to {high})"
             )
         return value
 
