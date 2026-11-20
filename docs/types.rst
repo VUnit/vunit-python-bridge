@@ -71,11 +71,11 @@ visited in the order of ``get_key``, which VUnit does not specify.
 .. warning::
 
    VUnit stores an ``integer`` value of a ``dict_t`` in 32 bits. With a 64-bit
-   ``integer``, as with VHDL-2019, ``set_integer`` silently keeps only the low
-   32 bits of a value outside ``-2**31`` to ``2**31 - 1``, so Python receives a
-   different number with only a simulator warning. The bridge cannot detect this, since the
-   value is truncated before it is read. Store such a value in an
-   ``integer_vector_ptr_t``, which has the full range.
+   ``integer``, as with VHDL-2019, ``set_integer`` keeps only the low 32 bits
+   of a value outside ``-2**31`` to ``2**31 - 1``, so Python receives a
+   different number with only a simulator warning. The bridge cannot detect
+   this, since the value is truncated before it is read. Store such a value in
+   an ``integer_vector_ptr_t``, which has the full range.
 
 ``eval_dict`` and ``call_dict`` (aliased ``eval`` and ``call``) convert a
 Python ``dict`` with ``str`` keys to a new ``dict_t`` that the caller owns and
